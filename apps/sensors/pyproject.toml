@@ -9,27 +9,17 @@ description = "Acquisition des données capteurs de Dos d'âne (Raspberry Pi)"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "Groupe Dos d'âne (Master UHA 4.0)" }]
-# Aucune dépendance obligatoire : le paquet reste léger sur Raspberry Pi.
-# Chaque capteur matériel déclare ses dépendances dans un extra.
+# Aucune dépendance : le paquet reste léger sur Raspberry Pi.
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.6"]
+dev = ["ruff>=0.6"]
 
 [project.scripts]
-dosdane-sensors = "dosdane_sensors.cli:main"
-
-# Capteurs fournis avec le paquet. Un paquet externe peut déclarer ses propres
-# capteurs dans ce même groupe : ils sont détectés sans modifier ce code.
-[project.entry-points."dosdane_sensors.sensors"]
-fake = "dosdane_sensors.sensors.fake:FakeSensor"
+dosdane-sensors = "dosdane_sensors.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = "-ra"
 
 [tool.ruff]
 line-length = 100

@@ -1,3 +1,3 @@
-from dosdane_sensors.cli import main
+from dosdane_sensors.main import main
 
 raise SystemExit(main())

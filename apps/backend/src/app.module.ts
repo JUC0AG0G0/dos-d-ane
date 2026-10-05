@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { validateEnv } from './config/env.validation.js';
 import { HealthController } from './health/health.controller.js';
-import { MeasurementsModule } from './measurements/measurements.module.js';
 
 @Module({
   imports: [
@@ -13,7 +12,6 @@ import { MeasurementsModule } from './measurements/measurements.module.js';
       envFilePath: ['.env'],
       validate: validateEnv,
     }),
-    MeasurementsModule,
   ],
   controllers: [HealthController],
 })

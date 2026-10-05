@@ -17,7 +17,6 @@ Pour ajouter une dépendance native, utiliser `npx expo install <paquet>` afin d
 | Commande | Rôle |
 | --- | --- |
 | `npm start` | serveur Metro / Expo |
-| `npm test` | tests (Jest + jest-expo + Testing Library) |
 | `npm run lint` | lint (oxlint) |
 | `npm run typecheck` | vérification TypeScript |
 

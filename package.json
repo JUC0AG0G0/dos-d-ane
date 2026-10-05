@@ -1,0 +1,11 @@
+{
+  "name": "dos-d-ane",
+  "private": true,
+  "description": "Outillage commun du monorepo (hooks Git). Chaque app a son propre package.json dans apps/.",
+  "scripts": {
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7"
+  }
+}

@@ -8,6 +8,7 @@
 
 ## Vérifications
 
-- [ ] Tests ajoutés ou mis à jour
+- [ ] `mise run check` passe en local
 - [ ] Nouvelles variables d'environnement ajoutées aux `.env*.example` et à `docs/deploiement.md`
+- [ ] Nouvelles routes documentées dans Swagger
 - [ ] Pas de donnée personnelle ni de donnée brute de capteur envoyée au serveur (RGPD)

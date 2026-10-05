@@ -1,13 +1,13 @@
 # Backend (NestJS)
 
-API REST de Dos d'âne : reçoit les mesures des capteurs et les expose au web, au mobile et à la vue administrateur.
+API REST de Dos d'âne. Pour l'instant : une route `GET /api/health` et la documentation Swagger.
 
 ## Démarrer en local (sans Docker)
 
 ```bash
 cp .env.example .env      # puis adapter les valeurs
 npm install
-npm run start:dev         # http://localhost:3000/api/health
+npm run start:dev         # http://localhost:3000/api/docs
 ```
 
 ## Scripts
@@ -15,22 +15,17 @@ npm run start:dev         # http://localhost:3000/api/health
 | Commande | Rôle |
 | --- | --- |
 | `npm run start:dev` | serveur avec rechargement automatique |
-| `npm test` | tests unitaires (Vitest) |
-| `npm run test:e2e` | tests de bout en bout de l'API (Supertest) |
 | `npm run lint` | lint (oxlint) |
-| `npm run format:check` | vérification du formatage (Prettier) |
+| `npm run format` / `format:check` | formatage (Prettier) |
 | `npm run build` | compilation dans `dist/` |
 
-## Endpoints
+## Swagger
 
-| Méthode | Route | Description |
-| --- | --- | --- |
-| GET | `/api/health` | état de l'API, environnement et version |
-| POST | `/api/measurements` | envoi d'une mesure par un capteur (en-tête `X-Sensor-Key`) |
-| GET | `/api/measurements?limit=&sensorType=` | dernières mesures (à protéger par une authentification admin) |
+- Interface : http://localhost:3000/api/docs
+- Schéma OpenAPI : http://localhost:3000/api/docs-json
 
-Le format d'une mesure est décrit dans `src/measurements/measurement.dto.ts` et dans `docs/architecture.md`.
+Actif hors production ; en production, seulement si `SWAGGER_ENABLED=true`.
 
 ## Configuration
 
-Toutes les variables sont validées au démarrage (`src/config/env.validation.ts`) : l'API refuse de démarrer si l'une d'elles manque ou est invalide.
+Les variables sont vérifiées au démarrage (`src/config/env.validation.ts`) : l'API refuse de démarrer si l'une d'elles est invalide.

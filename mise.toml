@@ -1,0 +1,98 @@
+# Outils et tâches du projet, gérés par mise (https://mise.jdx.dev).
+#   mise install          # installe Node et Python aux bonnes versions
+#   mise run setup        # installe les dépendances de toutes les apps
+#   mise run check        # lint + compilation de tout (lancé par Husky avant push)
+#   mise tasks            # liste toutes les tâches
+
+[tools]
+node = "24"
+python = "3.11"
+
+# --- Installation ---------------------------------------------------------
+
+[tasks.setup]
+description = "Installe les dépendances de toutes les apps et active les hooks Git"
+depends = ["setup:*"]
+run = "npm install --no-audit --no-fund"
+
+[tasks."setup:backend"]
+dir = "apps/backend"
+run = "npm ci --no-audit --no-fund"
+
+[tasks."setup:web"]
+dir = "apps/web"
+run = "npm ci --no-audit --no-fund"
+
+[tasks."setup:mobile"]
+dir = "apps/mobile"
+run = "npm ci --no-audit --no-fund"
+
+[tasks."setup:sensors"]
+dir = "apps/sensors"
+run = "python -m venv .venv && .venv/bin/pip install -q -e '.[dev]'"
+
+# --- Lint -----------------------------------------------------------------
+
+[tasks.lint]
+description = "Lint de toutes les apps (lancé par Husky avant chaque commit)"
+depends = ["lint:*"]
+
+[tasks."lint:backend"]
+dir = "apps/backend"
+run = ["npm run lint", "npm run format:check"]
+
+[tasks."lint:web"]
+dir = "apps/web"
+run = "npm run lint"
+
+[tasks."lint:mobile"]
+dir = "apps/mobile"
+run = "npm run lint"
+
+[tasks."lint:sensors"]
+dir = "apps/sensors"
+run = [".venv/bin/ruff check .", ".venv/bin/ruff format --check ."]
+
+# --- Compilation (seul « test » pour l'instant) ---------------------------
+
+[tasks.build]
+description = "Vérifie que toutes les apps compilent"
+depends = ["build:*"]
+
+[tasks."build:backend"]
+dir = "apps/backend"
+run = "npm run build"
+
+[tasks."build:web"]
+dir = "apps/web"
+run = "npm run build"
+
+[tasks."build:mobile"]
+dir = "apps/mobile"
+run = "npm run typecheck"
+
+[tasks."build:sensors"]
+dir = "apps/sensors"
+run = ".venv/bin/python -m compileall -q src"
+
+[tasks.check]
+description = "Lint + compilation de tout (lancé par Husky avant chaque push)"
+depends = ["lint", "build"]
+
+# --- Docker ---------------------------------------------------------------
+
+[tasks.dev]
+description = "Stack de dev avec rechargement à chaud (backend :3000, web :5173, db :5432)"
+run = "docker compose --env-file .env.development -f compose.yaml -f compose.dev.yaml up"
+
+[tasks.up]
+description = "Stack avec les images publiées : APP=staging mise run up"
+run = "docker compose --env-file .env.${APP:-staging} pull && docker compose --env-file .env.${APP:-staging} up -d"
+
+[tasks.down]
+description = "Arrête la stack : APP=staging mise run down (les données sont conservées)"
+run = "docker compose --env-file .env.${APP:-development} down"
+
+[tasks.logs]
+description = "Logs de la stack : APP=staging mise run logs"
+run = "docker compose --env-file .env.${APP:-development} logs -f"

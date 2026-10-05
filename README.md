@@ -10,7 +10,7 @@ Système d'aide à la posture pour le travail sédentaire, réalisé en POC dans
 
 | Dossier | Rôle | Technologie |
 | --- | --- | --- |
-| [`apps/backend`](apps/backend) | API | NestJS (TypeScript) |
+| [`apps/backend`](apps/backend) | API (Swagger sur `/api/docs`) | NestJS (TypeScript) |
 | [`apps/web`](apps/web) | site web | React + Vite |
 | [`apps/mobile`](apps/mobile) | application mobile | React Native + Expo |
 | [`apps/sensors`](apps/sensors) | acquisition des capteurs sur Raspberry Pi | Python (sans Docker) |
@@ -18,20 +18,20 @@ Système d'aide à la posture pour le travail sédentaire, réalisé en POC dans
 
 ## Démarrage rapide
 
-Prérequis : Docker avec le plugin compose, Node 24, Python 3.11+.
+Prérequis : [mise](https://mise.jdx.dev/getting-started.html) et Docker avec le plugin compose. mise installe Node et Python aux bonnes versions.
 
 ```bash
+mise trust && mise install     # Node 24 et Python 3.11
+mise run setup                 # dépendances de toutes les apps + hooks Git (Husky)
 cp .env.development.example .env.development
-make dev        # API http://localhost:3000/api/health, web http://localhost:5173
-make test       # tous les tests, hors Docker
+mise run dev                   # API http://localhost:3000/api/docs, web http://localhost:5173
 ```
 
-Pour lancer la stack comme en production : `make up ENV=staging` (voir [docs/deploiement.md](docs/deploiement.md)).
+`mise tasks` liste toutes les commandes. Les hooks Git vérifient automatiquement le lint avant chaque commit (`mise run lint`) et le lint + la compilation avant chaque push (`mise run check`).
 
 ## Documentation
 
 - [Architecture](docs/architecture.md)
-- [Déploiement et environnements](docs/deploiement.md)
+- [Déploiement, environnements et secrets](docs/deploiement.md)
 - [Maintenance](docs/maintenance.md)
-- [Ajouter un capteur](docs/capteurs.md)
 - [Contribuer](docs/contribuer.md)

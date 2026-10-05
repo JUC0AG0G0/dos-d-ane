@@ -1,67 +1,27 @@
-import 'reflect-metadata';
-import { plainToInstance, Type } from 'class-transformer';
-import {
-  IsEnum,
-  IsInt,
-  IsOptional,
-  IsString,
-  Max,
-  Min,
-  MinLength,
-  validateSync,
-} from 'class-validator';
-
-export enum AppEnv {
-  Development = 'development',
-  Test = 'test',
-  Staging = 'staging',
-  Production = 'production',
-}
+export const APP_ENVS = ['development', 'staging', 'production'] as const;
 
 /**
- * Variables d'environnement attendues par le backend.
- * L'application refuse de démarrer si une valeur est absente ou invalide,
- * ce qui évite de découvrir une mauvaise configuration en production.
+ * Vérifie les variables d'environnement au démarrage : l'API refuse de
+ * démarrer si une valeur est absente ou invalide.
+ * Ajouter ici chaque nouvelle variable (et dans les fichiers .env*.example).
  */
-export class EnvironmentVariables {
-  @IsEnum(AppEnv)
-  APP_ENV: AppEnv = AppEnv.Development;
-
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(65535)
-  PORT: number = 3000;
-
-  /** Origines autorisées pour le CORS, séparées par des virgules. */
-  @IsString()
-  CORS_ORIGINS: string = 'http://localhost:5173';
-
-  /** Clé partagée avec les modules capteurs (en-tête X-Sensor-Key). */
-  @IsString()
-  @MinLength(16)
-  SENSOR_API_KEY: string;
-
-  @IsOptional()
-  @IsString()
-  DATABASE_URL?: string;
-}
-
 export function validateEnv(
   config: Record<string, unknown>,
-): EnvironmentVariables {
-  const validated = plainToInstance(EnvironmentVariables, config, {
-    enableImplicitConversion: true,
-  });
-  const errors = validateSync(validated, { skipMissingProperties: false });
-  if (errors.length > 0) {
-    const details = errors
-      .map(
-        (e) =>
-          `${e.property}: ${Object.values(e.constraints ?? {}).join(', ')}`,
-      )
-      .join('; ');
-    throw new Error(`Configuration invalide : ${details}`);
+): Record<string, unknown> {
+  const errors: string[] = [];
+
+  const appEnv = config.APP_ENV ?? 'development';
+  if (!APP_ENVS.includes(appEnv as (typeof APP_ENVS)[number])) {
+    errors.push(`APP_ENV doit valoir ${APP_ENVS.join(', ')}`);
   }
-  return validated;
+
+  const port = Number(config.PORT ?? 3000);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    errors.push('PORT doit être un entier entre 1 et 65535');
+  }
+
+  if (errors.length > 0) {
+    throw new Error(`Configuration invalide : ${errors.join('; ')}`);
+  }
+  return { ...config, APP_ENV: appEnv, PORT: port };
 }

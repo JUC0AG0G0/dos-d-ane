@@ -1,7 +1,7 @@
 # Stack serveur de Dos d'âne : API, site web et base de données.
 # Toutes les valeurs viennent du fichier d'environnement choisi :
 #   docker compose --env-file .env.staging up -d
-# (voir docs/deploiement.md, ou `make up ENV=staging`).
+# (voir docs/deploiement.md, ou `APP=staging mise run up`).
 name: dos-d-ane-${APP_ENV:?APP_ENV manquant}
 
 services:
@@ -14,7 +14,7 @@ services:
       APP_ENV: ${APP_ENV}
       PORT: 3000
       CORS_ORIGINS: ${CORS_ORIGINS:-}
-      SENSOR_API_KEY: ${SENSOR_API_KEY:?SENSOR_API_KEY manquant}
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
       DATABASE_URL: postgresql://${POSTGRES_USER:-dosdane}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant}@db:5432/${POSTGRES_DB:-dosdane}
     depends_on:
       db:

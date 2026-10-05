@@ -87,7 +87,6 @@ jobs:
       - name: Générer le fichier d'environnement
         if: steps.check.outputs.enabled == 'true'
         env:
-          SENSOR_API_KEY: ${{ secrets.SENSOR_API_KEY }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
         run: |
           umask 077
@@ -95,7 +94,7 @@ jobs:
           APP_ENV=$APP_ENV
           WEB_PORT=${{ vars.WEB_PORT || '80' }}
           CORS_ORIGINS=${{ vars.CORS_ORIGINS }}
-          SENSOR_API_KEY=$SENSOR_API_KEY
+          SWAGGER_ENABLED=${{ vars.SWAGGER_ENABLED || 'false' }}
           POSTGRES_USER=${{ vars.POSTGRES_USER || 'dosdane' }}
           POSTGRES_PASSWORD=$POSTGRES_PASSWORD
           POSTGRES_DB=${{ vars.POSTGRES_DB || 'dosdane' }}
