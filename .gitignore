@@ -1,0 +1,248 @@
+# =========================
+# OS / Editors
+# =========================
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+*.sublime-workspace
+*.sublime-project
+
+# =========================
+# Environment / Secrets
+# =========================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.keystore
+!debug.keystore
+secrets/
+credentials.json
+service-account*.json
+google-services.json
+GoogleService-Info.plist
+
+# =========================
+# Logs
+# =========================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# =========================
+# Node / JS / TS (NestJS, React, React Native)
+# =========================
+node_modules/
+jspm_packages/
+.npm
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+.pnp.*
+.pnpm-store/
+*.tsbuildinfo
+.eslintcache
+.stylelintcache
+.node_repl_history
+*.tgz
+
+# Build outputs
+dist/
+build/
+out/
+coverage/
+.nyc_output/
+.cache/
+.parcel-cache/
+.temp/
+.tmp/
+tmp/
+
+# =========================
+# NestJS
+# =========================
+/dist
+/coverage
+/test/coverage
+*.sqlite
+*.sqlite3
+*.db
+/uploads
+
+# =========================
+# React (CRA / Vite / Next)
+# =========================
+/build
+.vite/
+.next/
+.nuxt/
+.turbo/
+.vercel/
+.netlify/
+storybook-static/
+*.local
+
+# =========================
+# React Native / Expo
+# =========================
+.expo/
+.expo-shared/
+web-build/
+expo-env.d.ts
+.metro-health-check*
+.metro-cache/
+metro-cache/
+*.jsbundle
+*.hbc
+.bundle/
+.rnc/
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/app/release/
+android/app/debug/
+android/captures/
+android/local.properties
+android/.idea/
+android/*.iml
+*.apk
+*.aab
+*.ap_
+*.dex
+.gradle/
+local.properties
+*.hprof
+.cxx/
+.externalNativeBuild/
+
+# iOS
+ios/build/
+ios/Pods/
+ios/DerivedData/
+ios/.xcode.env.local
+ios/*.xcworkspace/xcuserdata/
+ios/*.xcodeproj/xcuserdata/
+ios/*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcuserstate
+xcuserdata/
+*.ipa
+*.dSYM.zip
+*.dSYM
+*.moved-aside
+DerivedData/
+*.hmap
+Pods/
+vendor/bundle/
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+fastlane/readme.md
+
+# Expo / EAS
+*.orig.*
+
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+pip-log.txt
+pip-delete-this-directory.txt
+*.egg-info/
+.eggs/
+*.egg
+wheels/
+share/python-wheels/
+pip-wheel-metadata/
+MANIFEST
+.installed.cfg
+
+# Testing / tooling caches
+.pytest_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+.hypothesis/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+.ruff_cache/
+cython_debug/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Django / Flask (au cas où)
+*.pyc
+local_settings.py
+instance/
+.webassets-cache
+staticfiles/
+media/
+
+# Package managers Python
+.pdm.toml
+.pdm-python
+.pdm-build/
+__pypackages__/
+poetry.toml
+Pipfile.lock
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# =========================
+# Docker
+# =========================
+docker-compose.override.yml
+.docker/
+
+# =========================
+# Misc
+# =========================
+*.bak
+*.orig
+*.rej
+*.pid
+*.seed
+*.pid.lock
+*.zip
+*.tar.gz
