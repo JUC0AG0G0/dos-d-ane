@@ -1,0 +1,147 @@
+name: CD
+
+# develop -> images « staging » puis déploiement sur l'environnement staging.
+# main    -> images « production » puis déploiement sur l'environnement production.
+# tag v*  -> images versionnées et release GitHub avec le paquet Python capteurs.
+on:
+  push:
+    branches: [main, develop]
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  # GHCR impose un nom en minuscules.
+  IMAGE_PREFIX: ghcr.io/juc0ag0g0/dos-d-ane
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        app: [backend, web]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_PREFIX }}-${{ matrix.app }}
+          tags: |
+            type=raw,value=staging,enable=${{ github.ref == 'refs/heads/develop' }}
+            type=raw,value=production,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=semver,pattern={{version}}
+            type=sha,prefix=sha-
+      - uses: docker/build-push-action@v6
+        with:
+          context: apps/${{ matrix.app }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: APP_VERSION=${{ github.ref_name }}-${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.app }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.app }}
+
+  deploy:
+    needs: images
+    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    # Les variables (vars.*) et secrets (secrets.*) ci-dessous sont ceux de
+    # l'environnement GitHub choisi : chaque environnement a ses propres valeurs.
+    environment:
+      name: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+      url: ${{ vars.PUBLIC_URL }}
+    env:
+      APP_ENV: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+    steps:
+      - name: Vérifier que le déploiement est configuré
+        id: check
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          if [[ -z "$DEPLOY_HOST" ]]; then
+            echo "::notice::Secret DEPLOY_HOST absent pour $APP_ENV : images publiées, déploiement ignoré (voir docs/deploiement.md)."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v5
+        if: steps.check.outputs.enabled == 'true'
+
+      - name: Générer le fichier d'environnement
+        if: steps.check.outputs.enabled == 'true'
+        env:
+          SENSOR_API_KEY: ${{ secrets.SENSOR_API_KEY }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+        run: |
+          umask 077
+          cat > deploy.env <<ENVFILE
+          APP_ENV=$APP_ENV
+          WEB_PORT=${{ vars.WEB_PORT || '80' }}
+          CORS_ORIGINS=${{ vars.CORS_ORIGINS }}
+          SENSOR_API_KEY=$SENSOR_API_KEY
+          POSTGRES_USER=${{ vars.POSTGRES_USER || 'dosdane' }}
+          POSTGRES_PASSWORD=$POSTGRES_PASSWORD
+          POSTGRES_DB=${{ vars.POSTGRES_DB || 'dosdane' }}
+          IMAGE_REGISTRY=ghcr.io/juc0ag0g0
+          IMAGE_TAG=sha-${GITHUB_SHA::7}
+          ENVFILE
+
+      - name: Déployer par SSH
+        if: steps.check.outputs.enabled == 'true'
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/dos-d-ane' }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_SSH_KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+          echo "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          SSH="ssh -i ~/.ssh/id_deploy $DEPLOY_USER@$DEPLOY_HOST"
+          $SSH "mkdir -p $DEPLOY_PATH"
+          scp -i ~/.ssh/id_deploy compose.yaml "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/compose.yaml"
+          scp -i ~/.ssh/id_deploy deploy.env "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/.env.$APP_ENV"
+          $SSH "cd $DEPLOY_PATH && chmod 600 .env.$APP_ENV \
+            && docker compose --env-file .env.$APP_ENV pull \
+            && docker compose --env-file .env.$APP_ENV up -d --remove-orphans \
+            && docker image prune -f"
+
+  sensors-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Construire le paquet capteurs
+        working-directory: apps/sensors
+        run: |
+          pip install build
+          python -m build
+      - name: Publier la release GitHub
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" apps/sensors/dist/* \
+            --title "$GITHUB_REF_NAME" --generate-notes

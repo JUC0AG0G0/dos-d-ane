@@ -1,0 +1,58 @@
+# Stack serveur de Dos d'âne : API, site web et base de données.
+# Toutes les valeurs viennent du fichier d'environnement choisi :
+#   docker compose --env-file .env.staging up -d
+# (voir docs/deploiement.md, ou `make up ENV=staging`).
+name: dos-d-ane-${APP_ENV:?APP_ENV manquant}
+
+services:
+  backend:
+    image: ${IMAGE_REGISTRY:-ghcr.io/juc0ag0g0}/dos-d-ane-backend:${IMAGE_TAG:-latest}
+    build:
+      context: ./apps/backend
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV}
+      PORT: 3000
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      SENSOR_API_KEY: ${SENSOR_API_KEY:?SENSOR_API_KEY manquant}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-dosdane}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant}@db:5432/${POSTGRES_DB:-dosdane}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [internal]
+
+  web:
+    image: ${IMAGE_REGISTRY:-ghcr.io/juc0ag0g0}/dos-d-ane-web:${IMAGE_TAG:-latest}
+    build:
+      context: ./apps/web
+    restart: unless-stopped
+    environment:
+      API_UPSTREAM: http://backend:3000
+    ports:
+      # Seul point d'entrée exposé : nginx sert le site et redirige /api.
+      - "${WEB_PORT:-80}:80"
+    depends_on:
+      - backend
+    networks: [internal]
+
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-dosdane}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-dosdane}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [internal]
+
+volumes:
+  db-data:
+
+networks:
+  internal:

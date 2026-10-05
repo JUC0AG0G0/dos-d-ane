@@ -1,0 +1,181 @@
+name: CI
+
+# Lint et tests de chaque partie du monorepo. Seules les parties modifiées
+# sont testées ; le job « ci-ok » résume le tout pour la protection de branche.
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      web: ${{ steps.filter.outputs.web }}
+      mobile: ${{ steps.filter.outputs.mobile }}
+      sensors: ${{ steps.filter.outputs.sensors }}
+      docker: ${{ steps.filter.outputs.docker }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            ci: &ci
+              - .github/workflows/ci.yml
+            backend:
+              - *ci
+              - apps/backend/**
+            web:
+              - *ci
+              - apps/web/**
+            mobile:
+              - *ci
+              - apps/mobile/**
+            sensors:
+              - *ci
+              - apps/sensors/**
+            docker:
+              - *ci
+              - apps/backend/**
+              - apps/web/**
+              - compose*.yaml
+              - .env.*.example
+
+  backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/backend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/backend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run test:e2e
+      - run: npm run build
+
+  web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  mobile:
+    needs: changes
+    if: needs.changes.outputs.mobile == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test -- --ci
+
+  sensors:
+    needs: changes
+    if: needs.changes.outputs.sensors == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # 3.11 : Raspberry Pi OS Bookworm ; 3.13 : Raspberry Pi OS Trixie.
+        python-version: ["3.11", "3.13"]
+    defaults:
+      run:
+        working-directory: apps/sensors
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: apps/sensors/pyproject.toml
+      - run: pip install -e '.[dev]'
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: pytest
+      - name: Vérifier le script d'installation
+        run: bash -n deploy/install.sh
+
+  docker:
+    needs: changes
+    if: needs.changes.outputs.docker == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Valider les fichiers compose pour chaque environnement
+        run: |
+          for env in development staging production; do
+            # Les secrets sont vides dans les exemples : on fournit des valeurs factices.
+            SENSOR_API_KEY=ci POSTGRES_PASSWORD=ci \
+              docker compose --env-file ".env.$env.example" -f compose.yaml config -q
+          done
+          SENSOR_API_KEY=ci POSTGRES_PASSWORD=ci \
+            docker compose --env-file .env.development.example -f compose.yaml -f compose.dev.yaml config -q
+      - uses: docker/setup-buildx-action@v3
+      - name: Construire l'image backend
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/backend
+          push: false
+          cache-from: type=gha,scope=backend
+      - name: Construire l'image web
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/web
+          push: false
+          cache-from: type=gha,scope=web
+
+  ci-ok:
+    if: always()
+    needs: [changes, backend, web, mobile, sensors, docker]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Vérifier que tous les jobs ont réussi ou ont été ignorés
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            echo "Au moins un job a échoué."
+            exit 1
+          fi

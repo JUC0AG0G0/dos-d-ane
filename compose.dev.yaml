@@ -1,0 +1,36 @@
+# Surcharge de développement : code monté en volume et rechargement à chaud.
+#   docker compose --env-file .env.development -f compose.yaml -f compose.dev.yaml up
+# (ou `make dev`).
+services:
+  backend:
+    image: node:24-alpine
+    build: !reset null
+    working_dir: /app
+    command: sh -c "npm ci && npm run start:dev"
+    volumes:
+      - ./apps/backend:/app
+      - backend-node-modules:/app/node_modules
+    ports:
+      - "3000:3000"
+
+  web:
+    image: node:24-alpine
+    build: !reset null
+    working_dir: /app
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0"
+    environment:
+      API_PROXY_TARGET: http://backend:3000
+    volumes:
+      - ./apps/web:/app
+      - web-node-modules:/app/node_modules
+    ports: !override
+      - "5173:5173"
+
+  db:
+    ports:
+      # Accès direct à la base depuis le poste (DBeaver, psql...) en dev uniquement.
+      - "5432:5432"
+
+volumes:
+  backend-node-modules:
+  web-node-modules:
