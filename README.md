@@ -21,7 +21,7 @@ Système d'aide à la posture pour le travail sédentaire, réalisé en POC dans
 Prérequis : [mise](https://mise.jdx.dev/getting-started.html) et Docker avec le plugin compose. mise installe Node, Python et [Task](https://taskfile.dev) aux bonnes versions ; toutes les commandes du projet sont dans `Taskfile.yml`.
 
 ```bash
-mise install                   # Node 24, Python 3.11 et task
+mise trust && mise install     # Node 24, Python 3.11 et task
 task setup                     # dépendances de toutes les apps + hooks Git (Husky)
 cp .env.development.example .env.development
 task dev                       # API http://localhost:3000/api/docs, web http://localhost:5173
