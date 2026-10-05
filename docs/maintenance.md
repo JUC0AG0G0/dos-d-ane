@@ -10,7 +10,7 @@ docker compose --env-file .env.production restart backend
 curl -s http://localhost/api/health                   # {"status":"ok","env":"production",...}
 ```
 
-En local, les mêmes opérations existent en tâches mise : `APP=staging mise run logs`, `APP=staging mise run down`.
+Depuis une copie du dépôt, les mêmes opérations existent en tâches : `task ps ENV=staging`, `task logs ENV=staging`, `task down ENV=staging`.
 
 Les conteneurs redémarrent seuls (`restart: unless-stopped`) et ont un healthcheck : `docker compose ps` affiche `unhealthy` en cas de problème.
 
@@ -46,7 +46,7 @@ Attention : changer `POSTGRES_PASSWORD` d'une base existante demande aussi de ch
 
 ## Versions des outils
 
-Node (24) et Python (3.11) sont fixés dans `mise.toml`, les Dockerfile et les `engines` des `package.json` : les changer partout en même temps. Pour le mobile, les versions suivent le SDK Expo : `npx expo install expo@^<version>` puis `npx expo install --fix`.
+Node (24), Python (3.11) et task (3) sont fixés dans `mise.toml`, les Dockerfile et les `engines` des `package.json` : les changer partout en même temps. Pour le mobile, les versions suivent le SDK Expo : `npx expo install expo@^<version>` puis `npx expo install --fix`.
 
 ## Dépannage
 
@@ -56,5 +56,5 @@ Node (24) et Python (3.11) sont fixés dans `mise.toml`, les Dockerfile et les `
 | Backend en boucle de redémarrage, `Configuration invalide` dans les logs | variable invalide (ex. `APP_ENV`) |
 | `/api/docs` renvoie 404 en production | normal : mettre `SWAGGER_ENABLED=true` pour l'activer |
 | Le web affiche une erreur 502 sur `/api` | backend arrêté ou `unhealthy` : voir les logs |
-| Le hook Git échoue avec « mise n'est pas installé » | installer mise, puis `mise run setup` |
+| Le hook Git échoue avec « task n'est pas installé » | installer mise, puis `mise install` et `task setup` |
 | Job `deploy` ignoré dans GitHub Actions | secret `DEPLOY_HOST` absent dans l'environnement |

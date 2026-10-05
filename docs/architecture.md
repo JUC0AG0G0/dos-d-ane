@@ -39,7 +39,8 @@ Chaque partie est pour l'instant un squelette qui démarre et compile : l'API ex
 ├── compose.yaml        stack serveur (identique pour staging et production)
 ├── compose.dev.yaml    surcharge de développement (rechargement à chaud)
 ├── .env.<env>.example  modèles de configuration par environnement
-├── mise.toml           versions de Node/Python et tâches (setup, lint, build, check, dev…)
+├── Taskfile.yml        commandes du projet (setup, lint, build, check, dev, up…)
+├── mise.toml           versions de Node, Python et task
 ├── .husky/             hooks Git (lint avant commit, lint + compilation avant push)
 └── .github/            CI et CD
 ```

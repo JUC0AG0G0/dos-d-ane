@@ -12,7 +12,7 @@ Le même `compose.yaml` sert partout. Seul le fichier d'environnement change :
 
 ```bash
 cp .env.staging.example .env.staging     # puis renseigner POSTGRES_PASSWORD
-APP=staging mise run up                  # = docker compose --env-file .env.staging up -d
+task up ENV=staging                      # = docker compose --env-file .env.staging up -d
 ```
 
 ## Variables d'environnement
@@ -94,7 +94,7 @@ Les images GHCR sont privées par défaut. Soit on les rend publiques (page du p
 
 ### Limite connue
 
-Les runners GitHub doivent pouvoir joindre le serveur en SSH. Si les PC de la formation ne sont pas accessibles depuis Internet : installer un **runner auto-hébergé** sur le serveur (le job `deploy` passe alors en `runs-on: self-hosted`), ou déployer à la main avec `APP=staging mise run up` (les images sont publiées quoi qu'il arrive).
+Les runners GitHub doivent pouvoir joindre le serveur en SSH. Si les PC de la formation ne sont pas accessibles depuis Internet : installer un **runner auto-hébergé** sur le serveur (le job `deploy` passe alors en `runs-on: self-hosted`), ou déployer à la main avec `task up ENV=staging` (les images sont publiées quoi qu'il arrive).
 
 ### Revenir à une version précédente
 

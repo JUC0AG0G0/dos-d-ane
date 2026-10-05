@@ -1,7 +1,7 @@
 # Stack serveur de Dos d'âne : API, site web et base de données.
 # Toutes les valeurs viennent du fichier d'environnement choisi :
 #   docker compose --env-file .env.staging up -d
-# (voir docs/deploiement.md, ou `APP=staging mise run up`).
+# (voir docs/deploiement.md, ou `task up ENV=staging`).
 name: dos-d-ane-${APP_ENV:?APP_ENV manquant}
 
 services:

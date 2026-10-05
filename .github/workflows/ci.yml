@@ -36,6 +36,7 @@ jobs:
             ci: &ci
               - .github/workflows/ci.yml
               - mise.toml
+              - Taskfile.yml
             backend:
               - *ci
               - apps/backend/**
@@ -55,7 +56,8 @@ jobs:
               - compose*.yaml
               - .env.*.example
 
-  # Les jobs appellent les mêmes tâches mise que les hooks Husky en local.
+  # Les jobs appellent les mêmes tâches (Taskfile.yml) que les hooks Husky en local.
+  # mise-action installe Node, Python et task aux versions de mise.toml.
   app:
     needs: changes
     strategy:
@@ -70,13 +72,13 @@ jobs:
         if: needs.changes.outputs[matrix.app] == 'true'
       - name: Installer
         if: needs.changes.outputs[matrix.app] == 'true'
-        run: mise run setup:${{ matrix.app }}
+        run: task setup:${{ matrix.app }}
       - name: Lint
         if: needs.changes.outputs[matrix.app] == 'true'
-        run: mise run lint:${{ matrix.app }}
+        run: task lint:${{ matrix.app }}
       - name: Compilation
         if: needs.changes.outputs[matrix.app] == 'true'
-        run: mise run build:${{ matrix.app }}
+        run: task build:${{ matrix.app }}
 
   docker:
     needs: changes

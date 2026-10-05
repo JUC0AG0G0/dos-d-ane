@@ -1,6 +1,6 @@
 # Surcharge de développement : code monté en volume et rechargement à chaud.
 #   docker compose --env-file .env.development -f compose.yaml -f compose.dev.yaml up
-# (ou `mise run dev`).
+# (ou `task dev`).
 services:
   backend:
     image: node:24-alpine

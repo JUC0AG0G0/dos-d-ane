@@ -9,18 +9,18 @@
 
 À configurer dans **Settings → Branches** (règles de protection) pour `main` et `develop` : PR obligatoire, au moins une relecture, statut **`ci-ok`** requis.
 
-## Vérifications locales (Husky + mise)
+## Vérifications locales (Husky + Task)
 
-`mise run setup` installe les dépendances et active les hooks Git :
+`task setup` installe les dépendances et active les hooks Git :
 
 | Hook | Commande | Vérifie |
 | --- | --- | --- |
-| `pre-commit` | `mise run lint` | lint de toutes les apps (oxlint, Prettier, ruff) |
-| `pre-push` | `mise run check` | lint + compilation de toutes les apps |
+| `pre-commit` | `task lint` | lint de toutes les apps (oxlint, Prettier, ruff) |
+| `pre-push` | `task check` | lint + compilation de toutes les apps |
 
-La CI lance les mêmes tâches. On peut aussi lancer une seule app : `mise run lint:backend`, `mise run build:web`… (`mise tasks` pour la liste).
+La CI lance les mêmes tâches. On peut aussi lancer une seule app : `task lint:backend`, `task build:web`… (`task --list-all` pour la liste complète).
 
-Pour l'instant, il n'y a pas de tests unitaires : la « suite de tests » vérifie seulement que tout compile (`nest build`, `vite build`, `tsc` pour le mobile, `compileall` pour Python). Quand des tests seront ajoutés, créer une tâche `test:<app>` dans `mise.toml` et l'ajouter à `check`.
+Pour l'instant, il n'y a pas de tests unitaires : la « suite de tests » vérifie seulement que tout compile (`nest build`, `vite build`, `tsc` pour le mobile, `compileall` pour Python). Quand des tests seront ajoutés, créer une tâche `test:<app>` dans `Taskfile.yml` et l'ajouter à `check`.
 
 ## Conventions
 

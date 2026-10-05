@@ -18,16 +18,16 @@ Système d'aide à la posture pour le travail sédentaire, réalisé en POC dans
 
 ## Démarrage rapide
 
-Prérequis : [mise](https://mise.jdx.dev/getting-started.html) et Docker avec le plugin compose. mise installe Node et Python aux bonnes versions.
+Prérequis : [mise](https://mise.jdx.dev/getting-started.html) et Docker avec le plugin compose. mise installe Node, Python et [Task](https://taskfile.dev) aux bonnes versions ; toutes les commandes du projet sont dans `Taskfile.yml`.
 
 ```bash
-mise trust && mise install     # Node 24 et Python 3.11
-mise run setup                 # dépendances de toutes les apps + hooks Git (Husky)
+mise install                   # Node 24, Python 3.11 et task
+task setup                     # dépendances de toutes les apps + hooks Git (Husky)
 cp .env.development.example .env.development
-mise run dev                   # API http://localhost:3000/api/docs, web http://localhost:5173
+task dev                       # API http://localhost:3000/api/docs, web http://localhost:5173
 ```
 
-`mise tasks` liste toutes les commandes. Les hooks Git vérifient automatiquement le lint avant chaque commit (`mise run lint`) et le lint + la compilation avant chaque push (`mise run check`).
+`task` liste toutes les commandes. Les hooks Git vérifient automatiquement le lint avant chaque commit (`task lint`) et le lint + la compilation avant chaque push (`task check`).
 
 ## Documentation
 
