@@ -14,6 +14,10 @@ tasks:
     silent: true
     cmd: task --list
 
+  doctor:
+    desc: Vérifie les versions des outils et l'installation du projet
+    cmd: sh scripts/doctor.sh
+
   # --- Installation -------------------------------------------------------
 
   setup:

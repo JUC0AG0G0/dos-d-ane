@@ -1,8 +1,18 @@
 # Versions des outils du projet, installées par mise (https://mise.jdx.dev) :
 #   mise install
-# Les commandes sont dans Taskfile.yml (`task` pour la liste).
+# Avec `mise activate` dans le shell, ces versions sont utilisées
+# automatiquement dans le dossier, et `task doctor` vérifie l'environnement
+# à chaque entrée dans le projet. Les commandes sont dans Taskfile.yml.
+min_version = "2026.1.0"
 
 [tools]
-node = "24"
-python = "3.11"
+node = "26"
+python = "3.14"
 task = "3"
+
+[settings]
+# Nécessaire pour les hooks ci-dessous.
+experimental = true
+
+[hooks]
+enter = "sh scripts/doctor.sh --quiet"

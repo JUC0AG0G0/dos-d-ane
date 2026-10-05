@@ -23,6 +23,19 @@
   },
   "private": true,
   "engines": {
-    "node": ">=24"
+    "node": ">=26",
+    "npm": ">=11"
+  },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": ">=26",
+      "onFail": "error"
+    },
+    "packageManager": {
+      "name": "npm",
+      "version": ">=11",
+      "onFail": "error"
+    }
   }
 }

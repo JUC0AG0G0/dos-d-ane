@@ -46,7 +46,16 @@ Attention : changer `POSTGRES_PASSWORD` d'une base existante demande aussi de ch
 
 ## Versions des outils
 
-Node (24), Python (3.11) et task (3) sont fixés dans `mise.toml`, les Dockerfile et les `engines` des `package.json` : les changer partout en même temps. Pour le mobile, les versions suivent le SDK Expo : `npx expo install expo@^<version>` puis `npx expo install --fix`.
+Les versions sont fixées à plusieurs endroits, à changer ensemble :
+
+| Outil | Où |
+| --- | --- |
+| Node / npm | `mise.toml`, `engines` et `devEngines` des `package.json`, `FROM node:…` des Dockerfile, `compose.dev.yaml` |
+| Python | `mise.toml` (dev et CI) ; `requires-python` de `apps/sensors/pyproject.toml` reste à 3.11 pour le Raspberry Pi |
+| task | `mise.toml` |
+| PostgreSQL | `compose.yaml` (une montée de version majeure demande un `pg_dump` puis une restauration) |
+
+`devEngines` fait refuser `npm install` avec une version de Node ou de npm trop ancienne. `scripts/doctor.sh` lit les versions attendues dans `mise.toml`. Pour le mobile, les versions suivent le SDK Expo : `npx expo install expo@^<version>` puis `npx expo install --fix`.
 
 ## Dépannage
 
@@ -56,5 +65,6 @@ Node (24), Python (3.11) et task (3) sont fixés dans `mise.toml`, les Dockerfil
 | Backend en boucle de redémarrage, `Configuration invalide` dans les logs | variable invalide (ex. `APP_ENV`) |
 | `/api/docs` renvoie 404 en production | normal : mettre `SWAGGER_ENABLED=true` pour l'activer |
 | Le web affiche une erreur 502 sur `/api` | backend arrêté ou `unhealthy` : voir les logs |
+| `npm error EBADDEVENGINES` | Node ou npm trop ancien : `mise install`, puis vérifier avec `task doctor` |
 | Le hook Git échoue avec « task n'est pas installé » | installer mise, puis `mise install` et `task setup` |
 | Job `deploy` ignoré dans GitHub Actions | secret `DEPLOY_HOST` absent dans l'environnement |

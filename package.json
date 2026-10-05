@@ -7,5 +7,21 @@
   },
   "devDependencies": {
     "husky": "^9.1.7"
+  },
+  "engines": {
+    "node": ">=26",
+    "npm": ">=11"
+  },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": ">=26",
+      "onFail": "error"
+    },
+    "packageManager": {
+      "name": "npm",
+      "version": ">=11",
+      "onFail": "error"
+    }
   }
 }

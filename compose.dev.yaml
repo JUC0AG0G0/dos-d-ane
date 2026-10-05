@@ -3,7 +3,7 @@
 # (ou `task dev`).
 services:
   backend:
-    image: node:24-alpine
+    image: node:26-alpine
     build: !reset null
     working_dir: /app
     command: sh -c "npm ci && npm run start:dev"
@@ -14,7 +14,7 @@ services:
       - "3000:3000"
 
   web:
-    image: node:24-alpine
+    image: node:26-alpine
     build: !reset null
     working_dir: /app
     command: sh -c "npm ci && npm run dev -- --host 0.0.0.0"

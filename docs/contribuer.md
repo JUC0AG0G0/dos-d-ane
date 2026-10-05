@@ -11,7 +11,7 @@
 
 ## Vérifications locales (Husky + Task)
 
-`task setup` installe les dépendances et active les hooks Git :
+`task doctor` vérifie les versions des outils et l'installation (lancé automatiquement à l'entrée du dossier si mise est activé dans le shell). `task setup` installe les dépendances et active les hooks Git :
 
 | Hook | Commande | Vérifie |
 | --- | --- | --- |

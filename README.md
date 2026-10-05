@@ -18,14 +18,24 @@ Système d'aide à la posture pour le travail sédentaire, réalisé en POC dans
 
 ## Démarrage rapide
 
-Prérequis : [mise](https://mise.jdx.dev/getting-started.html) et Docker avec le plugin compose. mise installe Node, Python et [Task](https://taskfile.dev) aux bonnes versions ; toutes les commandes du projet sont dans `Taskfile.yml`.
+Prérequis : [mise](https://mise.jdx.dev/getting-started.html) et Docker avec le plugin compose. mise installe Node 26, Python 3.14 et [Task](https://taskfile.dev) ; toutes les commandes du projet sont dans `Taskfile.yml`.
+
+Activer mise une fois dans son shell (ajouter la ligne à `~/.zshrc` ou `~/.bashrc`) :
 
 ```bash
-mise install                   # Node 24, Python 3.11 et task
+eval "$(mise activate zsh)"    # ou bash, fish…
+```
+
+Puis, dans le dossier du projet :
+
+```bash
+mise trust && mise install     # Node 26, Python 3.14 et task
 task setup                     # dépendances de toutes les apps + hooks Git (Husky)
 cp .env.development.example .env.development
 task dev                       # API http://localhost:3000/api/docs, web http://localhost:5173
 ```
+
+Ensuite, à chaque ouverture d'un terminal dans le projet, mise bascule sur les bonnes versions et lance `scripts/doctor.sh`, qui signale un outil manquant ou à la mauvaise version, des dépendances non installées ou un `.env.development` absent. `task doctor` affiche le rapport complet.
 
 `task` liste toutes les commandes. Les hooks Git vérifient automatiquement le lint avant chaque commit (`task lint`) et le lint + la compilation avant chaque push (`task check`).
 

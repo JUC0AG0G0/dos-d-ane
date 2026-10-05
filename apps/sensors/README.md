@@ -4,6 +4,8 @@ Paquet `dosdane-sensors`, destiné à lire les capteurs branchés sur le Raspber
 
 Il tourne **sans Docker** pour rester léger : un environnement virtuel Python et un service systemd. Il n'a aucune dépendance.
 
+En dev, on utilise Python 3.14 (fixé par `mise.toml`). Sur le Raspberry Pi, le Python du système suffit (3.11 minimum, Raspberry Pi OS Trixie fournit 3.13) : ne pas utiliser de syntaxe postérieure à 3.11 (ruff est réglé sur `py311` pour le signaler).
+
 ## Développer en local
 
 ```bash

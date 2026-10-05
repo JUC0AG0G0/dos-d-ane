@@ -18,11 +18,11 @@ flowchart LR
 
 | Partie | Dossier | Technologie | Exécution |
 | --- | --- | --- | --- |
-| API | `apps/backend` | NestJS (TypeScript, Node 24, npm), Swagger | conteneur Docker |
+| API | `apps/backend` | NestJS (TypeScript, Node 26, npm 11), Swagger | conteneur Docker |
 | Site web | `apps/web` | React + Vite, servi par nginx | conteneur Docker |
 | Mobile | `apps/mobile` | React Native + Expo | Expo Go / build EAS |
-| Capteurs | `apps/sensors` | Python 3.11+, bibliothèque standard | service systemd sur Raspberry Pi |
-| Base de données | — | PostgreSQL 17 | conteneur Docker |
+| Capteurs | `apps/sensors` | Python 3.14 en dev (3.11+ sur le Pi), bibliothèque standard | service systemd sur Raspberry Pi |
+| Base de données | — | PostgreSQL 18 | conteneur Docker |
 
 Chaque partie est pour l'instant un squelette qui démarre et compile : l'API expose seulement `GET /api/health` et sa documentation Swagger, le web et le mobile affichent l'avertissement santé, le paquet capteurs lit sa configuration puis s'arrête.
 
@@ -40,7 +40,8 @@ Chaque partie est pour l'instant un squelette qui démarre et compile : l'API ex
 ├── compose.dev.yaml    surcharge de développement (rechargement à chaud)
 ├── .env.<env>.example  modèles de configuration par environnement
 ├── Taskfile.yml        commandes du projet (setup, lint, build, check, dev, up…)
-├── mise.toml           versions de Node, Python et task
+├── mise.toml           versions de Node, Python et task + vérification à l'entrée du dossier
+├── scripts/doctor.sh   vérification de l'environnement (task doctor)
 ├── .husky/             hooks Git (lint avant commit, lint + compilation avant push)
 └── .github/            CI et CD
 ```
