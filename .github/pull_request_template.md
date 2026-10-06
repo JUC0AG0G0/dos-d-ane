@@ -9,6 +9,6 @@
 ## Vérifications
 
 - [ ] `task check` passe en local
-- [ ] Nouvelles variables d'environnement ajoutées aux `.env*.example` et à `docs/deploiement.md`
+- [ ] Nouvelles variables d'environnement ajoutées aux `.env*.example` et au README
 - [ ] Nouvelles routes documentées dans Swagger
 - [ ] Pas de donnée personnelle inutile ni de donnée brute stockée (RGPD)

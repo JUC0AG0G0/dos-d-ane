@@ -72,7 +72,7 @@ jobs:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
         run: |
           if [[ -z "$DEPLOY_HOST" ]]; then
-            echo "::notice::Secret DEPLOY_HOST absent pour $APP_ENV : images publiées, déploiement ignoré (voir docs/deploiement.md)."
+            echo "::notice::Secret DEPLOY_HOST absent pour $APP_ENV : images publiées, déploiement ignoré (voir le README)."
             echo "enabled=false" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=true" >> "$GITHUB_OUTPUT"

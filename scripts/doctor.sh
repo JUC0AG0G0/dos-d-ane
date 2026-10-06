@@ -1,7 +1,7 @@
 #!/bin/sh
 # Vérifie que l'environnement de développement est prêt.
 #   task doctor            # rapport complet
-#   sh scripts/doctor.sh --quiet   # n'affiche que les problèmes (hook mise)
+#   sh scripts/doctor.sh --quiet   # problèmes + une ligne de bilan (hook mise)
 # Les versions attendues sont lues dans mise.toml : c'est la seule source.
 cd "$(dirname "$0")/.." || exit 1
 
@@ -29,6 +29,9 @@ check_version() {
 
 [ "$QUIET" = 1 ] || echo "Outils"
 check_version node "$(node --version 2>/dev/null | sed 's/^v//')" "$(expected node)"
+if [ -n "$(expected python)" ]; then
+  check_version python "$(python3 --version 2>/dev/null | cut -d' ' -f2)" "$(expected python)"
+fi
 check_version task "$(task --version 2>/dev/null | grep -oE '[0-9]+(\.[0-9]+)+' | head -n 1)" "$(expected task)"
 
 NPM_VERSION=$(npm --version 2>/dev/null)
@@ -57,13 +60,13 @@ if [ -f .env.development ]; then ok ".env.development présent"
 else warn ".env.development absent : cp .env.development.example .env.development"; fi
 
 if [ "$ERRORS" -gt 0 ]; then
-  echo "dos-d-ane : $ERRORS erreur(s), $WARNINGS avertissement(s) (détails : task doctor)"
+  printf '\033[31m✗\033[0m dos-d-ane : %s erreur(s), %s avertissement(s) (détails : task doctor)\n' "$ERRORS" "$WARNINGS"
   # En mode hook, on signale sans faire échouer l'ouverture du terminal.
   [ "$QUIET" = 1 ] && exit 0
   exit 1
 fi
-if [ "$WARNINGS" -gt 0 ] && [ "$QUIET" = 1 ]; then
-  echo "dos-d-ane : $WARNINGS avertissement(s) (détails : task doctor)"
-elif [ "$QUIET" = 0 ]; then
-  echo "Environnement prêt."
+if [ "$WARNINGS" -gt 0 ]; then
+  echo "dos-d-ane : outils OK, $WARNINGS avertissement(s) (détails : task doctor)"
+else
+  printf '\033[32m✓\033[0m dos-d-ane : environnement OK\n'
 fi
