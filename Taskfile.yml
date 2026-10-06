@@ -1,5 +1,5 @@
 # Commandes du projet (https://taskfile.dev). `task` sans argument liste tout.
-#   task setup            # dépendances + hooks Git
+#   task setup            # dépendances, hooks Git, .env (automatique avec mise)
 #   task check            # lint + compilation (lancé par Husky avant push)
 #   task dev              # stack Docker de dev
 #   task up ENV=staging   # stack avec l'image publiée
@@ -19,18 +19,30 @@ tasks:
     cmd: sh scripts/doctor.sh
 
   setup:
-    desc: Installe les dépendances et active les hooks Git
-    deps: [install]
-    cmd: npm install --no-audit --no-fund
+    desc: Prépare le projet (lancé automatiquement à l'entrée du dossier)
+    # Chaque étape est sautée si elle est déjà faite : relancer ne coûte rien.
+    deps: [install, hooks, env]
 
   install:
-    desc: Installe les dépendances du serveur (automatique si le lockfile a changé)
+    desc: Installe les dépendances du serveur (seulement si le lockfile a changé)
     dir: server
     cmd: npm ci --no-audit --no-fund
-    # Ne relance l'installation que si package-lock.json a changé ou si
-    # node_modules est absent : lint, build et start l'appellent sans coût.
     sources: [package.json, package-lock.json]
     generates: [node_modules/.package-lock.json]
+
+  hooks:
+    # Installe Husky et active les hooks Git.
+    cmd: npm install --no-audit --no-fund
+    sources: [package.json, package-lock.json]
+    generates: [node_modules/.package-lock.json]
+    status:
+      - test -d node_modules/husky
+      - git config core.hooksPath | grep -q '^.husky/'
+
+  env:
+    # Crée .env.development à partir du modèle s'il n'existe pas.
+    cmd: cp .env.development.example .env.development
+    status: [test -f .env.development]
 
   # --- Vérifications (Husky et CI) ----------------------------------------
 

@@ -1,8 +1,5 @@
-# Versions des outils du projet, installées par mise (https://mise.jdx.dev) :
-#   mise install
-# Avec `mise activate` dans le shell, ces versions sont utilisées
-# automatiquement dans le dossier, et `task doctor` vérifie l'environnement
-# à chaque entrée dans le projet. Les commandes sont dans Taskfile.yml.
+# Versions des outils du projet, gérées par mise (https://mise.jdx.dev).
+# Les commandes sont dans Taskfile.yml.
 min_version = "2026.1.0"
 
 [tools]
@@ -15,4 +12,6 @@ task = "3"
 experimental = true
 
 [hooks]
-enter = "sh scripts/doctor.sh --quiet"
+# À chaque entrée dans le dossier : installe les outils manquants, lance
+# `task setup` (instantané si tout est déjà fait) puis affiche le bilan.
+enter = "mise install --quiet; command -v task >/dev/null 2>&1 && task --silent setup; sh scripts/doctor.sh --quiet"
