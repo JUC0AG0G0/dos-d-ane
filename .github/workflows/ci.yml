@@ -1,6 +1,6 @@
 name: CI
 
-# Lint et compilation de chaque partie modifiée du monorepo.
+# Lint et compilation du serveur, validation de Docker.
 # Le job « ci-ok » résume le tout pour la protection de branche.
 on:
   pull_request:
@@ -17,102 +17,45 @@ permissions:
   contents: read
 
 jobs:
-  changes:
-    runs-on: ubuntu-latest
-    permissions:
-      pull-requests: read
-    outputs:
-      backend: ${{ steps.filter.outputs.backend }}
-      web: ${{ steps.filter.outputs.web }}
-      mobile: ${{ steps.filter.outputs.mobile }}
-      sensors: ${{ steps.filter.outputs.sensors }}
-      docker: ${{ steps.filter.outputs.docker }}
-    steps:
-      - uses: actions/checkout@v5
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            ci: &ci
-              - .github/workflows/ci.yml
-              - mise.toml
-              - Taskfile.yml
-            backend:
-              - *ci
-              - apps/backend/**
-            web:
-              - *ci
-              - apps/web/**
-            mobile:
-              - *ci
-              - apps/mobile/**
-            sensors:
-              - *ci
-              - apps/sensors/**
-            docker:
-              - *ci
-              - apps/backend/**
-              - apps/web/**
-              - compose*.yaml
-              - .env.*.example
-
-  # Les jobs appellent les mêmes tâches (Taskfile.yml) que les hooks Husky en local.
-  # mise-action installe Node, Python et task aux versions de mise.toml.
-  app:
-    needs: changes
-    strategy:
-      fail-fast: false
-      matrix:
-        app: [backend, web, mobile, sensors]
+  # Mêmes tâches (Taskfile.yml) que les hooks Husky en local.
+  # mise-action installe Node et task aux versions de mise.toml.
+  server:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-        if: needs.changes.outputs[matrix.app] == 'true'
       - uses: jdx/mise-action@v3
-        if: needs.changes.outputs[matrix.app] == 'true'
       - name: Installer
-        if: needs.changes.outputs[matrix.app] == 'true'
-        run: task setup:${{ matrix.app }}
+        run: task setup
       - name: Lint
-        if: needs.changes.outputs[matrix.app] == 'true'
-        run: task lint:${{ matrix.app }}
+        run: task lint
       - name: Compilation
-        if: needs.changes.outputs[matrix.app] == 'true'
-        run: task build:${{ matrix.app }}
+        run: task build
 
   docker:
-    needs: changes
-    if: needs.changes.outputs.docker == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - name: Valider les fichiers compose pour chaque environnement
         run: |
           for env in development staging production; do
-            # Les secrets sont vides dans les exemples : on fournit une valeur factice.
+            # Le mot de passe est vide dans les exemples : on fournit une valeur factice.
             POSTGRES_PASSWORD=ci docker compose --env-file ".env.$env.example" -f compose.yaml config -q
           done
           docker compose --env-file .env.development.example -f compose.yaml -f compose.dev.yaml config -q
       - uses: docker/setup-buildx-action@v3
-      - name: Construire l'image backend
+      - name: Construire l'image du serveur
         uses: docker/build-push-action@v6
         with:
-          context: apps/backend
+          context: server
           push: false
-          cache-from: type=gha,scope=backend
-      - name: Construire l'image web
-        uses: docker/build-push-action@v6
-        with:
-          context: apps/web
-          push: false
-          cache-from: type=gha,scope=web
+          cache-from: type=gha,scope=server
 
   ci-ok:
     if: always()
-    needs: [changes, app, docker]
+    needs: [server, docker]
     runs-on: ubuntu-latest
     steps:
-      - name: Vérifier que tous les jobs ont réussi ou ont été ignorés
+      - name: Vérifier que tous les jobs ont réussi
         run: |
           if [[ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
             echo "Au moins un job a échoué."

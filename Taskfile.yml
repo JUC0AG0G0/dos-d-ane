@@ -1,8 +1,8 @@
 # Commandes du projet (https://taskfile.dev). `task` sans argument liste tout.
-#   task setup            # dépendances de toutes les apps + hooks Git
+#   task setup            # dépendances + hooks Git
 #   task check            # lint + compilation (lancé par Husky avant push)
 #   task dev              # stack Docker de dev
-#   task up ENV=staging   # stack avec les images publiées
+#   task up ENV=staging   # stack avec l'image publiée
 version: "3"
 
 vars:
@@ -18,99 +18,52 @@ tasks:
     desc: Vérifie les versions des outils et l'installation du projet
     cmd: sh scripts/doctor.sh
 
-  # --- Installation -------------------------------------------------------
-
   setup:
-    desc: Installe les dépendances de toutes les apps et active les hooks Git
-    deps: [setup:backend, setup:web, setup:mobile, setup:sensors]
-    cmd: npm install --no-audit --no-fund
-
-  setup:backend:
-    dir: apps/backend
-    cmd: npm ci --no-audit --no-fund
-
-  setup:web:
-    dir: apps/web
-    cmd: npm ci --no-audit --no-fund
-
-  setup:mobile:
-    dir: apps/mobile
-    cmd: npm ci --no-audit --no-fund
-
-  setup:sensors:
-    dir: apps/sensors
+    desc: Installe les dépendances et active les hooks Git
     cmds:
-      - python3 -m venv .venv
-      - .venv/bin/pip install -q -e '.[dev]'
+      - npm install --no-audit --no-fund
+      - npm --prefix server ci --no-audit --no-fund
 
-  # --- Lint ---------------------------------------------------------------
+  # --- Vérifications (Husky et CI) ----------------------------------------
 
   lint:
-    desc: Lint de toutes les apps (lancé par Husky avant chaque commit)
-    deps: [lint:backend, lint:web, lint:mobile, lint:sensors]
-
-  lint:backend:
-    dir: apps/backend
+    desc: Lint et formatage (lancé par Husky avant chaque commit)
+    dir: server
     cmds:
       - npm run lint
       - npm run format:check
 
-  lint:web:
-    dir: apps/web
-    cmd: npm run lint
-
-  lint:mobile:
-    dir: apps/mobile
-    cmd: npm run lint
-
-  lint:sensors:
-    dir: apps/sensors
-    cmds:
-      - .venv/bin/ruff check .
-      - .venv/bin/ruff format --check .
-
   format:
-    desc: Formate le code du backend et des capteurs
-    cmds:
-      - npm --prefix apps/backend run format
-      - apps/sensors/.venv/bin/ruff format apps/sensors
-
-  # --- Compilation (seule vérification pour l'instant) --------------------
+    desc: Formate le code
+    dir: server
+    cmd: npm run format
 
   build:
-    desc: Vérifie que toutes les apps compilent
-    deps: [build:backend, build:web, build:mobile, build:sensors]
-
-  build:backend:
-    dir: apps/backend
+    desc: Vérifie que le serveur compile
+    dir: server
     cmd: npm run build
-
-  build:web:
-    dir: apps/web
-    cmd: npm run build
-
-  build:mobile:
-    dir: apps/mobile
-    cmd: npm run typecheck
-
-  build:sensors:
-    dir: apps/sensors
-    cmd: .venv/bin/python -m compileall -q src
 
   check:
-    desc: Lint + compilation de tout (lancé par Husky avant chaque push)
+    desc: Lint + compilation (lancé par Husky avant chaque push)
     cmds:
       - task: lint
       - task: build
 
+  # --- Serveur hors Docker ------------------------------------------------
+
+  start:
+    desc: Lance le serveur en local avec rechargement (lit server/.env)
+    dir: server
+    cmd: npm run start:dev
+
   # --- Docker -------------------------------------------------------------
 
   dev:
-    desc: Stack de dev avec rechargement à chaud (API :3000, web :5173, db :5432)
+    desc: Stack de dev avec rechargement à chaud (API :3000, db :5432)
     cmd: docker compose --env-file .env.development -f compose.yaml -f compose.dev.yaml up
 
   up:
-    desc: "Stack avec les images publiées (ex. : task up ENV=staging)"
+    desc: "Stack avec l'image publiée (ex. : task up ENV=staging)"
     cmds:
       - "{{.COMPOSE}} pull"
       - "{{.COMPOSE}} up -d"

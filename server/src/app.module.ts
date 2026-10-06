@@ -7,7 +7,7 @@ import { HealthController } from './health/health.controller.js';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      // En local, `npm run start:dev` lit apps/backend/.env.
+      // En local, `npm run start:dev` lit server/.env.
       // En Docker, les variables sont injectées par docker compose.
       envFilePath: ['.env'],
       validate: validateEnv,

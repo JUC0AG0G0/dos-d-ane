@@ -8,17 +8,15 @@ Système d'aide à la posture pour le travail sédentaire, réalisé en POC dans
 
 ## Contenu du dépôt
 
-| Dossier | Rôle | Technologie |
-| --- | --- | --- |
-| [`apps/backend`](apps/backend) | API (Swagger sur `/api/docs`) | NestJS (TypeScript) |
-| [`apps/web`](apps/web) | site web | React + Vite |
-| [`apps/mobile`](apps/mobile) | application mobile | React Native + Expo |
-| [`apps/sensors`](apps/sensors) | acquisition des capteurs sur Raspberry Pi | Python (sans Docker) |
-| [`docs`](docs) | documentation technique | |
+| Dossier | Rôle |
+| --- | --- |
+| [`server`](server) | API NestJS (TypeScript), Swagger sur `/api/docs` |
+| [`docs`](docs) | documentation technique |
+| [`scripts`](scripts) | vérification de l'environnement (`task doctor`) |
 
 ## Démarrage rapide
 
-Prérequis : [mise](https://mise.jdx.dev/getting-started.html) et Docker avec le plugin compose. mise installe Node 26, Python 3.14 et [Task](https://taskfile.dev) ; toutes les commandes du projet sont dans `Taskfile.yml`.
+Prérequis : [mise](https://mise.jdx.dev/getting-started.html) et Docker avec le plugin compose. mise installe Node 26 et [Task](https://taskfile.dev) ; toutes les commandes du projet sont dans `Taskfile.yml`.
 
 Activer mise une fois dans son shell (ajouter la ligne à `~/.zshrc` ou `~/.bashrc`) :
 
@@ -29,10 +27,10 @@ eval "$(mise activate zsh)"    # ou bash, fish…
 Puis, dans le dossier du projet :
 
 ```bash
-mise trust && mise install     # Node 26, Python 3.14 et task
-task setup                     # dépendances de toutes les apps + hooks Git (Husky)
+mise trust && mise install     # Node 26 et task
+task setup                     # dépendances + hooks Git (Husky)
 cp .env.development.example .env.development
-task dev                       # API http://localhost:3000/api/docs, web http://localhost:5173
+task dev                       # API sur http://localhost:3000/api/docs
 ```
 
 Ensuite, à chaque ouverture d'un terminal dans le projet, mise bascule sur les bonnes versions et lance `scripts/doctor.sh`, qui signale un outil manquant ou à la mauvaise version, des dépendances non installées ou un `.env.development` absent. `task doctor` affiche le rapport complet.

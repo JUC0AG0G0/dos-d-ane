@@ -1,4 +1,4 @@
-# Backend (NestJS)
+# Server (NestJS)
 
 API REST de Dos d'âne. Pour l'instant : une route `GET /api/health` et la documentation Swagger.
 

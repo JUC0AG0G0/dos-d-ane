@@ -1,7 +1,7 @@
 {
-  "name": "@dos-d-ane/backend",
+  "name": "@dos-d-ane/server",
   "version": "0.0.1",
-  "description": "API NestJS de Dos d’âne",
+  "description": "Serveur (API NestJS) de Dos d’âne",
   "author": "Groupe Dos d’âne (Master UHA 4.0)",
   "private": true,
   "license": "UNLICENSED",
