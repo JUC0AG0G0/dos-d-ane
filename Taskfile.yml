@@ -20,14 +20,23 @@ tasks:
 
   setup:
     desc: Installe les dépendances et active les hooks Git
-    cmds:
-      - npm install --no-audit --no-fund
-      - npm --prefix server ci --no-audit --no-fund
+    deps: [install]
+    cmd: npm install --no-audit --no-fund
+
+  install:
+    desc: Installe les dépendances du serveur (automatique si le lockfile a changé)
+    dir: server
+    cmd: npm ci --no-audit --no-fund
+    # Ne relance l'installation que si package-lock.json a changé ou si
+    # node_modules est absent : lint, build et start l'appellent sans coût.
+    sources: [package.json, package-lock.json]
+    generates: [node_modules/.package-lock.json]
 
   # --- Vérifications (Husky et CI) ----------------------------------------
 
   lint:
     desc: Lint et formatage (lancé par Husky avant chaque commit)
+    deps: [install]
     dir: server
     cmds:
       - npm run lint
@@ -35,11 +44,13 @@ tasks:
 
   format:
     desc: Formate le code
+    deps: [install]
     dir: server
     cmd: npm run format
 
   build:
     desc: Vérifie que le serveur compile
+    deps: [install]
     dir: server
     cmd: npm run build
 
@@ -53,6 +64,7 @@ tasks:
 
   start:
     desc: Lance le serveur en local avec rechargement (lit server/.env)
+    deps: [install]
     dir: server
     cmd: npm run start:dev
 

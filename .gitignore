@@ -247,3 +247,5 @@ docker-compose.override.yml
 *.pid.lock
 *.zip
 *.tar.gz
+# Task (cache des checksums de Taskfile)
+.task/
