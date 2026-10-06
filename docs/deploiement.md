@@ -8,7 +8,7 @@
 | `staging` | `develop` | `:staging` et `:sha-<commit>` | PC de la formation (recette) |
 | `production` | `main` | `:production`, `:latest` et `:sha-<commit>` | PC de la formation (démo) |
 
-Le même `compose.yaml` sert partout. Seul le fichier d'environnement change :
+Le même `compose.yaml` (serveur + PostgreSQL) sert partout. Seul le fichier d'environnement change :
 
 ```bash
 cp .env.staging.example .env.staging     # puis renseigner POSTGRES_PASSWORD
@@ -22,29 +22,18 @@ task up ENV=staging                      # = docker compose --env-file .env.stag
 | Variable | Secret | Rôle |
 | --- | --- | --- |
 | `APP_ENV` | non | `development`, `staging` ou `production` |
-| `WEB_PORT` | non | port exposé par nginx sur la machine |
+| `SERVER_PORT` | non | port exposé par le serveur sur la machine |
 | `CORS_ORIGINS` | non | origines autorisées à appeler l'API, séparées par des virgules |
 | `SWAGGER_ENABLED` | non | `true` pour activer Swagger en production (actif d'office ailleurs) |
 | `POSTGRES_USER`, `POSTGRES_DB` | non | compte et base PostgreSQL |
 | `POSTGRES_PASSWORD` | **oui** | mot de passe PostgreSQL |
-| `IMAGE_REGISTRY`, `IMAGE_TAG` | non | images à utiliser (ex. `staging`, `sha-1a2b3c4`) |
+| `IMAGE_REGISTRY`, `IMAGE_TAG` | non | image à utiliser (ex. `staging`, `sha-1a2b3c4`) |
 
 Générer un secret : `openssl rand -hex 32`.
 
-### Raspberry Pi (`/etc/dosdane/sensors.env`)
+### Serveur hors Docker
 
-| Variable | Rôle |
-| --- | --- |
-| `DOSDANE_ENV` | environnement visé |
-| `DOSDANE_API_URL` | URL de l'API, ex. `http://192.168.1.10:8080/api` |
-| `DOSDANE_DEVICE_ID` | identifiant de l'appareil (nom d'hôte par défaut) |
-
-Passer un Raspberry Pi d'un environnement à l'autre : modifier ces valeurs puis `sudo systemctl restart dosdane-sensors`.
-
-### Web et mobile
-
-- Le web n'a aucune variable de build : il appelle `/api` en relatif et nginx redirige vers le backend.
-- Le mobile lit `EXPO_PUBLIC_APP_ENV` et `EXPO_PUBLIC_API_URL` au build (`.env` en local, profils de `apps/mobile/eas.json` pour les builds). Ces valeurs sont publiques : jamais de secret dans le mobile.
+`task start` lance le serveur en local et lit `server/.env` (modèle : `server/.env.example`).
 
 ## GitHub : environnements, secrets et variables
 
@@ -66,8 +55,8 @@ Dans **Settings → Environments**, créer `staging` et `production`. Pour `prod
 
 | Nom | Exemple |
 | --- | --- |
-| `WEB_PORT` | `8080` en staging, `80` en production |
-| `CORS_ORIGINS` | URL publique du site |
+| `SERVER_PORT` | port exposé sur le serveur (défaut `3000`) |
+| `CORS_ORIGINS` | URL des clients autorisés à appeler l'API |
 | `SWAGGER_ENABLED` | `false` (production) |
 | `PUBLIC_URL` | lien affiché dans GitHub après le déploiement |
 | `DEPLOY_PATH` | dossier sur le serveur (défaut `/opt/dos-d-ane`) |
@@ -77,9 +66,10 @@ Les secrets ne sont jamais écrits dans le dépôt. Le CD génère le fichier `.
 
 ## Pipeline CD (`.github/workflows/cd.yml`)
 
-1. **images** : construit `backend` et `web` et les pousse sur GHCR (`ghcr.io/juc0ag0g0/dos-d-ane-<app>`).
+1. **image** : construit l'image du serveur et la pousse sur GHCR (`ghcr.io/juc0ag0g0/dos-d-ane-server`).
 2. **deploy** : pour `develop` et `main`, se connecte en SSH au serveur de l'environnement, copie `compose.yaml` et le fichier d'environnement, puis lance `docker compose pull && up -d` avec l'image du commit (`sha-…`). Ignoré si `DEPLOY_HOST` n'est pas défini.
-3. **sensors-release** : pour un tag `v*`, construit le paquet Python des capteurs et l'attache à une release GitHub.
+
+Un tag `vX.Y.Z` publie aussi l'image `:X.Y.Z`.
 
 ### Préparer le serveur (une fois)
 
@@ -94,7 +84,7 @@ Les images GHCR sont privées par défaut. Soit on les rend publiques (page du p
 
 ### Limite connue
 
-Les runners GitHub doivent pouvoir joindre le serveur en SSH. Si les PC de la formation ne sont pas accessibles depuis Internet : installer un **runner auto-hébergé** sur le serveur (le job `deploy` passe alors en `runs-on: self-hosted`), ou déployer à la main avec `task up ENV=staging` (les images sont publiées quoi qu'il arrive).
+Les runners GitHub doivent pouvoir joindre le serveur en SSH. Si les PC de la formation ne sont pas accessibles depuis Internet : installer un **runner auto-hébergé** sur le serveur (le job `deploy` passe alors en `runs-on: self-hosted`), ou déployer à la main avec `task up ENV=staging` (l'image est publiée quoi qu'il arrive).
 
 ### Revenir à une version précédente
 
@@ -103,18 +93,3 @@ Les runners GitHub doivent pouvoir joindre le serveur en SSH. Si les PC de la fo
 sed -i 's/^IMAGE_TAG=.*/IMAGE_TAG=sha-<ancien commit>/' .env.production
 docker compose --env-file .env.production up -d
 ```
-
-## Raspberry Pi
-
-```bash
-git clone https://github.com/JUC0AG0G0/dos-d-ane.git
-cd dos-d-ane/apps/sensors
-sudo ./deploy/install.sh                 # venv dans /opt/dosdane-sensors + service systemd
-sudo nano /etc/dosdane/sensors.env
-sudo systemctl restart dosdane-sensors
-```
-
-## Mobile
-
-- Développement : `npm start` dans `apps/mobile`, puis Expo Go.
-- Build installable : `npx eas-cli build --profile staging --platform android` (compte Expo requis).

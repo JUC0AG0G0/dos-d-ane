@@ -1,14 +1,14 @@
-# Stack serveur de Dos d'âne : API, site web et base de données.
+# Stack de Dos d'âne : serveur (API NestJS) et base de données.
 # Toutes les valeurs viennent du fichier d'environnement choisi :
 #   docker compose --env-file .env.staging up -d
 # (voir docs/deploiement.md, ou `task up ENV=staging`).
 name: dos-d-ane-${APP_ENV:?APP_ENV manquant}
 
 services:
-  backend:
-    image: ${IMAGE_REGISTRY:-ghcr.io/juc0ag0g0}/dos-d-ane-backend:${IMAGE_TAG:-latest}
+  server:
+    image: ${IMAGE_REGISTRY:-ghcr.io/juc0ag0g0}/dos-d-ane-server:${IMAGE_TAG:-latest}
     build:
-      context: ./apps/backend
+      context: ./server
     restart: unless-stopped
     environment:
       APP_ENV: ${APP_ENV}
@@ -16,24 +16,11 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-}
       SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
       DATABASE_URL: postgresql://${POSTGRES_USER:-dosdane}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant}@db:5432/${POSTGRES_DB:-dosdane}
+    ports:
+      - "${SERVER_PORT:-3000}:3000"
     depends_on:
       db:
         condition: service_healthy
-    networks: [internal]
-
-  web:
-    image: ${IMAGE_REGISTRY:-ghcr.io/juc0ag0g0}/dos-d-ane-web:${IMAGE_TAG:-latest}
-    build:
-      context: ./apps/web
-    restart: unless-stopped
-    environment:
-      API_UPSTREAM: http://backend:3000
-    ports:
-      # Seul point d'entrée exposé : nginx sert le site et redirige /api.
-      - "${WEB_PORT:-80}:80"
-    depends_on:
-      - backend
-    networks: [internal]
 
   db:
     image: postgres:18-alpine
@@ -49,10 +36,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    networks: [internal]
 
 volumes:
   db-data:
-
-networks:
-  internal:

@@ -29,7 +29,6 @@ check_version() {
 
 [ "$QUIET" = 1 ] || echo "Outils"
 check_version node "$(node --version 2>/dev/null | sed 's/^v//')" "$(expected node)"
-check_version python "$(python3 --version 2>/dev/null | cut -d' ' -f2)" "$(expected python)"
 check_version task "$(task --version 2>/dev/null | grep -oE '[0-9]+(\.[0-9]+)+' | head -n 1)" "$(expected task)"
 
 NPM_VERSION=$(npm --version 2>/dev/null)
@@ -46,12 +45,8 @@ else
 fi
 
 [ "$QUIET" = 1 ] || echo "Projet"
-for app in backend web mobile; do
-  if [ -d "apps/$app/node_modules" ]; then ok "dépendances $app installées"
-  else warn "dépendances $app absentes : lancer \`task setup\`"; fi
-done
-if [ -x apps/sensors/.venv/bin/python ]; then ok "venv capteurs présent"
-else warn "venv capteurs absent : lancer \`task setup\`"; fi
+if [ -d server/node_modules ]; then ok "dépendances du serveur installées"
+else warn "dépendances du serveur absentes : lancer \`task setup\`"; fi
 
 case "$(git config core.hooksPath 2>/dev/null)" in
   .husky/*) ok "hooks Git (Husky) actifs" ;;

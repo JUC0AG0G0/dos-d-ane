@@ -1,7 +1,7 @@
 {
   "name": "dos-d-ane",
   "private": true,
-  "description": "Outillage commun du monorepo (hooks Git). Chaque app a son propre package.json dans apps/.",
+  "description": "Outillage commun du dépôt (hooks Git). Le serveur a son propre package.json dans server/.",
   "scripts": {
     "prepare": "husky"
   },

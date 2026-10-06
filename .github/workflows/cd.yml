@@ -2,7 +2,7 @@ name: CD
 
 # develop -> images « staging » puis déploiement sur l'environnement staging.
 # main    -> images « production » puis déploiement sur l'environnement production.
-# tag v*  -> images versionnées et release GitHub avec le paquet Python capteurs.
+# tag v*  -> image versionnée.
 on:
   push:
     branches: [main, develop]
@@ -19,14 +19,11 @@ env:
   IMAGE_PREFIX: ghcr.io/juc0ag0g0/dos-d-ane
 
 jobs:
-  images:
+  image:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-    strategy:
-      matrix:
-        app: [backend, web]
     steps:
       - uses: actions/checkout@v5
       - uses: docker/setup-buildx-action@v3
@@ -38,7 +35,7 @@ jobs:
       - id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.IMAGE_PREFIX }}-${{ matrix.app }}
+          images: ${{ env.IMAGE_PREFIX }}-server
           tags: |
             type=raw,value=staging,enable=${{ github.ref == 'refs/heads/develop' }}
             type=raw,value=production,enable=${{ github.ref == 'refs/heads/main' }}
@@ -47,16 +44,16 @@ jobs:
             type=sha,prefix=sha-
       - uses: docker/build-push-action@v6
         with:
-          context: apps/${{ matrix.app }}
+          context: server
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: APP_VERSION=${{ github.ref_name }}-${{ github.sha }}
-          cache-from: type=gha,scope=${{ matrix.app }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.app }}
+          cache-from: type=gha,scope=server
+          cache-to: type=gha,mode=max,scope=server
 
   deploy:
-    needs: images
+    needs: image
     if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
@@ -92,7 +89,7 @@ jobs:
           umask 077
           cat > deploy.env <<ENVFILE
           APP_ENV=$APP_ENV
-          WEB_PORT=${{ vars.WEB_PORT || '80' }}
+          SERVER_PORT=${{ vars.SERVER_PORT || '3000' }}
           CORS_ORIGINS=${{ vars.CORS_ORIGINS }}
           SWAGGER_ENABLED=${{ vars.SWAGGER_ENABLED || 'false' }}
           POSTGRES_USER=${{ vars.POSTGRES_USER || 'dosdane' }}
@@ -122,25 +119,3 @@ jobs:
             && docker compose --env-file .env.$APP_ENV pull \
             && docker compose --env-file .env.$APP_ENV up -d --remove-orphans \
             && docker image prune -f"
-
-  sensors-release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.14"
-      - name: Construire le paquet capteurs
-        working-directory: apps/sensors
-        run: |
-          pip install build
-          python -m build
-      - name: Publier la release GitHub
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release create "$GITHUB_REF_NAME" apps/sensors/dist/* \
-            --title "$GITHUB_REF_NAME" --generate-notes
