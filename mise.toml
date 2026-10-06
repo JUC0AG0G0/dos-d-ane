@@ -7,7 +7,7 @@ min_version = "2026.1.0"
 
 [tools]
 node = "26"
-python = "3.14"
+python = "3.11"
 task = "3"
 
 [settings]
