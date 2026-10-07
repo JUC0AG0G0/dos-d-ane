@@ -1,13 +1,61 @@
-# Surcharge de développement : code monté en volume et rechargement à chaud (`task dev`).
+# Surcharge de développement (`task dev`) : code monté en volume, rechargement
+# à chaud et pgAdmin.
 services:
   server:
     image: node:26-alpine
     build: !reset null
     working_dir: /app
-    command: sh -c "npm ci && npm run start:dev"
+    command: sh -c "npm ci --no-audit --no-fund && npm run start:dev"
     volumes:
       - ./server:/app
       - server-node-modules:/app/node_modules
+    # Permet à `task dev` d'attendre que l'API réponde avant d'afficher les URL.
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 10s
+      start_period: 5m
+      start_interval: 2s
+
+  pgadmin:
+    image: dpage/pgadmin4:9
+    environment:
+      # Mode bureau : pas d'écran de connexion (dev uniquement).
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+      PGADMIN_DEFAULT_EMAIL: dev@example.com
+      PGADMIN_DEFAULT_PASSWORD: dev
+      # Écoute en IPv4 : évite une erreur sur les machines sans IPv6.
+      PGADMIN_LISTEN_ADDRESS: 0.0.0.0
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:80/misc/ping"]
+      interval: 10s
+      start_period: 2m
+      start_interval: 2s
+    # La base du projet est déjà enregistrée, avec son mot de passe.
+    configs:
+      - source: pgadmin-servers
+        target: /pgadmin4/servers.json
+      - source: pgadmin-pgpass
+        target: /pgpass
+        uid: "5050"
+        gid: "0"
+        mode: 0600
+    depends_on:
+      db:
+        condition: service_healthy
+
+configs:
+  pgadmin-servers:
+    content: |
+      {"Servers": {"1": {
+        "Name": "dos-d-ane", "Group": "Servers",
+        "Host": "db", "Port": 5432, "MaintenanceDB": "${POSTGRES_DB}",
+        "Username": "${POSTGRES_USER}", "PassFile": "/pgpass"
+      }}}
+  pgadmin-pgpass:
+    content: "db:5432:*:${POSTGRES_USER}:${POSTGRES_PASSWORD}"
 
 volumes:
   server-node-modules:

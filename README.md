@@ -26,13 +26,13 @@ C'est tout : en entrant dans le dossier, mise installe les outils, prépare le p
 
 | Commande | Rôle |
 | --- | --- |
-| `task dev` | lance le serveur et la base dans Docker |
+| `task dev` | lance serveur, base et pgAdmin dans Docker, puis affiche leurs URL |
+| `task logs` / `task down` | suit les logs / arrête tout |
 | `task check` | lint + compilation (aussi lancé avant chaque commit et push) |
 | `task db:migrate` | applique les changements de `server/prisma/schema.prisma` |
 | `task` | liste toutes les commandes |
 
-- API : http://localhost:3000/api/health (indique aussi si la base répond)
-- Swagger : http://localhost:3000/api/docs
+Si un port est déjà pris, `task dev` propose d'en prendre un libre au hasard.
 
 La configuration est dans `.env.dev`, créé à partir de `.env.dev.example`.
 

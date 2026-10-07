@@ -5,7 +5,7 @@
 version: "3"
 
 vars:
-  COMPOSE: docker compose --env-file .env.dev
+  COMPOSE: docker compose --env-file .env.dev -f compose.yaml -f compose.dev.yaml
 
 tasks:
   default:
@@ -95,20 +95,22 @@ tasks:
   # --- Docker -------------------------------------------------------------
 
   dev:
-    desc: Serveur + base dans Docker, rechargement à chaud (API :3000, base :5432)
-    cmd: "{{.COMPOSE}} -f compose.yaml -f compose.dev.yaml up"
+    desc: Lance serveur, base et pgAdmin dans Docker puis affiche les URL
+    deps: [env]
+    interactive: true
+    cmd: sh scripts/dev.sh
 
   db:
     desc: Lance seulement la base dans Docker (pour `task start`)
     cmd: "{{.COMPOSE}} up -d db"
 
   up:
-    desc: Construit l'image du serveur et lance la stack en arrière-plan
-    cmd: "{{.COMPOSE}} up -d --build"
+    desc: Construit l'image du serveur (comme en production) et la lance avec la base
+    cmd: docker compose --env-file .env.dev up -d --build --wait
 
   down:
     desc: Arrête la stack (les données de la base sont conservées)
-    cmd: "{{.COMPOSE}} down"
+    cmd: "{{.COMPOSE}} down --remove-orphans"
 
   logs:
     desc: Suit les logs de la stack
