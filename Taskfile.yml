@@ -82,6 +82,12 @@ tasks:
     desc: Exporte la base dans dumps/<date>.sql (stack lancée ; dossier ignoré par Git)
     cmd: sh scripts/db-dump.sh
 
+  db:restore:
+    desc: Remplace la base de la stack lancée par un dump (le plus récent de dumps/, ou `-- fichier.sql`)
+    interactive: true
+    prompt: Les données actuelles de la base seront remplacées par celles du dump. Continuer ?
+    cmd: sh scripts/db-restore.sh {{.CLI_ARGS}}
+
   # --- Docker -------------------------------------------------------------
 
   dev:
@@ -89,6 +95,15 @@ tasks:
     deps: [env]
     interactive: true
     cmd: sh scripts/dev.sh
+
+  dev:restore:
+    desc: Relance la stack de dev avec uniquement les données d'un dump (le plus récent, ou `-- fichier.sql`)
+    deps: [env]
+    interactive: true
+    prompt: Les données actuelles de la base seront remplacées par celles du dump. Continuer ?
+    cmds:
+      - sh scripts/dev.sh
+      - sh scripts/db-restore.sh {{.CLI_ARGS}}
 
   up:
     desc: Construit l'image du serveur (comme en production) et la lance avec la base
