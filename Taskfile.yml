@@ -78,6 +78,10 @@ tasks:
     interactive: true
     cmd: "{{.COMPOSE}} exec server npm run db:migrate"
 
+  db:dump:
+    desc: Exporte la base dans dumps/<date>.sql (stack lancée ; dossier ignoré par Git)
+    cmd: sh scripts/db-dump.sh
+
   # --- Docker -------------------------------------------------------------
 
   dev:
@@ -91,8 +95,14 @@ tasks:
     cmd: docker compose --env-file .env.dev up -d --build --wait
 
   down:
-    desc: Arrête la stack (les données de la base sont conservées)
+    desc: Arrête la stack ; les données sont gardées pour le prochain `task dev`
     cmd: "{{.COMPOSE}} down --remove-orphans"
+
+  clean:
+    desc: Arrête la stack et SUPPRIME les données (base et node_modules du conteneur)
+    interactive: true
+    prompt: Toutes les données de la base locale seront perdues. Continuer ?
+    cmd: "{{.COMPOSE}} down --volumes --remove-orphans"
 
   logs:
     desc: Suit les logs de la stack
