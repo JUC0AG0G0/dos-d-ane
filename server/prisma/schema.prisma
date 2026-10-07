@@ -1,5 +1,6 @@
 // Schéma de la base (https://www.prisma.io/docs/orm/prisma-schema).
-// Après une modification : `task db:migrate` crée la migration et l'applique.
+// Après une modification, avec `task dev` lancé : `task db:migrate` crée la
+// migration et l'applique.
 
 generator client {
   provider            = "prisma-client"

@@ -19,11 +19,11 @@ services:
   pgadmin:
     image: dpage/pgadmin4:9
     environment:
-      # Mode bureau : pas d'écran de connexion (dev uniquement).
-      PGADMIN_CONFIG_SERVER_MODE: "False"
+      # Valeurs dans .env.dev.
+      PGADMIN_CONFIG_SERVER_MODE: ${PGADMIN_SERVER_MODE:-False}
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
-      PGADMIN_DEFAULT_EMAIL: dev@example.com
-      PGADMIN_DEFAULT_PASSWORD: dev
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
       # Écoute en IPv4 : évite une erreur sur les machines sans IPv6.
       PGADMIN_LISTEN_ADDRESS: 0.0.0.0
     ports:

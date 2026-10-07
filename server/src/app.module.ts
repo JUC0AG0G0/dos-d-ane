@@ -8,10 +8,8 @@ import { PrismaModule } from './prisma/prisma.module.js';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      // Hors Docker (`task start`), lit .env.dev à la racine du dépôt.
-      // En Docker, les variables sont injectées par docker compose.
-      envFilePath: ['../.env.dev'],
-      expandVariables: true,
+      // Les variables sont injectées par docker compose (depuis .env.dev).
+      ignoreEnvFile: true,
       validate: validateEnv,
     }),
     PrismaModule,

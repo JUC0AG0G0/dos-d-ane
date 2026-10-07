@@ -56,8 +56,8 @@ case "$(git config core.hooksPath 2>/dev/null)" in
   *) warn "hooks Git (Husky) inactifs : lancer \`task setup\`" ;;
 esac
 
-if [ -f .env.dev ]; then ok ".env.dev présent"
-else warn ".env.dev absent : lancer \`task setup\`"; fi
+if sh scripts/env.sh --check; then ok ".env.dev à jour"
+else warn ".env.dev absent ou incomplet : lancer \`task setup\`"; fi
 
 if [ "$ERRORS" -gt 0 ]; then
   printf '\033[31m✗\033[0m dos-d-ane : %s erreur(s), %s avertissement(s) (détails : task doctor)\n' "$ERRORS" "$WARNINGS"
