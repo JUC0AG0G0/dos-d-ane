@@ -12,7 +12,14 @@ Aide à la posture pour le travail sédentaire, POC du Master UHA 4.0 (2026).
    ```bash
    brew install mise    # ou : curl https://mise.run | sh
    echo 'eval "$(mise activate zsh)"' >> ~/.zshrc
+   eval "$(mise activate bash)"
    ```
+Verification de si mise est bien installer :
+```bash
+   mise doctor 
+   ```
+Si bien installer activated yes
+
 2. Dans un nouveau terminal :
    ```bash
    git clone https://github.com/JUC0AG0G0/dos-d-ane.git
