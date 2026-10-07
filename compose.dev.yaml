@@ -1,6 +1,4 @@
-# Surcharge de développement : code monté en volume et rechargement à chaud.
-#   docker compose --env-file .env.development -f compose.yaml -f compose.dev.yaml up
-# (ou `task dev`).
+# Surcharge de développement : code monté en volume et rechargement à chaud (`task dev`).
 services:
   server:
     image: node:26-alpine
@@ -10,11 +8,6 @@ services:
     volumes:
       - ./server:/app
       - server-node-modules:/app/node_modules
-
-  db:
-    ports:
-      # Accès direct à la base depuis le poste (DBeaver, psql...) en dev uniquement.
-      - "5432:5432"
 
 volumes:
   server-node-modules:

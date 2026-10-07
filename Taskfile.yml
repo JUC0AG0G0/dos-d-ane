@@ -2,12 +2,10 @@
 #   task setup            # dépendances, hooks Git, .env (automatique avec mise)
 #   task check            # lint + compilation (lancé par Husky avant push)
 #   task dev              # stack Docker de dev
-#   task up ENV=staging   # stack avec l'image publiée
 version: "3"
 
 vars:
-  ENV: '{{.ENV | default "development"}}'
-  COMPOSE: docker compose --env-file .env.{{.ENV}} -f compose.yaml
+  COMPOSE: docker compose --env-file .env.dev
 
 tasks:
   default:
@@ -40,9 +38,9 @@ tasks:
       - git config core.hooksPath | grep -q '^.husky/'
 
   env:
-    # Crée .env.development à partir du modèle s'il n'existe pas.
-    cmd: cp .env.development.example .env.development
-    status: [test -f .env.development]
+    # Crée .env.dev à partir du modèle s'il n'existe pas.
+    cmd: cp .env.dev.example .env.dev
+    status: [test -f .env.dev]
 
   # --- Vérifications (Husky et CI) ----------------------------------------
 
@@ -75,22 +73,38 @@ tasks:
   # --- Serveur hors Docker ------------------------------------------------
 
   start:
-    desc: Lance le serveur en local avec rechargement (lit server/.env)
+    desc: Lance le serveur sans Docker, avec rechargement (base lancée par `task db`)
     deps: [install]
     dir: server
     cmd: npm run start:dev
 
+  # --- Base de données (Prisma) -------------------------------------------
+
+  db:migrate:
+    desc: Crée et applique une migration après modification de prisma/schema.prisma
+    deps: [install]
+    dir: server
+    cmd: npm run db:migrate
+
+  db:studio:
+    desc: Ouvre Prisma Studio pour explorer la base
+    deps: [install]
+    dir: server
+    cmd: npm run db:studio
+
   # --- Docker -------------------------------------------------------------
 
   dev:
-    desc: Stack de dev avec rechargement à chaud (API :3000, db :5432)
-    cmd: docker compose --env-file .env.development -f compose.yaml -f compose.dev.yaml up
+    desc: Serveur + base dans Docker, rechargement à chaud (API :3000, base :5432)
+    cmd: "{{.COMPOSE}} -f compose.yaml -f compose.dev.yaml up"
+
+  db:
+    desc: Lance seulement la base dans Docker (pour `task start`)
+    cmd: "{{.COMPOSE}} up -d db"
 
   up:
-    desc: "Stack avec l'image publiée (ex. : task up ENV=staging)"
-    cmds:
-      - "{{.COMPOSE}} pull"
-      - "{{.COMPOSE}} up -d"
+    desc: Construit l'image du serveur et lance la stack en arrière-plan
+    cmd: "{{.COMPOSE}} up -d --build"
 
   down:
     desc: Arrête la stack (les données de la base sont conservées)

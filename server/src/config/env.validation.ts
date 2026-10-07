@@ -3,7 +3,7 @@ export const APP_ENVS = ['development', 'staging', 'production'] as const;
 /**
  * Vérifie les variables d'environnement au démarrage : l'API refuse de
  * démarrer si une valeur est absente ou invalide.
- * Ajouter ici chaque nouvelle variable (et dans les fichiers .env*.example).
+ * Ajouter ici chaque nouvelle variable (et dans .env.dev.example).
  */
 export function validateEnv(
   config: Record<string, unknown>,
@@ -18,6 +18,10 @@ export function validateEnv(
   const port = Number(config.PORT ?? 3000);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     errors.push('PORT doit être un entier entre 1 et 65535');
+  }
+
+  if (typeof config.DATABASE_URL !== 'string' || !config.DATABASE_URL) {
+    errors.push('DATABASE_URL manquante');
   }
 
   if (errors.length > 0) {

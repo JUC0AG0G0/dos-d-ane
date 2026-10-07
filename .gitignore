@@ -249,3 +249,5 @@ docker-compose.override.yml
 *.tar.gz
 # Task (cache des checksums de Taskfile)
 .task/
+# Client Prisma généré (prisma generate)
+server/src/generated/

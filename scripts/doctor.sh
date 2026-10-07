@@ -44,7 +44,7 @@ esac
 if docker compose version >/dev/null 2>&1; then
   ok "docker compose $(docker compose version --short 2>/dev/null)"
 else
-  warn "docker compose introuvable : nécessaire pour \`task dev\` et \`task up\`"
+  warn "docker compose introuvable : nécessaire pour \`task dev\`"
 fi
 
 [ "$QUIET" = 1 ] || echo "Projet"
@@ -56,8 +56,8 @@ case "$(git config core.hooksPath 2>/dev/null)" in
   *) warn "hooks Git (Husky) inactifs : lancer \`task setup\`" ;;
 esac
 
-if [ -f .env.development ]; then ok ".env.development présent"
-else warn ".env.development absent : cp .env.development.example .env.development"; fi
+if [ -f .env.dev ]; then ok ".env.dev présent"
+else warn ".env.dev absent : lancer \`task setup\`"; fi
 
 if [ "$ERRORS" -gt 0 ]; then
   printf '\033[31m✗\033[0m dos-d-ane : %s erreur(s), %s avertissement(s) (détails : task doctor)\n' "$ERRORS" "$WARNINGS"

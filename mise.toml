@@ -14,4 +14,4 @@ experimental = true
 [hooks]
 # À chaque entrée dans le dossier : installe les outils manquants, lance
 # `task setup` (instantané si tout est déjà fait) puis affiche le bilan.
-enter = "mise install --quiet; command -v task >/dev/null 2>&1 && task --silent setup; sh scripts/doctor.sh --quiet"
+enter = "cd \"$MISE_PROJECT_ROOT\" && mise install --quiet; command -v task >/dev/null 2>&1 && task --silent setup; sh scripts/doctor.sh --quiet"

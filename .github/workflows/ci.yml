@@ -35,13 +35,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Valider les fichiers compose pour chaque environnement
-        run: |
-          for env in development staging production; do
-            # Le mot de passe est vide dans les exemples : on fournit une valeur factice.
-            POSTGRES_PASSWORD=ci docker compose --env-file ".env.$env.example" -f compose.yaml config -q
-          done
-          docker compose --env-file .env.development.example -f compose.yaml -f compose.dev.yaml config -q
+      - name: Valider les fichiers compose
+        run: docker compose --env-file .env.dev.example -f compose.yaml -f compose.dev.yaml config -q
       - uses: docker/setup-buildx-action@v3
       - name: Construire l'image du serveur
         uses: docker/build-push-action@v6
