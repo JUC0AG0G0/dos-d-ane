@@ -54,4 +54,4 @@ echo "  Swagger     http://localhost:$API_PORT/api/docs"
 echo "  pgAdmin     http://localhost:$PGA_PORT"
 echo "  PostgreSQL  localhost:$DB_PORT (base $(env_value POSTGRES_DB), utilisateur $(env_value POSTGRES_USER))"
 echo
-echo "Logs : task logs · Arrêter : task down"
+echo "Logs : task logs · Arrêter : task down (task clean efface aussi les données)"
