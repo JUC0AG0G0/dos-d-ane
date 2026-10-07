@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="860" viewBox="0 0 1800 860" font-family="Inter, 'DejaVu Sans', Arial, sans-serif" font-size="20" fill="#1a1a1a">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#222"/></marker>
+  </defs>
+  <style>.lbl{paint-order:stroke;stroke:#fff;stroke-width:7px;stroke-linejoin:round}</style>
+  <rect width="1800" height="860" fill="#ffffff"/>
+
+  <!-- Zone privée -->
+  <rect x="20" y="70" width="900" height="470" rx="16" fill="#f1f9f1" stroke="#3a7d44" stroke-width="2.5" stroke-dasharray="10 7"/>
+  <text x="470" y="56" text-anchor="middle" font-size="20" font-weight="700" fill="#2d6636">🔒 ZONE PRIVÉE : l'image ne sort jamais d'ici</text>
+
+  <!-- Utilisateur + caméra -->
+  <rect x="45" y="170" width="230" height="280" rx="10" fill="#ffffff" stroke="#3a7d44" stroke-width="2"/>
+  <text x="160" y="235" text-anchor="middle" font-size="52">👤</text>
+  <text x="160" y="270" text-anchor="middle" font-weight="700">Utilisateur</text>
+  <text x="160" y="294" text-anchor="middle" font-size="17" fill="#444">assis à son poste</text>
+  <text x="160" y="358" text-anchor="middle" font-size="40">📷</text>
+  <text x="160" y="392" text-anchor="middle" font-weight="700">Webcam USB</text>
+  <text x="160" y="414" text-anchor="middle" font-size="17" fill="#444">fixe, de profil</text>
+
+  <path d="M277,295 L326,295" fill="none" stroke="#222" stroke-width="3" marker-end="url(#a)"/>
+
+  <!-- Raspberry -->
+  <rect x="330" y="95" width="565" height="425" rx="10" fill="#ffffff" stroke="#1a1a1a" stroke-width="4"/>
+  <text x="612" y="135" text-anchor="middle" font-size="26" font-weight="700">🍓 Raspberry Pi 4 — l'IA tourne ici</text>
+
+  <g font-size="20">
+    <rect x="355" y="155" width="515" height="50" rx="8" fill="#eef7ee" stroke="#9cc9a3"/>
+    <text x="375" y="187"><tspan font-weight="700">1.</tspan> Capture toutes les 2–10 s (en mémoire)</text>
+    <rect x="355" y="215" width="515" height="50" rx="8" fill="#eef7ee" stroke="#9cc9a3"/>
+    <text x="375" y="247"><tspan font-weight="700">2.</tspan> IA MoveNet → 17 points du corps</text>
+    <rect x="355" y="275" width="515" height="50" rx="8" fill="#eef7ee" stroke="#9cc9a3"/>
+    <text x="375" y="307"><tspan font-weight="700">3.</tspan> Angles du cou et du dos + mouvement</text>
+    <rect x="355" y="335" width="515" height="50" rx="8" fill="#eef7ee" stroke="#9cc9a3"/>
+    <text x="375" y="367"><tspan font-weight="700">4.</tspan> 4 postures : règles + vérif. dans le temps</text>
+    <rect x="355" y="395" width="515" height="50" rx="8" fill="#fff3d6" stroke="#d9b45a"/>
+    <text x="375" y="427"><tspan font-weight="700">5.</tspan> Si ça dure : « tête en avant depuis 3 min »</text>
+  </g>
+  <text x="612" y="474" text-anchor="middle" font-size="18" fill="#8a1f1f" font-weight="700">🗑️ L'image est effacée juste après l'étape 2</text>
+  <text x="612" y="500" text-anchor="middle" font-size="17" fill="#8a1f1f">rien n'est enregistré · on n'envoie que si la posture dure</text>
+
+  <!-- Flèche Pi -> Serveur -->
+  <path d="M897,300 L1046,300" fill="none" stroke="#111" stroke-width="6" marker-end="url(#a)"/>
+  <text class="lbl" x="972" y="258" text-anchor="middle" font-size="17" font-weight="700">chiffres</text>
+  <text class="lbl" x="972" y="280" text-anchor="middle" font-size="17" font-weight="700">seulement</text>
+  <text class="lbl" x="972" y="330" text-anchor="middle" font-size="16" fill="#8a1f1f">jamais</text>
+  <text class="lbl" x="972" y="350" text-anchor="middle" font-size="16" fill="#8a1f1f">d'image</text>
+  <text class="lbl" x="972" y="380" text-anchor="middle" font-size="14" fill="#555">HTTPS</text>
+
+  <!-- Serveur -->
+  <rect x="1050" y="170" width="320" height="260" rx="10" fill="#eef3fb" stroke="#3a5f9e" stroke-width="2.5"/>
+  <text x="1210" y="212" text-anchor="middle" font-size="26" font-weight="700">🐧 Serveur</text>
+  <text x="1210" y="238" text-anchor="middle" font-size="16" fill="#444">NestJS + PostgreSQL</text>
+  <text x="1075" y="282">
+    <tspan x="1075">• Enregistre les résultats</tspan>
+    <tspan x="1075" dy="30">• Calcule les statistiques</tspan>
+    <tspan x="1075" dy="30">• Choisit les conseils</tspan>
+    <tspan x="1093" dy="30">et exercices</tspan>
+    <tspan x="1075" dy="30">• Gère les sessions</tspan>
+  </text>
+
+  <!-- Mobile -->
+  <rect x="1430" y="70" width="355" height="240" rx="10" fill="#fff8ea" stroke="#b07d1a" stroke-width="2.5"/>
+  <text x="1607" y="110" text-anchor="middle" font-size="24" font-weight="700">📱 App mobile</text>
+  <text x="1450" y="150" font-size="18">
+    <tspan x="1450">• Connexion</tspan>
+    <tspan x="1450" dy="24">• « Démarrer » / « Terminer »</tspan>
+    <tspan x="1450" dy="28">• Score et conclusions</tspan>
+    <tspan x="1450" dy="28">• Conseils + exercices</tspan>
+    <tspan x="1450" dy="28" fill="#8a1f1f">⚠️ ne remplace pas</tspan>
+    <tspan x="1474" dy="24" fill="#8a1f1f">un professionnel de santé</tspan>
+  </text>
+
+  <!-- Web -->
+  <rect x="1430" y="340" width="355" height="200" rx="10" fill="#fff8ea" stroke="#b07d1a" stroke-width="2.5"/>
+  <text x="1607" y="380" text-anchor="middle" font-size="24" font-weight="700">💻 Site web</text>
+  <text x="1450" y="420" font-size="18">
+    <tspan x="1450" font-weight="700">Utilisateur :</tspan>
+    <tspan x="1450" dy="26">mon historique, ma progression</tspan>
+    <tspan x="1450" dy="32" font-weight="700">Admin :</tspan>
+    <tspan x="1450" dy="26">postures les plus fréquentes</tspan>
+  </text>
+
+  <!-- Flèches serveur <-> apps -->
+  <path d="M1372,240 C1400,240 1400,190 1426,190" fill="none" stroke="#222" stroke-width="3" marker-start="url(#a)" marker-end="url(#a)"/>
+  <path d="M1372,360 C1400,360 1400,440 1426,440" fill="none" stroke="#222" stroke-width="3" marker-start="url(#a)" marker-end="url(#a)"/>
+
+  <!-- Démarrage de session : mobile -> Pi (via serveur) -->
+  <text x="1210" y="470" text-anchor="middle" font-size="16" fill="#555">le Raspberry n'analyse que pendant</text>
+  <text x="1210" y="492" text-anchor="middle" font-size="16" fill="#555">une session démarrée sur le mobile</text>
+  <text x="1210" y="514" text-anchor="middle" font-size="16" fill="#555">(après connexion)</text>
+
+  <!-- Bandeau : comment on y arrive -->
+  <text x="40" y="618" font-size="22" font-weight="700">Comment on y arrive : on valide chaque étape avant la suivante</text>
+  <g font-size="18">
+    <rect x="40" y="640" width="520" height="150" rx="10" fill="#f6f6f6" stroke="#777" stroke-width="2"/>
+    <text x="60" y="676" font-size="21" font-weight="700">Étape 1 — Raspberry + webcam USB</text>
+    <text x="60" y="708">Valider l'IA sur le Pi : assez rapide ?</text>
+    <text x="60" y="734">points du corps stables de profil ?</text>
+    <text x="60" y="760">angles corrects ?</text>
+
+    <path d="M562,715 L626,715" fill="none" stroke="#222" stroke-width="3" marker-end="url(#a)"/>
+
+    <rect x="630" y="640" width="520" height="150" rx="10" fill="#f6f6f6" stroke="#1a1a1a" stroke-width="3"/>
+    <text x="650" y="676" font-size="21" font-weight="700">Étape 2 — Postures et endurance</text>
+    <text x="650" y="708">Les règles reconnaissent-elles les 4 postures,</text>
+    <text x="650" y="734">sans fausses alertes ? Le Pi tient-il</text>
+    <text x="650" y="760">une journée sans chauffer ?</text>
+
+    <path d="M1152,715 L1216,715" fill="none" stroke="#222" stroke-width="3" marker-end="url(#a)"/>
+
+    <rect x="1220" y="640" width="560" height="150" rx="10" fill="#f6f6f6" stroke="#777" stroke-width="2"/>
+    <text x="1240" y="676" font-size="21" font-weight="700">Étape 3 — Brancher le serveur et les apps</text>
+    <text x="1240" y="708">Envoi des résultats, session depuis</text>
+    <text x="1240" y="734">le mobile, conseils, historique.</text>
+    <text x="1240" y="760">Démo complète de bout en bout.</text>
+  </g>
+</svg>

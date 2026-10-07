@@ -1,5 +1,7 @@
 # Audit technique — Fil Rouge Master UHA 4.0 — « Dos d'âne »
 
+> **Version courte :** pour le MVP et les présentations, la référence est [solution-mvp.md](solution-mvp.md). Elle retient **4 postures** (tête en avant, dos penché en avant, avachi en arrière, immobilité prolongée), une cadence de capture adaptative et 7 tests (T1–T7). Le présent audit reste l'annexe détaillée.
+
 > **Version v3** : révision de la v2 après confrontation avec le sujet officiel *Fil rouge Master 2026* et avec le dépôt `dos-d-ane`.
 >
 > Principaux changements par rapport à la v2 :
