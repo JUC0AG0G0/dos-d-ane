@@ -29,12 +29,12 @@ C'est tout : en entrant dans le dossier, mise installe les outils, prépare le p
 | `task dev` | lance serveur, base et pgAdmin dans Docker, puis affiche leurs URL |
 | `task logs` / `task down` | suit les logs / arrête tout |
 | `task check` | lint + compilation (aussi lancé avant chaque commit et push) |
-| `task db:migrate` | applique les changements de `server/prisma/schema.prisma` |
+| `task db:migrate` | applique les changements de `server/prisma/schema.prisma` (avec `task dev` lancé) |
 | `task` | liste toutes les commandes |
 
 Si un port est déjà pris, `task dev` propose d'en prendre un libre au hasard.
 
-La configuration est dans `.env.dev`, créé à partir de `.env.dev.example`.
+Le serveur tourne toujours dans Docker, comme en production. Toute la configuration (ports, base, pgAdmin) est dans `.env.dev`, créé à partir de `.env.dev.example` ; `task setup` y ajoute les nouvelles variables du modèle.
 
 ## Branches
 

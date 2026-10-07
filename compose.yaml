@@ -12,8 +12,7 @@ services:
       PORT: 3000
       CORS_ORIGINS: ${CORS_ORIGINS:-}
       SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
-      # Dans Docker, la base s'appelle « db » et non localhost.
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      DATABASE_URL: ${DATABASE_URL}
     ports:
       - "${PORT:-3000}:3000"
     depends_on:

@@ -38,9 +38,10 @@ tasks:
       - git config core.hooksPath | grep -q '^.husky/'
 
   env:
-    # Crée .env.dev à partir du modèle s'il n'existe pas.
-    cmd: cp .env.dev.example .env.dev
-    status: [test -f .env.dev]
+    # Crée .env.dev à partir du modèle, ou lui ajoute les variables apparues
+    # dans le modèle depuis (les valeurs existantes ne sont pas touchées).
+    cmd: sh scripts/env.sh
+    status: [sh scripts/env.sh --check]
 
   # --- Vérifications (Husky et CI) ----------------------------------------
 
@@ -70,27 +71,12 @@ tasks:
       - task: lint
       - task: build
 
-  # --- Serveur hors Docker ------------------------------------------------
-
-  start:
-    desc: Lance le serveur sans Docker, avec rechargement (base lancée par `task db`)
-    deps: [install]
-    dir: server
-    cmd: npm run start:dev
-
   # --- Base de données (Prisma) -------------------------------------------
 
   db:migrate:
-    desc: Crée et applique une migration après modification de prisma/schema.prisma
-    deps: [install]
-    dir: server
-    cmd: npm run db:migrate
-
-  db:studio:
-    desc: Ouvre Prisma Studio pour explorer la base
-    deps: [install]
-    dir: server
-    cmd: npm run db:studio
+    desc: Crée et applique une migration après modification de prisma/schema.prisma (stack lancée)
+    interactive: true
+    cmd: "{{.COMPOSE}} exec server npm run db:migrate"
 
   # --- Docker -------------------------------------------------------------
 
@@ -99,10 +85,6 @@ tasks:
     deps: [env]
     interactive: true
     cmd: sh scripts/dev.sh
-
-  db:
-    desc: Lance seulement la base dans Docker (pour `task start`)
-    cmd: "{{.COMPOSE}} up -d db"
 
   up:
     desc: Construit l'image du serveur (comme en production) et la lance avec la base
