@@ -58,6 +58,10 @@ esac
 
 if sh scripts/env.sh --check; then ok ".env.dev à jour"
 else warn ".env.dev absent ou incomplet : lancer \`task setup\`"; fi
+for f in .env .env.* server/.env*; do
+  case "$f" in .env.dev | .env.dev.example | *'*'*) continue ;; esac
+  [ -f "$f" ] && warn "$f n'est plus utilisé (tout est dans .env.dev) : rm $f"
+done
 
 if [ "$ERRORS" -gt 0 ]; then
   printf '\033[31m✗\033[0m dos-d-ane : %s erreur(s), %s avertissement(s) (détails : task doctor)\n' "$ERRORS" "$WARNINGS"

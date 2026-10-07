@@ -1,8 +1,17 @@
 #!/bin/sh
 # Crée .env.dev depuis .env.dev.example, ou y ajoute les variables du modèle
-# qui manquent (sans toucher aux valeurs existantes). Lancé par `task setup`.
+# qui manquent (sans toucher aux valeurs existantes), et supprime les anciens
+# fichiers d'env. Lancé par `task setup` (entrée dans le dossier, git pull, task dev).
 #   sh scripts/env.sh --check   # code 1 s'il manque quelque chose
 cd "$(dirname "$0")/.." || exit 1
+
+# Fichiers d'env d'anciennes versions du projet, remplacés par .env.dev.
+OBSOLETE=".env.development .env.staging .env.production server/.env"
+for f in $OBSOLETE; do
+  [ -f "$f" ] || continue
+  [ "$1" = "--check" ] && exit 1
+  rm -f "$f" && echo "Supprimé $f (remplacé par .env.dev)"
+done
 
 if [ ! -f .env.dev ]; then
   [ "$1" = "--check" ] && exit 1

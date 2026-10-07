@@ -78,7 +78,7 @@ Si un port est déjà pris, `task dev` propose d'en prendre un libre au hasard.
 
 ## Configuration
 
-Toute la configuration (ports, base, pgAdmin) est dans `.env.dev`, créé à partir de `.env.dev.example`. Quand le modèle gagne une variable, elle est ajoutée automatiquement à ton `.env.dev`.
+Seul `.env.dev.example` est versionné. Ton `.env.dev` (ports, base, pgAdmin) est créé à partir de lui et tenu à jour automatiquement : à l'entrée dans le dossier, après chaque `git pull` et à chaque `task dev`, les variables nouvelles du modèle y sont ajoutées sans toucher à tes valeurs.
 
 Le serveur tourne toujours dans Docker, comme en production.
 
