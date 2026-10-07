@@ -6,49 +6,82 @@ Aide à la posture pour le travail sédentaire, POC du Master UHA 4.0 (2026).
 
 > Conseils généraux de posture et d'exercices. **Ne remplace pas l'avis d'un professionnel de santé.**
 
-## Installation
+## À installer à la main
 
-1. Installer [mise](https://mise.jdx.dev) et l'activer dans le shell :
-   ```bash
-   # macOS (Homebrew)
-   brew install mise
-   echo 'eval "$(mise activate zsh)"' >> ~/.zshrc
-   mise doctor 
-   ```
-Si bien installer activated yes
+| Outil | Rôle | Installation |
+| --- | --- | --- |
+| [mise](https://mise.jdx.dev) | installe Node, Python et Task aux versions du projet | voir ci-dessous |
+| [Docker](https://docs.docker.com/get-docker/) | fait tourner le serveur, la base et pgAdmin | Docker Desktop (macOS, Windows) ou Docker Engine (Linux) |
 
-2. Dans un nouveau terminal :
-=======
+Tout le reste (Node, npm, Python, Task, dépendances, hooks Git) est installé automatiquement.
 
-   # Linux / WSL : mise est installé dans ~/.local/bin, d'où le chemin complet.
-   curl https://mise.run | sh
-   echo 'eval "$(~/.local/bin/mise activate zsh)"' >> ~/.zshrc     # si ton shell est zsh
-   echo 'eval "$(~/.local/bin/mise activate bash)"' >> ~/.bashrc   # si ton shell est bash
-   ```
-2. **Ouvrir un nouveau terminal**, puis :
-   ```bash
-   git clone https://github.com/JUC0AG0G0/dos-d-ane.git
-   cd dos-d-ane
-   mise trust
-   cd .. && cd dos-d-ane
-   ```
+### Installer et activer mise
 
-Ensuite, à chaque entrée dans le dossier, mise installe les outils, prépare le projet (dépendances, hooks Git, `.env.dev`) et affiche `✓ dos-d-ane : environnement OK`, ou ce qui manque.
+**macOS (Homebrew)**
+
+```bash
+brew install mise
+echo 'eval "$(mise activate zsh)"' >> ~/.zshrc
+```
+
+**Linux / WSL** (mise s'installe dans `~/.local/bin`, d'où le chemin complet)
+
+```bash
+curl https://mise.run | sh
+echo 'eval "$(~/.local/bin/mise activate zsh)"' >> ~/.zshrc     # shell zsh
+echo 'eval "$(~/.local/bin/mise activate bash)"' >> ~/.bashrc   # shell bash
+```
+
+Ouvrir ensuite **un nouveau terminal** et vérifier : `mise doctor` doit afficher `activated: yes`.
+
+## Premier lancement
+
+```bash
+git clone https://github.com/JUC0AG0G0/dos-d-ane.git
+cd dos-d-ane
+mise trust               # autorise la config du projet (une seule fois)
+cd .. && cd dos-d-ane    # ressortir et revenir déclenche l'installation
+```
+
+La première fois, mise installe les outils (environ une minute) puis prépare le projet. À la fin :
+
+```
+✓ dos-d-ane : environnement OK
+```
+
+Sinon, chaque problème est listé avec la commande qui le règle (`task doctor` pour le détail). Docker lancé, il ne reste plus qu'à démarrer :
+
+```bash
+task dev
+```
+
+```
+✓ Stack de dev lancée
+  API         http://localhost:3000/api/health
+  Swagger     http://localhost:3000/api/docs
+  pgAdmin     http://localhost:5050
+  PostgreSQL  localhost:5432 (base dosdane, utilisateur dosdane)
+```
+
+Si un port est déjà pris, `task dev` propose d'en prendre un libre au hasard.
 
 ## Commandes
 
 | Commande | Rôle |
 | --- | --- |
-| `task dev` | lance serveur, base et pgAdmin dans Docker, puis affiche leurs URL |
-| `task logs` / `task down` | suit les logs / arrête tout |
-| `task check` | lint + compilation (aussi lancé avant chaque commit et push) |
+| `task dev` | lance serveur, base et pgAdmin dans Docker et affiche leurs URL |
+| `task logs` | suit les logs |
+| `task down` | arrête tout (les données de la base sont conservées) |
+| `task check` | lint + compilation (lancé aussi avant chaque commit et push) |
 | `task db:migrate` | applique les changements de `server/prisma/schema.prisma` (avec `task dev` lancé) |
 | `task` | liste toutes les commandes |
 
-Si un port est déjà pris, `task dev` propose d'en prendre un libre au hasard.
+## Configuration
 
-Le serveur tourne toujours dans Docker, comme en production. Toute la configuration (ports, base, pgAdmin) est dans `.env.dev`, créé à partir de `.env.dev.example` ; `task setup` y ajoute les nouvelles variables du modèle.
+Toute la configuration (ports, base, pgAdmin) est dans `.env.dev`, créé à partir de `.env.dev.example`. Quand le modèle gagne une variable, elle est ajoutée automatiquement à ton `.env.dev`.
+
+Le serveur tourne toujours dans Docker, comme en production.
 
 ## Branches
 
-`main` et `develop` ne reçoivent que des pull requests ; une branche par tâche, créée depuis `develop`.
+`main` et `develop` ne reçoivent que des pull requests. Une branche par tâche, créée depuis `develop`.
