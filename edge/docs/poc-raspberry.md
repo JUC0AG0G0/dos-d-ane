@@ -45,7 +45,7 @@ La confidence n'arrive pas à la fin : dès la brique 4, une capture dont l'orei
 | Carte microSD | 32 Go, classe A1 ou mieux |
 | Alimentation officielle | 5 V / 3 A (USB-C). Une alimentation trop faible fait ralentir le Pi. |
 | Dissipateur ou boîtier ventilé | le Pi va tourner longtemps |
-| **Webcam USB** | n'importe quelle webcam UVC (720p suffit) |
+| **Webcam USB** | une webcam **UVC** (pilote standard `uvcvideo`), 640×480 suffit. Retenue : **Logitech C110**. ⚠️ Éviter les très vieux modèles à pilote `gspca_*` : la LifeCam VX-1000 figeait le Pi (§3.5). |
 | Pied ou pince pour la webcam | pour la placer **de profil** |
 | Accès au Pi | soit écran HDMI + clavier, soit un PC sur le même réseau (SSH / VNC) |
 | Lecteur de carte SD | pour préparer la carte depuis le PC |
@@ -159,7 +159,26 @@ v4l2-ctl --list-devices  # la webcam doit apparaître avec /dev/video0
 sudo raspi-config        # Interface Options → VNC → Yes → Finish (pour voir le bureau depuis le PC)
 ```
 
-Si la webcam apparaît sous `/dev/video0` (ligne « USB camera »), la partie matérielle est prête. Les autres `/dev/video1x` / `/dev/video2x` sont les circuits vidéo internes du Pi.
+Si la webcam apparaît sous `/dev/video0`, la partie matérielle est prête. Les autres `/dev/video1x` / `/dev/video2x` sont les circuits vidéo internes du Pi.
+
+**Vérifier le pilote de la webcam** : `readlink -f /sys/class/video4linux/video0/device/driver` doit se terminer par **`uvcvideo`**. Sinon (`gspca_…`), changer de webcam.
+
+**Voir le flux de la webcam** (rien n'est enregistré), sur le bureau du Pi (écran HDMI, plus fluide que VNC) :
+
+```bash
+ffplay -f v4l2 -input_format mjpeg -video_size 640x480 /dev/video0     # q pour fermer
+```
+
+Depuis le PC, la même commande peut ouvrir la fenêtre sur l'écran du Pi en la préfixant par `XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0 SDL_VIDEODRIVER=wayland`.
+
+**Garder les journaux après un redémarrage** (Raspberry Pi OS les efface par défaut, ce qui empêche de comprendre un plantage) :
+
+```bash
+sudo mkdir -p /etc/systemd/journald.conf.d
+echo -e "[Journal]\nStorage=persistent" | sudo tee /etc/systemd/journald.conf.d/50-persistent.conf
+sudo systemctl restart systemd-journald && sudo journalctl --flush
+journalctl -b -1 -n 50      # après un redémarrage : la fin du démarrage précédent
+```
 
 ### 3.2 Travailler confortablement depuis le PC
 
@@ -253,8 +272,10 @@ Les deux attendent une image **192×192×3 en `uint8`** et renvoient **17 points
 | Python | 3.13.5 |
 | Nom / accès | `dosdane-pi.local`, SSH par clé (raccourci `ssh pi`), VNC |
 | Réseau | Wi-Fi « UHA 4.0 » |
-| Webcam | Microsoft LifeCam VX-1000 → `/dev/video0` (640×480 max) |
-| Température au repos | 46 à 56 °C ; 60,8 °C juste après le premier essai de MoveNet |
+| Mémoire vive | **2 Go** (et non 4 Go comme conseillé au §2) |
+| Webcam | **Logitech C110** (pilote `uvcvideo`) → `/dev/video0`, YUYV ou MJPEG jusqu'à 640×480 (MJPEG jusqu'à 1024×768). Remplace la LifeCam VX-1000. |
+| Température | 46 à 56 °C au repos ; 57 à 59 °C avec le flux vidéo en direct ; 60,8 °C juste après le premier essai de MoveNet. Pas de dissipateur. |
+| Journaux | conservés après redémarrage (§3.1 d) |
 | Mises à jour | aucune en attente (image déjà récente) |
 | Dépôt | `~/dos-d-ane`, branche `feat/edge-poc`, push par clé SSH GitHub |
 | Python du POC | `edge/.venv` : NumPy 2.5.3, OpenCV 5.0.0, ai-edge-litert 2.3.0, installés sans erreur |
@@ -269,12 +290,14 @@ Les deux attendent une image **192×192×3 en `uint8`** et renvoient **17 points
 | La carte contenait déjà un système utilisé (identifiants inconnus) | carte récupérée d'une autre utilisation | la réécrire entièrement avec l'Imager |
 | Après une 1ʳᵉ écriture, le Pi affichait l'assistant « Welcome » et restait introuvable sur le réseau | Imager 1.8.5 d'Ubuntu trop ancien : réglages non appliqués par Trixie (cloud-init) | Imager 2 téléchargé sur raspberrypi.com (§3.1 a) |
 | L'Imager 2 ne démarrait pas (`libOpenGL.so.0`, plugin Qt `xcb`) | bibliothèques manquantes sur le PC | `sudo apt install libopengl0 libxcb-cursor0`, lancement avec `sudo` |
-| VNC redemandait d'accepter le certificat | dossier de configuration absent sur le PC | `mkdir -p ~/.config/tigervnc` |
+| VNC redemande d'accepter le certificat à chaque connexion | TigerVNC n'arrive pas à le mémoriser | sans conséquence : vérifier que c'est bien `CN=dosdane-pi` et cliquer « Oui » |
+| Le Pi **redémarrait tout seul** environ 1 min 20 après le lancement du flux de la webcam (2 fois) | la LifeCam VX-1000 utilise un vieux pilote (`gspca_sonixj`) qui **figeait le système** ; le chien de garde (*watchdog*, 1 min) redémarrait alors le Pi. Alimentation (5,1 V / 3 A, `throttled=0x0`), température (57 °C) et charge (0,2) écartées grâce aux journaux conservés et à un relevé toutes les 10 s. | webcam remplacée par une **Logitech C110** (pilote `uvcvideo`) : flux plus fluide, aucun blocage |
+| L'aperçu de la webcam était saccadé dans VNC | VNC renvoie toute la vidéo par le Wi-Fi | regarder sur un écran HDMI branché au Pi ; les scripts du POC n'affichent rien et ne sont pas concernés |
 | `ssh pi` échouait par moments (« Could not resolve hostname ») | le Wi-Fi de l'école ne transmet pas toujours les noms `.local` | passer par l'IP du Pi (§3.2) |
 | Les docs étaient sur la branche `docs`, absente de `develop` | branches créées séparément depuis `main` | branche `feat/edge-poc` créée depuis `develop`, docs copiées dans `edge/docs/` |
 | Le lien de téléchargement Kaggle semblait renvoyer une 404 | Kaggle répond 404 aux requêtes de type `HEAD` (`curl -I`) | télécharger normalement avec `curl -L` (§3.4) |
 
-**Durée réelle :** environ 2 h 30 de la carte SD au bureau visible par VNC (dont une bonne partie due au problème de l'Imager), puis environ 1 h pour le dépôt, l'environnement Python et le modèle. **L'étape 0 est terminée.**
+**Durée réelle :** environ 2 h 30 de la carte SD au bureau visible par VNC (dont une bonne partie due au problème de l'Imager), puis environ 1 h pour le dépôt, l'environnement Python et le modèle, puis environ 30 min pour diagnostiquer les redémarrages dus à la webcam. **L'étape 0 est terminée.**
 
 ---
 
