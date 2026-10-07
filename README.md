@@ -8,19 +8,26 @@ Aide à la posture pour le travail sédentaire, POC du Master UHA 4.0 (2026).
 
 ## Installation
 
-1. Installer [mise](https://mise.jdx.dev) et l'activer dans le shell (exemple pour zsh) :
+1. Installer [mise](https://mise.jdx.dev) et l'activer dans le shell :
    ```bash
-   brew install mise    # ou : curl https://mise.run | sh
+   # macOS (Homebrew)
+   brew install mise
    echo 'eval "$(mise activate zsh)"' >> ~/.zshrc
+
+   # Linux / WSL : mise est installé dans ~/.local/bin, d'où le chemin complet.
+   curl https://mise.run | sh
+   echo 'eval "$(~/.local/bin/mise activate zsh)"' >> ~/.zshrc     # si ton shell est zsh
+   echo 'eval "$(~/.local/bin/mise activate bash)"' >> ~/.bashrc   # si ton shell est bash
    ```
-2. Dans un nouveau terminal :
+2. **Ouvrir un nouveau terminal**, puis :
    ```bash
    git clone https://github.com/JUC0AG0G0/dos-d-ane.git
    cd dos-d-ane
    mise trust
+   cd .. && cd dos-d-ane
    ```
 
-C'est tout : en entrant dans le dossier, mise installe les outils, prépare le projet (dépendances, hooks Git, `.env.dev`) et affiche `✓ dos-d-ane : environnement OK`, ou ce qui manque.
+Ensuite, à chaque entrée dans le dossier, mise installe les outils, prépare le projet (dépendances, hooks Git, `.env.dev`) et affiche `✓ dos-d-ane : environnement OK`, ou ce qui manque.
 
 ## Commandes
 
