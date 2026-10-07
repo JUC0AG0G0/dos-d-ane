@@ -1,0 +1,5 @@
+# Dépendances du POC edge (Raspberry Pi 4, Python 3.13 ; compatible 3.11+)
+# Installation : python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
+numpy==2.5.3
+opencv-python==5.0.0.93
+ai-edge-litert==2.3.0

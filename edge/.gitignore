@@ -1,0 +1,5 @@
+# Modèle MoveNet : téléchargé depuis Kaggle (voir docs/poc-raspberry.md §3.4)
+models/*.tflite
+
+# Mesures des volontaires : données personnelles, jamais sur GitHub
+resultats/
