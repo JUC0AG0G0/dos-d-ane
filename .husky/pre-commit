@@ -1,5 +1,12 @@
 # Vérifie le lint de toutes les apps avant chaque commit (voir Taskfile.yml).
 # Contourner exceptionnellement : git commit --no-verify
+
+branche=$(git symbolic-ref --short HEAD 2>/dev/null)
+if [ "$branche" = "main" ] || [ "$branche" = "develop" ]; then
+  echo "Pas de commit direct sur $branche : créer une branche depuis develop (git switch -c ma-tache develop)." >&2
+  exit 1
+fi
+
 if ! command -v task >/dev/null 2>&1; then
   echo "task n'est pas installé : lancer \`mise install\` (ou voir https://taskfile.dev/installation)" >&2
   exit 1

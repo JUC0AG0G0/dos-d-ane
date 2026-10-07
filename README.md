@@ -84,4 +84,6 @@ Le serveur tourne toujours dans Docker, comme en production.
 
 ## Branches
 
-`main` et `develop` ne reçoivent que des pull requests. Une branche par tâche, créée depuis `develop`.
+`main` et `develop` ne reçoivent que des pull requests. Une branche par tâche, créée depuis `develop` (`git switch -c ma-tache origin/develop`).
+
+`main` est la branche affichée sur GitHub. Une PR ouverte vers `main` est basculée automatiquement sur `develop` ; seule `develop` est fusionnée dans `main`. Le hook de commit refuse les commits directs sur `main` et `develop`.

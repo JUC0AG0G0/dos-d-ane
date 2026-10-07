@@ -1,0 +1,26 @@
+name: Rediriger les PR vers develop
+
+# main est la branche par défaut (affichée sur GitHub), donc les PR s'ouvrent
+# sur main par défaut. Seule develop peut être fusionnée dans main : toute autre
+# PR vers main est basculée automatiquement sur develop.
+on:
+  pull_request_target:
+    types: [opened, reopened]
+    branches: [main]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  retarget:
+    if: github.head_ref != 'develop'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Basculer la base sur develop
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --base develop
+          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" \
+            --body "Base changée de \`main\` vers \`develop\` : seule \`develop\` est fusionnée dans \`main\`."
