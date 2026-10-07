@@ -48,6 +48,8 @@ La confidence n'arrive pas à la fin : dès la brique 4, une capture dont l'orei
 | **Webcam USB** | n'importe quelle webcam UVC (720p suffit) |
 | Pied ou pince pour la webcam | pour la placer **de profil** |
 | Accès au Pi | soit écran HDMI + clavier, soit un PC sur le même réseau (SSH / VNC) |
+| Lecteur de carte SD | pour préparer la carte depuis le PC |
+| *(optionnel)* câble **micro-HDMI** → HDMI | le Pi 4 n'a pas de port HDMI classique |
 
 **Placement de la caméra :**
 
@@ -70,23 +72,106 @@ Il faut voir dans l'image **l'oreille, l'épaule et la hanche** du côté de la 
 
 ## 3. Installation du Raspberry Pi
 
-### 3.1 Système
+### 3.1 Système : premier démarrage
 
-1. Avec **Raspberry Pi Imager**, installer **Raspberry Pi OS (64 bits)**.
-2. Dans les réglages avancés de l'Imager : nom d'hôte (ex. `dosdane-pi`), utilisateur et mot de passe, Wi-Fi, **activer SSH**.
-3. Démarrer le Pi, puis depuis le PC : `ssh <utilisateur>@dosdane-pi.local`
-4. Mettre à jour le système et vérifier l'heure (synchronisation NTP active par défaut) :
+**Réseau.** Le PC et le Pi doivent être sur le même réseau. Le Wi-Fi **« UHA 4.0 »** fonctionne : simple mot de passe (WPA2), le nom `dosdane-pi.local` est trouvé et les appareils se voient entre eux. Plan B : le partage de connexion d'un téléphone.
+
+**a) Préparer la carte microSD (sur le PC)**
+
+⚠️ **Ne pas utiliser l'Imager d'Ubuntu** (`apt install rpi-imager`, version 1.8.5) : il est trop ancien pour le Raspberry Pi OS actuel (Debian 13 « Trixie »), qui reçoit ses réglages par *cloud-init*. Les réglages (utilisateur, Wi-Fi, SSH) sont ignorés et le Pi démarre sur l'assistant « Welcome », impossible à remplir sans clavier.
+
+1. Télécharger et lancer l'**Imager 2** officiel :
+
+   ```bash
+   sudo apt install -y libfuse2t64 libopengl0 libxcb-cursor0   # bibliothèques nécessaires
+   cd ~/Téléchargements
+   wget https://downloads.raspberrypi.com/imager/imager_latest_amd64.AppImage
+   chmod +x imager_latest_amd64.AppImage
+   sudo ./imager_latest_amd64.AppImage      # sudo : nécessaire pour écrire sur la carte
+   ```
+
+2. Choisir : appareil **Raspberry Pi 4**, système **Raspberry Pi OS (64-bit)** *avec bureau* (utile pour la fenêtre de debug), stockage = la carte SD (*Internal SD card reader*, ~30 Go ; **jamais** le disque du PC). Une carte déjà utilisée est simplement effacée par l'Imager, pas besoin de la formater avant.
+3. Remplir chaque page de **Personnalisation** :
+
+   | Page | Valeur |
+   |---|---|
+   | Nom d'hôte | `dosdane-pi` |
+   | Localisation | `Europe/Paris`, clavier `fr` |
+   | Utilisateur | nom en minuscules + mot de passe (≥ 10 caractères, à noter) |
+   | Wi-Fi | SSID `UHA 4.0`, mot de passe, pays `FR` |
+   | Accès à distance | **activer SSH**, authentification par mot de passe |
+   | Raspberry Pi Connect | désactivé |
+
+4. Vérifier le **résumé** (les 5 réglages doivent y apparaître), écrire la carte, attendre « Terminé ».
+
+**b) Brancher (dans cet ordre)**
+
+```text
+   [USB-C] [µHDMI0] [µHDMI1] [jack]      ← côté alimentation / écran
+          RASPBERRY PI 4
+   [USB2] [USB2] [USB3 bleus] [RJ45]     ← côté USB / Ethernet
+   microSD : en dessous, côté opposé aux USB
+```
+
+1. Carte microSD (contacts vers la carte).
+2. Webcam sur un port USB **bleu**.
+3. *(Optionnel)* écran sur **µHDMI0** (le plus proche de l'USB-C) et clavier.
+4. **Alimentation en dernier** : le Pi n'a pas de bouton, il démarre dès qu'il est branché.
+
+Voyants : 🔴 rouge fixe = alimentation correcte (s'il clignote, l'alimentation est trop faible) ; 🟢 vert qui clignote = le Pi lit la carte. Une fois démarré, le vert reste éteint la plupart du temps : c'est normal. Le premier démarrage prend 1 à 3 minutes (le Pi applique les réglages et redémarre une fois). Avec un écran : on doit arriver **directement sur le bureau**, sans assistant « Welcome ».
+
+**c) Se connecter en SSH (depuis le PC)**
+
+```bash
+ssh <utilisateur>@dosdane-pi.local      # répondre « yes », puis le mot de passe
+```
+
+Connecté quand l'invite devient `<utilisateur>@dosdane-pi:~ $` : les commandes tapées s'exécutent alors **sur le Pi**.
+
+Pour ne plus taper le mot de passe et avoir un raccourci `ssh pi` (utile pour VS Code), sur le PC :
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_pi -N ""
+ssh-copy-id -i ~/.ssh/id_ed25519_pi.pub <utilisateur>@dosdane-pi.local
+cat >> ~/.ssh/config << 'EOF'
+
+Host pi
+    HostName dosdane-pi.local
+    User <utilisateur>
+    IdentityFile ~/.ssh/id_ed25519_pi
+EOF
+```
+
+Si `dosdane-pi.local` est introuvable : scanner le réseau (`sudo apt install nmap`, puis `sudo nmap -sn 10.6.0.0/16 | grep -B2 -i raspberry`), ou regarder l'icône Wi-Fi du bureau avec un écran branché au Pi.
+
+**d) Première configuration (sur le Pi)**
 
 ```bash
 sudo apt update && sudo apt full-upgrade -y
-timedatectl          # « System clock synchronized: yes »
-python3 --version    # noter la version (pour le compte rendu)
+timedatectl              # « System clock synchronized: yes »
+python3 --version        # noter la version (pour le compte rendu)
+vcgencmd measure_temp    # < 60 °C au repos
+
+lsusb                    # la webcam doit apparaître
+sudo apt install -y v4l-utils
+v4l2-ctl --list-devices  # la webcam doit apparaître avec /dev/video0
+
+sudo raspi-config        # Interface Options → VNC → Yes → Finish (pour voir le bureau depuis le PC)
 ```
+
+Si la webcam apparaît sous `/dev/video0` (ligne « USB camera »), la partie matérielle est prête. Les autres `/dev/video1x` / `/dev/video2x` sont les circuits vidéo internes du Pi.
 
 ### 3.2 Travailler confortablement depuis le PC
 
-- **VS Code + extension « Remote - SSH »** : on ouvre le dossier du Pi et on code comme en local.
-- Pour voir la **fenêtre de debug** (image + squelette), au choix : un écran branché au Pi, ou **VNC** (`sudo raspi-config` → Interface Options → VNC, puis RealVNC Viewer sur le PC).
+| Besoin | Comment |
+|---|---|
+| Coder | **VS Code + extension « Remote - SSH »** → `F1` → *Remote-SSH: Connect to Host* → `pi`. Une nouvelle fenêtre s'ouvre (`SSH: pi` en bas à gauche) : on code et on lance directement sur le Pi. |
+| Voir la **fenêtre de debug** (image + squelette) | sur le PC : `sudo apt install tigervnc-viewer`, `mkdir -p ~/.config/tigervnc`, puis `vncviewer dosdane-pi.local`. Au premier lancement, accepter le certificat (`CN=dosdane-pi`, créé par le Pi). |
+| Envoyer un fichier au Pi | `scp fichier <utilisateur>@dosdane-pi.local:~/poc-posture/models/` |
+| Récupérer les résultats | `scp <utilisateur>@dosdane-pi.local:~/poc-posture/resultats/*.csv .` |
+| Éteindre | `sudo shutdown -h now`, puis débrancher quand le voyant vert ne clignote plus |
+
+⚠️ Ne jamais débrancher le Pi sans l'éteindre proprement : la carte SD peut être abîmée et il faudrait tout réinstaller.
 
 ### 3.3 Environnement Python
 
@@ -107,6 +192,32 @@ pip install numpy opencv-python ai-edge-litert
 - Télécharger le modèle depuis **Kaggle Models** : *google / movenet* → format **TFLite** → variante **singlepose-lightning** (int8 ou float16). On obtient un fichier `.tflite` de quelques Mo.
 - Le placer dans `~/poc-posture/models/movenet_lightning.tflite`.
 - Les anciens liens `tfhub.dev/...` renvoient une erreur 404 : passer par Kaggle.
+
+### 3.5 Compte rendu de l'installation (7 octobre 2026)
+
+**Configuration obtenue**
+
+| Élément | Valeur |
+|---|---|
+| Système | Raspberry Pi OS 64 bits, Debian 13 « Trixie », noyau 6.18 (aarch64) |
+| Python | 3.13.5 |
+| Nom / accès | `dosdane-pi.local`, SSH par clé (raccourci `ssh pi`), VNC |
+| Réseau | Wi-Fi « UHA 4.0 » |
+| Webcam | Microsoft LifeCam VX-1000 → `/dev/video0` (640×480 max) |
+| Température au repos | 46 à 56 °C |
+| Mises à jour | aucune en attente (image déjà récente) |
+
+**Points de blocage et solutions**
+
+| Problème | Cause | Solution |
+|---|---|---|
+| La carte SD n'était pas détectée par le PC | carte mal insérée | la réinsérer à fond |
+| La carte contenait déjà un système utilisé (identifiants inconnus) | carte récupérée d'une autre utilisation | la réécrire entièrement avec l'Imager |
+| Après une 1ʳᵉ écriture, le Pi affichait l'assistant « Welcome » et restait introuvable sur le réseau | Imager 1.8.5 d'Ubuntu trop ancien : réglages non appliqués par Trixie (cloud-init) | Imager 2 téléchargé sur raspberrypi.com (§3.1 a) |
+| L'Imager 2 ne démarrait pas (`libOpenGL.so.0`, plugin Qt `xcb`) | bibliothèques manquantes sur le PC | `sudo apt install libopengl0 libxcb-cursor0`, lancement avec `sudo` |
+| VNC redemandait d'accepter le certificat | dossier de configuration absent sur le PC | `mkdir -p ~/.config/tigervnc` |
+
+**Durée réelle :** environ 2 h 30, de la carte SD au bureau visible par VNC, dont une bonne partie due au problème de l'Imager. Reste de l'étape 0 : environnement Python (§3.3) et modèle MoveNet (§3.4), à faire une fois le dépôt prêt.
 
 ---
 
@@ -288,7 +399,7 @@ Uniquement des **CSV de chiffres** dans `resultats/` : heure, côté, confiances
 ### Étape 0 — Préparer · *½ journée*
 
 - Installer le Pi (§3) et récupérer le modèle (§3.4).
-- **Livrable :** Pi accessible en SSH, `import` qui fonctionne, modèle présent.
+- **Livrable :** Pi accessible en SSH, webcam visible sous `/dev/video0`, `import` qui fonctionne, modèle présent.
 
 ### Étape 1 — T2 : la caméra · *½ journée*
 
