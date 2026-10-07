@@ -1,0 +1,58 @@
+name: CI
+
+# Lint et compilation du serveur, validation de Docker.
+# Le job « ci-ok » résume le tout pour la protection de branche.
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Mêmes tâches (Taskfile.yml) que les hooks Husky en local.
+  # mise-action installe Node et task aux versions de mise.toml.
+  server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: jdx/mise-action@v3
+      - name: Installer
+        run: task setup
+      - name: Lint
+        run: task lint
+      - name: Compilation
+        run: task build
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Valider les fichiers compose
+        run: docker compose --env-file .env.dev.example -f compose.yaml -f compose.dev.yaml config -q
+      - uses: docker/setup-buildx-action@v3
+      - name: Construire l'image du serveur
+        uses: docker/build-push-action@v6
+        with:
+          context: server
+          push: false
+          cache-from: type=gha,scope=server
+
+  ci-ok:
+    if: always()
+    needs: [server, docker]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Vérifier que tous les jobs ont réussi
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            echo "Au moins un job a échoué."
+            exit 1
+          fi

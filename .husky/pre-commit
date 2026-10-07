@@ -1,0 +1,7 @@
+# Vérifie le lint de toutes les apps avant chaque commit (voir Taskfile.yml).
+# Contourner exceptionnellement : git commit --no-verify
+if ! command -v task >/dev/null 2>&1; then
+  echo "task n'est pas installé : lancer \`mise install\` (ou voir https://taskfile.dev/installation)" >&2
+  exit 1
+fi
+task lint

@@ -1,0 +1,4 @@
+# Après un git pull ou un changement de branche : met à jour les dépendances
+# et complète .env.dev avec les nouvelles variables (voir Taskfile.yml).
+command -v task >/dev/null 2>&1 && task --silent setup
+exit 0

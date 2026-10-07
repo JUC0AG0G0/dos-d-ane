@@ -1,0 +1,61 @@
+{
+  "name": "@dos-d-ane/server",
+  "version": "0.0.1",
+  "description": "Serveur (API NestJS) de Dos d’âne",
+  "author": "Groupe Dos d’âne (Master UHA 4.0)",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "scripts": {
+    "build": "prisma generate && nest build",
+    "start:dev": "prisma generate && nest start --watch",
+    "lint": "oxlint src/ --ignore-pattern 'src/generated/**'",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "typecheck": "prisma generate && tsc --noEmit",
+    "db:migrate": "prisma migrate dev"
+  },
+  "dependencies": {
+    "@nestjs/common": "^12.0.1",
+    "@nestjs/config": "^12.0.1",
+    "@nestjs/core": "^12.0.1",
+    "@nestjs/platform-express": "^12.0.1",
+    "@nestjs/swagger": "^12.0.2",
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "^7.10.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^12.0.0",
+    "@nestjs/schematics": "^12.0.0",
+    "@types/express": "^5.0.0",
+    "@types/node": "^26.6.4",
+    "oxlint": "^1.58.0",
+    "prettier": "^3.4.2",
+    "prisma": "^7.10.0",
+    "source-map-support": "^0.5.21",
+    "typescript": "^6.0.2"
+  },
+  "engines": {
+    "node": ">=26",
+    "npm": ">=11"
+  },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": ">=26",
+      "onFail": "error"
+    },
+    "packageManager": {
+      "name": "npm",
+      "version": ">=11",
+      "onFail": "error"
+    }
+  },
+  "allowScripts": {
+    "@scarf/scarf": false,
+    "@prisma/engines": true,
+    "prisma": true
+  }
+}

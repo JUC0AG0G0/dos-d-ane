@@ -22,6 +22,7 @@ Desktop.ini
 .env
 .env.*
 !.env.example
+!.env.*.example
 *.pem
 *.key
 *.p12
@@ -246,3 +247,7 @@ docker-compose.override.yml
 *.pid.lock
 *.zip
 *.tar.gz
+# Task (cache des checksums de Taskfile)
+.task/
+# Client Prisma généré (prisma generate)
+server/src/generated/

@@ -1,0 +1,103 @@
+# Commandes du projet (https://taskfile.dev). `task` sans argument liste tout.
+#   task setup            # dépendances, hooks Git, .env (automatique avec mise)
+#   task check            # lint + compilation (lancé par Husky avant push)
+#   task dev              # stack Docker de dev
+version: "3"
+
+vars:
+  COMPOSE: docker compose --env-file .env.dev -f compose.yaml -f compose.dev.yaml
+
+tasks:
+  default:
+    silent: true
+    cmd: task --list
+
+  doctor:
+    desc: Vérifie les versions des outils et l'installation du projet
+    cmd: sh scripts/doctor.sh
+
+  setup:
+    desc: Prépare le projet (lancé automatiquement à l'entrée du dossier)
+    # Chaque étape est sautée si elle est déjà faite : relancer ne coûte rien.
+    deps: [install, hooks, env]
+
+  install:
+    desc: Installe les dépendances du serveur (seulement si le lockfile a changé)
+    dir: server
+    cmd: npm ci --no-audit --no-fund
+    sources: [package.json, package-lock.json]
+    generates: [node_modules/.package-lock.json]
+
+  hooks:
+    # Installe Husky et active les hooks Git.
+    cmd: npm install --no-audit --no-fund
+    sources: [package.json, package-lock.json]
+    generates: [node_modules/.package-lock.json]
+    status:
+      - test -d node_modules/husky
+      - git config core.hooksPath | grep -q '^.husky/'
+
+  env:
+    # Crée .env.dev à partir du modèle, ou lui ajoute les variables apparues
+    # dans le modèle depuis (les valeurs existantes ne sont pas touchées).
+    cmd: sh scripts/env.sh
+    status: [sh scripts/env.sh --check]
+
+  # --- Vérifications (Husky et CI) ----------------------------------------
+
+  lint:
+    desc: Lint et formatage (lancé par Husky avant chaque commit)
+    deps: [install]
+    dir: server
+    cmds:
+      - npm run lint
+      - npm run format:check
+
+  format:
+    desc: Formate le code
+    deps: [install]
+    dir: server
+    cmd: npm run format
+
+  build:
+    desc: Vérifie que le serveur compile
+    deps: [install]
+    dir: server
+    cmd: npm run build
+
+  check:
+    desc: Lint + compilation (lancé par Husky avant chaque push)
+    cmds:
+      - task: lint
+      - task: build
+
+  # --- Base de données (Prisma) -------------------------------------------
+
+  db:migrate:
+    desc: Crée et applique une migration après modification de prisma/schema.prisma (stack lancée)
+    interactive: true
+    cmd: "{{.COMPOSE}} exec server npm run db:migrate"
+
+  # --- Docker -------------------------------------------------------------
+
+  dev:
+    desc: Lance serveur, base et pgAdmin dans Docker puis affiche les URL
+    deps: [env]
+    interactive: true
+    cmd: sh scripts/dev.sh
+
+  up:
+    desc: Construit l'image du serveur (comme en production) et la lance avec la base
+    cmd: docker compose --env-file .env.dev up -d --build --wait
+
+  down:
+    desc: Arrête la stack (les données de la base sont conservées)
+    cmd: "{{.COMPOSE}} down --remove-orphans"
+
+  logs:
+    desc: Suit les logs de la stack
+    cmd: "{{.COMPOSE}} logs -f"
+
+  ps:
+    desc: État des conteneurs
+    cmd: "{{.COMPOSE}} ps"
