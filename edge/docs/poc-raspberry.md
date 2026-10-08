@@ -581,6 +581,12 @@ L'écran « session en cours » de l'app n'est donc pas une vidéo : la silhouet
 - Mesurer la **stabilité** : personne immobile 60 s, écart-type de `tete` et de `tronc`.
 - **Réussi si :** ≥ 90 % de captures exploitables, et écart-type < 3°.
 - **Si échec :** déplacer la caméra (§2), améliorer l'éclairage, essayer MediaPipe.
+- **Mesure complémentaire à tester :** l'angle **oreille–épaule–hanche** (angle au niveau de l'épaule, entre la droite vers l'oreille et la droite vers la hanche ; voir [algo-posture.md](algo-posture.md) §4). Le relever en même temps que `tete` et `tronc`, et comparer :
+  - sa **stabilité** (écart-type, personne immobile) ;
+  - sa **sensibilité à l'inclinaison de la caméra** : refaire la mesure avec la caméra penchée d'environ 5°, ce qui ne devrait pas le changer, contrairement à `tete` et `tronc` ;
+  - s'il **distingue mieux** la tête en avant et le dos en « C ».
+
+  S'il est plus fiable, il pourra compléter ou remplacer l'angle `tete` dans les règles (étape 5).
 
 ### Étape 4 — Enregistrer des exemples étiquetés · *1 journée*
 

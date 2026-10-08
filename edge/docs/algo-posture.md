@@ -95,6 +95,30 @@ On mesure l'écart par rapport à une ligne de référence, horizontale ou verti
 - **Négatif** : la personne est avachie en arrière.
 - Les seuils de départ viennent de **RULA**, une méthode d'ergonomie utilisée en entreprise : de 0 à 20° c'est acceptable, au-delà de 20° c'est à surveiller.
 
+### Mesure complémentaire à tester au T3 : l'angle oreille–épaule–hanche
+
+Idée reprise d'autres projets de détection de posture sur Raspberry Pi : mesurer l'angle **au niveau de l'épaule**, entre la droite vers l'oreille et la droite vers la hanche, au lieu de le mesurer par rapport à l'horizontale.
+
+```text
+   oreille ●
+            \
+             \  ← angle AU NIVEAU de l'épaule
+      épaule  ●
+              |
+              |
+      hanche  ●
+```
+
+| | Angle oreille–épaule–hanche | Angles actuels (`tete`, `tronc`) |
+|---|---|---|
+| Caméra un peu penchée | ✅ **insensible** : l'angle entre deux segments ne change pas si l'image tourne | ❌ une caméra penchée de 5° fausse les angles de 5° |
+| Ce qu'il mesure | la tête **par rapport au tronc** : peut aider pour le dos en « C » | la tête et le tronc **par rapport à la verticale** (inclinaison réelle) |
+| Points nécessaires | oreille, épaule, hanche (les mêmes) | oreille, épaule, hanche |
+
+Il **ne remplace pas** l'angle `tronc`, seul capable de dire si tout le corps penche en avant ou en arrière. À relever au **T3** à côté de `tete` et `tronc` ([poc-raspberry.md](poc-raspberry.md) §6, étape 3) ; s'il s'avère plus fiable, il pourra compléter ou remplacer `tete` dans les règles.
+
+On écarte l'angle épaule–hanche–genou, utilisé par certains projets pour le tronc : à un bureau, le **genou est souvent caché**.
+
 ### Pourquoi « de profil » est obligatoire
 
 Ces angles mesurent un mouvement **vers l'avant ou vers l'arrière**. Seule une caméra **sur le côté** voit ce mouvement. De face, l'avancée de la tête est invisible, puisqu'elle se fait vers la caméra, et les angles calculés n'ont plus de sens. Constaté lors du premier essai de `live.py` : face à la caméra, le statut « tête en avant » clignotait sans raison.
