@@ -1,8 +1,7 @@
 #!/bin/sh
 # Exporte la base de dev en SQL (`task db:dump`) dans dumps/, ignoré par Git.
 # Le fichier peut contenir des données personnelles : ne pas le partager.
-# Restauration : task clean, task dev, puis
-#   docker compose --env-file .env.dev exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < dumps/<fichier>.sql
+# Restauration : task db:restore (stack lancée) ou task dev:restore.
 cd "$(dirname "$0")/.." || exit 1
 COMPOSE="docker compose --env-file .env.dev -f compose.yaml -f compose.dev.yaml"
 
