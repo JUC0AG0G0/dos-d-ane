@@ -58,9 +58,15 @@ def image_affichee(image, mode):
 
 
 def texte(image, txt, ligne, couleur=BLANC, taille=0.55):
+    """Écrit une ligne sur une bande sombre semi-transparente, lisible sur n'importe quel fond.
+
+    (Un contour noir épais autour des lettres bavait sur les images claires : texte comme doublé.)
+    """
     y = 25 + 22 * ligne
-    cv2.putText(image, txt, (10, y), cv2.FONT_HERSHEY_SIMPLEX, taille, (0, 0, 0), 4)   # contour
-    cv2.putText(image, txt, (10, y), cv2.FONT_HERSHEY_SIMPLEX, taille, couleur, 1)
+    (l, h), bas = cv2.getTextSize(txt, cv2.FONT_HERSHEY_SIMPLEX, taille, 1)
+    y0, y1, x1 = max(0, y - h - 4), min(image.shape[0], y + bas + 2), min(image.shape[1], 10 + l + 6)
+    image[y0:y1, 4:x1] = (image[y0:y1, 4:x1] * 0.35).astype(image.dtype)
+    cv2.putText(image, txt, (10, y), cv2.FONT_HERSHEY_SIMPLEX, taille, couleur, 1, cv2.LINE_AA)
 
 
 def dessiner(image, pts, cote_vu):
