@@ -1,6 +1,13 @@
 // Schéma de la base (https://www.prisma.io/docs/orm/prisma-schema).
 // Après une modification, avec `task dev` lancé : `task db:migrate` crée la
 // migration et l'applique.
+//
+// Conventions :
+// - id en UUID v7, générés par PostgreSQL 18 (`uuidv7()`, natif, sans extension) ;
+// - colonnes en camelCase, tables en camelCase au pluriel (@@map) ;
+// - dates en timestamptz (millisecondes, comme les Date JavaScript).
+// Les contraintes CHECK, que Prisma ne sait pas décrire, sont ajoutées à la
+// main dans la migration.
 
 generator client {
   provider            = "prisma-client"
@@ -11,4 +18,143 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+/// Rôle d'un compte : user, admin.
+model Role {
+  id    String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  name  String @unique
+  users User[]
+
+  @@map("roles")
+}
+
+model User {
+  id               String            @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  email            String            @unique
+  displayName      String?
+  passwordHash     String
+  roleId           String            @db.Uuid
+  role             Role              @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  devices          Device[]
+  authSessions     AuthSession[]
+  analysisSessions AnalysisSession[]
+  createdAt        DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime          @default(now()) @updatedAt @db.Timestamptz(3)
+
+  @@map("users")
+}
+
+/// Appareil lié à un compte : navigateur (web), téléphone (mobile), caméra...
+/// Un navigateur n'est jamais éligible à la capture ; sur mobile, l'utilisateur
+/// active ou coupe la capture. captureStatus vaut active (analyse) ou inactive
+/// pour un appareil éligible, null sinon.
+model Device {
+  id              String          @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  userId          String          @db.Uuid
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String
+  type            String
+  model           String?
+  captureEligible Boolean         @default(false)
+  captureStatus   String?
+  authSessions    AuthSession[]
+  deviceSessions  DeviceSession[]
+  createdAt       DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime        @default(now()) @updatedAt @db.Timestamptz(3)
+
+  @@index([userId])
+  @@map("devices")
+}
+
+/// Connexion d'un utilisateur sur un appareil. Seul le hash du token est stocké.
+model AuthSession {
+  id        String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId  String    @db.Uuid
+  device    Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime  @db.Timestamptz(3)
+  revokedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+
+  @@index([userId])
+  @@index([deviceId])
+  @@map("authSessions")
+}
+
+/// Session d'analyse générale d'un utilisateur, sur un ou plusieurs appareils.
+model AnalysisSession {
+  id             String          @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  userId         String          @db.Uuid
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startedAt      DateTime        @db.Timestamptz(3)
+  endedAt        DateTime?       @db.Timestamptz(3)
+  deviceSessions DeviceSession[]
+  createdAt      DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime        @default(now()) @updatedAt @db.Timestamptz(3)
+
+  @@index([userId])
+  @@map("analysisSessions")
+}
+
+/// Participation d'un appareil éligible à une session d'analyse.
+model DeviceSession {
+  id                String          @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  analysisSessionId String          @db.Uuid
+  analysisSession   AnalysisSession @relation(fields: [analysisSessionId], references: [id], onDelete: Cascade)
+  deviceId          String          @db.Uuid
+  device            Device          @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  startedAt         DateTime        @db.Timestamptz(3)
+  endedAt           DateTime?       @db.Timestamptz(3)
+  captures          Capture[]
+  createdAt         DateTime        @default(now()) @db.Timestamptz(3)
+
+  @@unique([analysisSessionId, deviceId])
+  @@index([deviceId])
+  @@map("deviceSessions")
+}
+
+/// Prise de vue d'un appareil à un instant donné. L'image n'est pas stockée,
+/// seulement sa taille en pixels pour replacer les keypoints.
+model Capture {
+  id              String        @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  deviceSessionId String        @db.Uuid
+  deviceSession   DeviceSession @relation(fields: [deviceSessionId], references: [id], onDelete: Cascade)
+  capturedAt      DateTime      @db.Timestamptz(3)
+  imageWidth      Int
+  imageHeight     Int
+  keypoints       Keypoint[]
+  createdAt       DateTime      @default(now()) @db.Timestamptz(3)
+
+  @@index([deviceSessionId, capturedAt])
+  @@map("captures")
+}
+
+/// Articulation ou partie du corps : head, left_shoulder, right_hip...
+model BodyPart {
+  id        String     @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  code      String     @unique
+  label     String
+  keypoints Keypoint[]
+
+  @@map("bodyParts")
+}
+
+/// Point d'une articulation sur une capture, en pixels (origine en haut à
+/// gauche). Une articulation non détectée n'a simplement pas de ligne.
+model Keypoint {
+  id         String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  captureId  String   @db.Uuid
+  capture    Capture  @relation(fields: [captureId], references: [id], onDelete: Cascade)
+  bodyPartId String   @db.Uuid
+  bodyPart   BodyPart @relation(fields: [bodyPartId], references: [id], onDelete: Restrict)
+  x          Int
+  y          Int
+  confidence Float?
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+
+  @@unique([captureId, bodyPartId])
+  @@map("keypoints")
 }
