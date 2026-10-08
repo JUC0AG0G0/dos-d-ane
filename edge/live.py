@@ -40,10 +40,10 @@ def image_affichee(image, mode):
     """Image à afficher selon le mode. L'analyse, elle, se fait toujours sur l'image nette."""
     if mode == "noir":
         return np.zeros_like(image)
-    if mode == "flou":                    # pixellisation : ~3 ms sur le Pi, contre ~30 ms pour un flou gaussien
-        h, w = image.shape[:2]
-        petit = cv2.resize(image, (40, 30), interpolation=cv2.INTER_AREA)
-        return cv2.resize(petit, (w, h), interpolation=cv2.INTER_NEAREST)
+    if mode == "flou":                    # « verre dépoli » : ~3 ms sur le Pi, contre ~30 ms pour un flou gaussien
+        h, w = image.shape[:2]            # sur l'image entière : on floute une mini-image puis on l'agrandit en lissant
+        petit = cv2.GaussianBlur(cv2.resize(image, (64, 48), interpolation=cv2.INTER_AREA), (9, 9), 0)
+        return cv2.resize(petit, (w, h), interpolation=cv2.INTER_LINEAR)
     return image
 
 
