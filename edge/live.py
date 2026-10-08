@@ -98,7 +98,8 @@ def main():
         elif a is None:
             texte(affichage, "UNKNOWN : oreille, epaule ou hanche mal vue", 1, GRIS)
         else:
-            texte(affichage, f"Cote {a['cote']} | Tete {a['tete']:.0f} deg | Tronc {a['tronc']:+.0f} deg", 1, BLANC, 0.6)
+            texte(affichage, f"Cote {a['cote']} | Tete {a['tete']:.0f} | Tronc {a['tronc']:+.0f} | "
+                             f"Oreille-epaule-hanche {a['tete_tronc']:.0f} (deg)", 1, BLANC, 0.55)
             regles = postures(a, reference)
             for i, (nom, (mauvaise, regle)) in enumerate(regles.items()):
                 texte(affichage, f"{nom} : {'OUI' if mauvaise else 'non'}  ({regle})", 2 + i, ROUGE if mauvaise else VERT)
@@ -106,7 +107,8 @@ def main():
                 dernier_affichage = time.monotonic()
                 mauvaises = [nom for nom, (m, _) in regles.items() if m] or ["bonne posture"]
                 print(f"{time.strftime('%H:%M:%S')}  {a['cote']:6s}  tête {a['tete']:4.0f}°  "
-                      f"tronc {a['tronc']:+4.0f}°  → {', '.join(mauvaises)}")
+                      f"tronc {a['tronc']:+4.0f}°  oreille-épaule-hanche {a['tete_tronc']:4.0f}°  "
+                      f"→ {', '.join(mauvaises)}")
 
         if calibration is not None:
             reste = fin_calibration - time.monotonic()

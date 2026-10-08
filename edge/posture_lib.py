@@ -120,9 +120,14 @@ def angles(pts):
     tete = math.degrees(math.atan2(epaule[1] - oreille[1], (oreille[0] - epaule[0]) * sens))
     # Tronc : 0° = droit ; > 0 = penché en avant ; < 0 = penché en arrière (avachi).
     tronc = math.degrees(math.atan2((epaule[0] - hanche[0]) * sens, hanche[1] - epaule[1]))
+    # Oreille–épaule–hanche (mesure complémentaire à tester au T3) : angle au niveau de l'épaule.
+    # 180° = tête dans l'alignement du tronc ; < 180° = tête en avant ; > 180° = tête en arrière.
+    # Ne dépend pas de l'inclinaison de la caméra : une rotation de l'image décale tete et tronc
+    # du même angle en sens inverse, la somme reste la même.
+    tete_tronc = 90 + tete + tronc
     longueur_tronc = float(np.linalg.norm(epaule - hanche))
-    return {"cote": cote, "tete": tete, "tronc": tronc, "longueur_tronc": longueur_tronc,
-            "ecart_epaules": ecart}
+    return {"cote": cote, "tete": tete, "tronc": tronc, "tete_tronc": tete_tronc,
+            "longueur_tronc": longueur_tronc, "ecart_epaules": ecart}
 
 
 def postures(a, ref=None):
