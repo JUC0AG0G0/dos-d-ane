@@ -4,14 +4,19 @@ Ne sert pas en session réelle (voir poc.py) : il analyse en continu pour régle
 Aucun enregistrement : l'image reste en mémoire. Limité à ~5 images/s pour ne pas
 faire chauffer le Pi.
 
-Touches :
+Touches (dans la fenêtre, ou tapées dans le terminal puis Entrée, utile sans clavier sur le Pi) :
     q = quitter
     p = mode vie privée (squelette sur fond noir, sans l'image)
     c = calibration : rester assis droit 10 s, la posture devient la référence
     r = revenir aux règles sans calibration
 Lancer depuis edge/ avec .venv activé :  python live.py
+Depuis le PC, fenêtre sur l'écran du Pi et commandes dans le terminal du PC :
+    ssh -t pi 'cd ~/dos-d-ane/edge && DISPLAY=:0 XDG_RUNTIME_DIR=/run/user/1000 .venv/bin/python live.py'
 """
 
+import queue
+import sys
+import threading
 import time
 
 import cv2
@@ -49,9 +54,20 @@ def dessiner(image, pts, cote_vu):
             cv2.line(image, (int(pts[a, 0]), int(pts[a, 1])), (int(pts[b, 0]), int(pts[b, 1])), ROUGE, 3)
 
 
+def lire_terminal(commandes):
+    """Met dans la file chaque commande tapée dans le terminal (q, p, c, r + Entrée)."""
+    for ligne in sys.stdin:
+        if ligne.strip():
+            commandes.put(ligne.strip()[0].lower())
+
+
 def main():
     cam = ouvrir_camera()
     movenet = MoveNet()
+    commandes = queue.Queue()
+    threading.Thread(target=lire_terminal, args=(commandes,), daemon=True).start()
+    print("Commandes : c = calibration, p = vie privée, r = sans calibration, q = quitter (puis Entrée)")
+    dernier_affichage = 0.0
 
     vie_privee = False
     reference = None          # posture de référence (calibration)
@@ -83,8 +99,14 @@ def main():
             texte(affichage, "UNKNOWN : oreille, epaule ou hanche mal vue", 1, GRIS)
         else:
             texte(affichage, f"Cote {a['cote']} | Tete {a['tete']:.0f} deg | Tronc {a['tronc']:+.0f} deg", 1, BLANC, 0.6)
-            for i, (nom, (mauvaise, regle)) in enumerate(postures(a, reference).items()):
+            regles = postures(a, reference)
+            for i, (nom, (mauvaise, regle)) in enumerate(regles.items()):
                 texte(affichage, f"{nom} : {'OUI' if mauvaise else 'non'}  ({regle})", 2 + i, ROUGE if mauvaise else VERT)
+            if time.monotonic() - dernier_affichage >= 1:   # une ligne par seconde dans le terminal
+                dernier_affichage = time.monotonic()
+                mauvaises = [nom for nom, (m, _) in regles.items() if m] or ["bonne posture"]
+                print(f"{time.strftime('%H:%M:%S')}  {a['cote']:6s}  tête {a['tete']:4.0f}°  "
+                      f"tronc {a['tronc']:+4.0f}°  → {', '.join(mauvaises)}")
 
         if calibration is not None:
             reste = fin_calibration - time.monotonic()
@@ -104,6 +126,10 @@ def main():
 
         cv2.imshow("Dos d'ane - debug", affichage)
         touche = cv2.waitKey(1) & 0xFF
+        if touche == 255 and not commandes.empty():          # aucune touche : commande du terminal ?
+            touche = ord(commandes.get())
+        if touche == ord("c"):
+            print("Calibration : restez assis droit 10 s…")
         if touche == ord("q"):
             break
         if touche == ord("p"):
@@ -120,4 +146,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:     # Ctrl+C dans le terminal
+        pass
