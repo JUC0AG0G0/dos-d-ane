@@ -223,7 +223,7 @@ Soit environ **4 % d'un cœur** à la cadence la plus rapide (1 image / 2 s), et
 
 **Proposition :** l'algorithme tourne sur le Pi (variante A), mais ses **seuils** (angles, 70 %, 40 %, 2 min…) sont **envoyés par le serveur** et réglables depuis le site admin. Le Pi garde les derniers seuils reçus si le serveur est injoignable.
 
-- On garde les avantages de A : seuls les événements sortent (pas de keypoints, données liées au corps), la détection continue sans réseau, la charge serveur reste faible même avec plusieurs postes.
+- On garde les avantages de A : seuls l'état en direct (2 angles, posture, score), les événements et des résumés par 5 min sortent (pas de keypoints, données liées au corps ; voir `algo-posture.md` §7), la détection continue sans réseau, la charge serveur reste faible même avec plusieurs postes.
 - On récupère le principal avantage de B : ajuster les règles sans redéployer le Pi.
 - Le réglage des seuils pendant le POC se fait avec les exemples étiquetés enregistrés **localement** (volontaires d'accord), sans envoi au serveur.
 

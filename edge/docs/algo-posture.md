@@ -223,6 +223,75 @@ Dernière minute : ✅ ✅ ❌ ✅ ✅ ✅      → 1 mauvaise sur 6 = 17 %
 
 La règle 3 fonctionne comme un **thermostat** : le chauffage s'allume à 19 °C mais ne s'éteint qu'à 21 °C, pour ne pas claquer toutes les 10 secondes.
 
+#### La fenêtre glissante expliquée avec un bocal de billes
+
+**Quatre durées à ne pas confondre :**
+
+| | Ce que c'est | Durée |
+|---|---|---|
+| **La capture** | prendre UNE photo et l'analyser | environ **0,08 s** (instantané) |
+| **L'intervalle** | le temps d'attente **entre deux photos** | **10 s** si tout va bien, **2 s** en cas de doute |
+| **La fenêtre glissante** | les verdicts des photos des **60 dernières secondes** | **60 s** |
+| **La confirmation** | combien de temps la fenêtre doit rester « mauvaise » avant d'alerter | **2 min** |
+
+Les 2 secondes ne servent pas à confirmer : c'est seulement le rythme des photos quand il y a un doute.
+
+**L'image du bocal.** Un bocal ne peut contenir que **10 billes**. Chaque photo donne une bille : 🟢 **verte** (bonne posture sur cette photo) ou 🔴 **rouge** (mauvaise). À chaque nouvelle photo, on **ajoute** sa bille ; si le bocal est plein, on **retire la plus ancienne**. Le bocal contient donc toujours **les 10 dernières photos** : c'est la fenêtre glissante. Règle : **au moins 7 rouges sur 10 (70 %), et que ça dure**, alors on alerte.
+
+```text
+Photo 1  🟢                          bocal : 🟢                              0 rouge
+Photo 2  🟢                          bocal : 🟢🟢                            0 rouge
+Photo 3  🔴  (elle boit son café)    bocal : 🟢🟢🔴                          1 rouge
+...
+Photo 10 🟢                          bocal : 🟢🟢🔴🟢🟢🟢🟢🟢🟢🟢              1 rouge sur 10 → rien
+```
+
+Une seule bille rouge sur 10 : pas d'alerte. Le café n'a rien déclenché.
+
+```text
+Photo 11 🔴  (elle avance la tête)
+   → on ajoute 🔴, on retire la plus vieille (🟢)
+   bocal : 🟢🔴🟢🟢🟢🟢🟢🟢🟢🔴                                            2 rouges → rien
+
+Photo 12 🔴    bocal : 🔴🟢🟢🟢🟢🟢🟢🟢🔴🔴                                  3 rouges → rien
+Photo 13 🔴    bocal : 🟢🟢🟢🟢🟢🟢🟢🔴🔴🔴                                  3 rouges → rien
+Photo 14 🔴    bocal : 🟢🟢🟢🟢🟢🟢🔴🔴🔴🔴                                  4 rouges → rien
+Photo 15 🔴    bocal : 🟢🟢🟢🟢🟢🔴🔴🔴🔴🔴                                  5 rouges → rien
+Photo 16 🟢    bocal : 🟢🟢🟢🟢🔴🔴🔴🔴🔴🟢   (elle se redresse 1 instant)    5 rouges → rien
+Photo 17 🔴    bocal : 🟢🟢🟢🔴🔴🔴🔴🔴🟢🔴                                  6 rouges → rien
+Photo 18 🔴    bocal : 🟢🟢🔴🔴🔴🔴🔴🟢🔴🔴                                  7 rouges → ⚠️ 70 % atteint !
+```
+
+À la photo 18, on n'alerte pas tout de suite : on vérifie que **ça dure**.
+
+```text
+Photo 19 🔴    bocal : 🟢🔴🔴🔴🔴🔴🟢🔴🔴🔴     8 rouges → toujours ≥ 7, ça dure…
+Photo 20 🔴    bocal : 🔴🔴🔴🔴🔴🟢🔴🔴🔴🔴     9 rouges → toujours ≥ 7, ça dure…
+...  (ça reste au-dessus de 7 pendant 2 minutes)
+             → 🔔 ALERTE « Tête en avant »
+
+Puis la personne se corrige : les photos redeviennent 🟢, les 🔴 sortent du bocal une à une…
+             bocal : 🟢🟢🟢🔴🟢🟢🟢🟢🔴🟢     2 rouges → moins de 4 sur 10 (40 %)
+             → ✅ FIN de l'alerte
+```
+
+**Deux idées à retenir :**
+
+1. **On ne juge jamais sur UNE photo.** Une bille rouge isolée (café, stylo, erreur de l'IA) ne pèse presque rien.
+2. **Il faut que le rouge soit majoritaire ET que ça dure.** 🔴🟢🔴🟢🔴🟢… (5 sur 10, posture hésitante) ne déclenche jamais d'alerte ; 🔴🔴🔴🟢🔴🔴🔴🔴… (7 ou plus sur 10 pendant 2 min) déclenche l'alerte.
+
+**Dans la vraie version**, c'est le même principe :
+
+| | Exemple du bocal | Vraie version |
+|---|---|---|
+| Taille du bocal | 10 photos | toutes les photos des **60 dernières secondes** (~30 photos à 1 photo / 2 s) |
+| Seuil d'alerte | 7 rouges sur 10 | **70 %** de rouges |
+| Durée de confirmation | « un moment » | **2 minutes** au-dessus de 70 % |
+| Fin d'alerte | moins de 4 sur 10 | moins de **40 %** |
+| Photo mal vue | — | **pas de bille du tout** (ne compte ni pour, ni contre) |
+
+Le rythme des photos (10 s ou 2 s) dit seulement **à quelle vitesse on ajoute des billes** ; il ne change pas la règle.
+
 ### 6.4 Exemple complet, minute par minute
 
 ✅ = image bonne, ❌ = mauvaise, ⬜ = ignorée. Chaque ligne montre quelques-unes des images de la minute.
@@ -274,7 +343,7 @@ Le café (14:01) n'a pas déclenché d'alerte ; la vraie mauvaise posture (14:03
 |---|---|
 | seuil trop tolérant | **réglage des seuils** avec de vraies mesures (étapes 4 et 5) |
 | caméra mal placée, beaucoup d'images ignorées | **T3** : au moins 90 % d'images exploitables |
-| posture non mesurable (dos en « C » pur) | **limite connue** (§7), détectée en partie par ses effets (tête en avant) |
+| posture non mesurable (dos en « C » pur) | **limite connue** (§8), détectée en partie par ses effets (tête en avant) |
 
 ⚖️ **Les deux erreurs tirent en sens inverse.** Un seuil plus sévère donne moins d'alertes ratées mais plus de fausses alertes, et inversement. Le réglage cherche le bon équilibre : score **F1 ≥ 0,80** et **moins d'1 fausse alerte par heure**.
 
@@ -307,7 +376,173 @@ Le café (14:01) n'a pas déclenché d'alerte ; la vraie mauvaise posture (14:03
 
 ---
 
-## 7. Les limites connues
+## 7. Côté utilisateur : retours, alertes et score
+
+### 7.1 Deux types de retour, à deux vitesses
+
+| | **L'écran « en direct »** | **L'alerte** |
+|---|---|---|
+| Quand | mis à jour **à chaque photo** (toutes les 10 s, ou 2 s en cas de doute) | **seulement si** la mauvaise posture est confirmée (70 % pendant 2 min) |
+| Ce qu'on voit | la silhouette, les angles, un statut, le score | une **notification** sur le téléphone (son ou vibration) avec un conseil |
+| À quoi ça sert | regarder sa posture quand on **en a envie** | **prévenir** la personne quand elle **ne regarde pas** l'app |
+
+En travaillant, personne ne regarde son téléphone en permanence : **c'est l'alerte qui va chercher la personne**, l'écran en direct n'est qu'un plus.
+
+### 7.2 Ce que vit Léa pendant une session
+
+```text
+14:00  Léa ouvre l'app → « Démarrer la session »
+       → « Tenez-vous droite 10 secondes » (calibration)
+       → « C'est parti ! » Elle pose son téléphone et travaille.
+
+14:00 → 14:03   Tout va bien.
+       Écran en direct (si elle regarde) : silhouette droite, « Posture correcte 🟢 », score 92
+       Aucune notification : elle n'est pas dérangée.
+
+14:01  Elle boit son café (1 photo rouge).
+       Écran : peut afficher « tête en avant » quelques secondes, puis revient à 🟢
+       Aucune notification. ✅
+
+14:03  Elle se concentre et avance la tête : les photos deviennent rouges.
+       Écran : « À surveiller 🟠 » (entre 40 et 70 % de rouge dans le bocal)
+       Pas encore de notification : on attend de confirmer.
+
+14:05  Rouge confirmé (≥ 70 % pendant 2 min)
+       📳 NOTIFICATION : « Tête en avant détectée — rentrez légèrement le menton »
+       Écran : « Tête en avant 🔴 », score 64
+
+14:06  Léa se redresse. Écran : redevient 🟢 en quelques photos.
+
+14:07  Le bocal repasse sous 40 % de rouge → fin de l'alerte
+       (optionnel) message positif : « Bien joué, posture corrigée 👍 »
+
+16:00  Fin de session → résumé : « Score 82, 74 % de bonne posture, 1 alerte tête en avant »
+```
+
+**Délai entre « je me tiens mal » et « je suis prévenue » : au moins 2 minutes environ, et c'est voulu.** Mieux vaut prévenir un peu tard mais à raison que vite mais pour rien. Cette durée est un réglage, qui pourra être raccourci si les tests le montrent (seuil piloté par le serveur).
+
+### 7.3 Les 3 couleurs
+
+| Couleur | Quand (rouge dans le bocal) | Ce qui se passe |
+|---|---|---|
+| 🟢 **Bonne** | moins de 40 % | rien |
+| 🟠 **Moyenne / à surveiller** | entre 40 et 70 % | l'écran change de couleur, **pas de notification** |
+| 🔴 **À améliorer** | ≥ 70 % pendant 2 min | **notification** avec un conseil |
+
+Ce sont ces couleurs qui remplissent la « Répartition des postures » (Bonne / Moyenne / À améliorer) de l'écran « Mes résultats ».
+
+**Deux règles de confort :**
+
+1. **Pas de rafale de notifications** : après une alerte « tête en avant », pas de nouvelle alerte du même type avant **10 minutes**.
+2. **Immobilité** : alerte à part, « Levez-vous 2 minutes », après **50 minutes** sans bouger.
+
+### 7.4 Le score de 0 à 100 (proposition à valider)
+
+**Score d'une photo** : on part de 100 et on retire des points selon l'écart à la posture de référence (calibration), au-delà d'une petite tolérance :
+
+```text
+écart tête  = (référence tête − tête mesurée) − 3°     (0 si négatif : la tête n'est pas en avant)
+écart tronc = |tronc mesuré − référence tronc| − 4°     (0 si négatif)
+score photo = 100 − 4 × écart tête − 4 × écart tronc     (borné entre 0 et 100)
+```
+
+Exemples avec la référence de Léa (tête 82°, tronc +3°) :
+
+| Photo | Tête | Tronc | Écart tête | Écart tronc | **Score** |
+|---|---|---|---|---|---|
+| assise droite | 80° | +4° | 0° | 0° | **100** |
+| légèrement penchée | 78° | +5° | 1° | 0° | **96** |
+| tête en avant | 70° | +5° | 9° | 0° | **64** |
+| tête en avant + dos penché | 66° | +18° | 13° | 11° | **4** |
+
+**Score d'une période** (5 min, une session, une journée) : la **moyenne des scores des photos, pondérée par le temps**. Chaque photo compte pour la durée jusqu'à la photo suivante. Sans cette pondération, les moments « en doute » (une photo toutes les 2 s) pèseraient 5 fois plus que les moments calmes (une photo toutes les 10 s) et feraient baisser le score à tort. Les photos ignorées ne comptent pas.
+
+**% de bonne posture** = temps passé en 🟢 ÷ temps suivi (hors photos ignorées).
+
+Tous ces chiffres (3°, 4°, 4 points par degré) sont des **valeurs de départ**, à ajuster après les tests pour que le score « parle » aux utilisateurs.
+
+**Qui calcule quoi (les couches) :**
+
+```text
+┌──────────────── PI (edge) ───────────────────────────┐
+│ ① photo → angles → SCORE DE LA PHOTO (ex. 64)        │
+│ ② toutes les 5 min → SCORE MOYEN des 5 min (ex. 78)  │
+└───────────────────────────┬──────────────────────────┘
+                            │ état en direct (score photo)
+                            │ résumé 5 min (score moyen + temps 🟢🟠🔴)
+                            ▼
+┌──────────────── SERVEUR (NestJS + base) ─────────────┐
+│ ③ stocke les résumés                                 │
+│ ④ calcule : score par heure, du jour, de la semaine, │
+│    « +6 pts vs hier », % de bonne posture            │
+└───────────────────────────┬──────────────────────────┘
+                            ▼
+┌──────────────── APP MOBILE / SITE WEB ───────────────┐
+│ ⑤ AFFICHE les chiffres et les graphiques             │
+└──────────────────────────────────────────────────────┘
+```
+
+| Couche | Ce qu'elle calcule | Pourquoi là |
+|---|---|---|
+| **Pi** | ① score de chaque photo ; ② score moyen et temps 🟢🟠🔴 sur 5 min | seul à avoir les angles et la posture de référence (les points ne sortent pas) |
+| **Serveur** | ③ stockage ; ④ score par heure, du jour, de la semaine, comparaison avec la veille | seul à voir toutes les sessions d'un utilisateur, sur plusieurs postes et plusieurs jours |
+| **App / site** | ⑤ affichage | — |
+
+**⚠️ Le score ne décide pas des alertes.** Sur le Pi, deux mécanismes séparés partent des mêmes angles :
+
+```text
+                        angles de la photo (tête, tronc)
+                       ╱                                ╲
+      VERDICT (règles + seuils)                  SCORE (0 à 100)
+      « tête < 74° ? » → 🔴 ou 🟢               « 82 − 70 = 12° d'écart » → 64
+              │                                          │
+      bocal / fenêtre glissante                   moyenne sur 5 min
+              │                                          │
+      🔔 ALERTE (70 % pendant 2 min)              📊 AFFICHAGE (app, graphiques)
+```
+
+| | **Verdict** | **Score** |
+|---|---|---|
+| Question | posture **bonne ou mauvaise** ? | posture **à quel point** bonne ? |
+| Résultat | 🟢 ou 🔴 | une note de 0 à 100 |
+| Sert à | **déclencher les alertes** (bocal) et les couleurs | **montrer une note** à l'utilisateur |
+
+Le verdict doit être simple et sûr (oui / non + fenêtre glissante, contre les fausses alertes) ; le score doit être nuancé (« un peu penché » 96, « très penché » 4). Ils restent cohérents car ils partent des mêmes angles et de la même référence : avec une référence tête à 82°, le seuil d'alerte (74°) correspond à un score d'environ **80**.
+
+Dans le code du Pi :
+
+```python
+# posture_lib.py
+def score_photo(a, ref):          # → note sur 100 pour UNE photo
+
+# poc.py, à chaque photo
+verdict = postures(a, ref)        # → 🟢 / 🔴, va dans le bocal → alertes
+score   = score_photo(a, ref)     # → envoyé à l'app (état en direct)
+
+# poc.py, toutes les 5 min
+resume = {score_moyen, secondes_bonne, secondes_moyenne, secondes_a_ameliorer, secondes_ignore}
+```
+
+### 7.5 Ce que le Pi envoie (les bonnes postures aussi)
+
+| Message | Quand | Contenu | Stocké sur le serveur ? | Sert à |
+|---|---|---|---|---|
+| **État en direct** | à chaque photo | posture, couleur, angle tête, angle tronc, score de la photo | ❌ relayé à l'app seulement | écran « session en cours » |
+| **Résumé** | toutes les **5 min** | score moyen (pondéré), temps en 🟢 / 🟠 / 🔴, temps ignoré | ✅ | score du jour, score par heure, répartition, % de bonne posture, comparaison avec la veille |
+| **Événement** | début et fin d'une alerte | type, début, fin, durée, angles moyens | ✅ | historique, conseils |
+
+Exemple de résumé :
+
+```json
+{ "session": "ses_8f2c41", "periode": "14:00-14:05", "score_moyen": 78,
+  "secondes_bonne": 210, "secondes_moyenne": 60, "secondes_a_ameliorer": 30, "secondes_ignore": 0 }
+```
+
+**Les bonnes postures sont donc bien envoyées**, sous forme de **temps et de score** dans les résumés. Ce sont des chiffres agrégés, jamais les points du corps ni les images.
+
+---
+
+## 8. Les limites connues
 
 | Limite | Conséquence | Piste |
 |---|---|---|
@@ -317,7 +552,7 @@ Le café (14:01) n'a pas déclenché d'alerte ; la vraie mauvaise posture (14:03
 
 ---
 
-## 8. « Entraîner l'IA » : oui, mais plus tard et en option
+## 9. « Entraîner l'IA » : oui, mais plus tard et en option
 
 ### Ce qu'on n'entraîne pas
 
@@ -352,7 +587,7 @@ L'**entraînement** se fait sur un **PC**. Le Pi ne fait qu'**utiliser** le mod�
 
 ---
 
-## 9. La suite, pas à pas
+## 10. La suite, pas à pas
 
 | # | Étape | Ce qu'on fait | Ce que ça valide |
 |---|---|---|---|
