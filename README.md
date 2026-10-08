@@ -75,10 +75,13 @@ Si un port est déjà pris, `task dev` propose d'en prendre un libre au hasard.
 | `task down` | arrête tout ; les données sont gardées pour le prochain `task dev` |
 | `task clean` | arrête tout et **supprime** les données (demande confirmation) |
 | `task check` | lint + compilation (lancé aussi avant chaque commit et push) |
-| `task db:migrate` | applique les changements de `server/prisma/schema.prisma` (avec `task dev` lancé) |
+| `task db:generate` | crée une migration depuis `server/prisma/schema.prisma`, sans l'appliquer |
+| `task db:migrate` | applique les migrations pas encore appliquées |
 | `task db:dump` | exporte la base dans `dumps/<date>.sql` (ignoré par Git, à ne pas partager) |
-| `task db:restore` | remplace la base de la stack lancée par le dernier dump (ou `-- fichier.sql`) |
+| `task db:restore` | annule la dernière migration, revient à une migration ou charge un dump |
 | `task` | liste toutes les commandes |
+
+Les commandes de la base sont détaillées dans [databaseReadME.md](databaseReadME.md).
 
 ## Configuration
 
