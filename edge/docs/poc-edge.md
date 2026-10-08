@@ -184,6 +184,27 @@ Les deux variantes respectent la règle principale : **l'image ne quitte jamais 
 
 Le minimum à valider est la chaîne **caméra → MoveNet → keypoints fiables → image effacée**. Les deux variantes sont ensuite testées, et le choix final se fait avec l'équipe à partir des mesures.
 
+### Proposition : algorithme sur le Pi, seuils pilotés par le serveur
+
+**Le Pi a la puissance nécessaire** (mesures du 7 octobre 2026, Pi 4 de 2 Go, webcam Logitech C110) :
+
+| Pour 1 image | Temps |
+|---|---|
+| capture d'une image fraîche | ~55 ms |
+| MoveNet Lightning int8 | ~21 ms |
+| angles, règles, filtre | < 1 ms |
+| **total** | **~80 ms** |
+
+Soit environ **4 % d'un cœur** à la cadence la plus rapide (1 image / 2 s), et moins de 1 % à 1 image / 10 s, pour ~100 Mo de mémoire. Le Pi a monté à 76 °C seulement quand l'IA tournait en continu (démo en direct), sans dissipateur.
+
+**Proposition :** l'algorithme tourne sur le Pi (variante A), mais ses **seuils** (angles, 70 %, 40 %, 2 min…) sont **envoyés par le serveur** et réglables depuis le site admin. Le Pi garde les derniers seuils reçus si le serveur est injoignable.
+
+- On garde les avantages de A : seuls les événements sortent (pas de keypoints, données liées au corps), la détection continue sans réseau, la charge serveur reste faible même avec plusieurs postes.
+- On récupère le principal avantage de B : ajuster les règles sans redéployer le Pi.
+- Le réglage des seuils pendant le POC se fait avec les exemples étiquetés enregistrés **localement** (volontaires d'accord), sans envoi au serveur.
+
+**À confirmer par les tests :** vitesse réelle de l'IA (T1), tenue sur 8 h (endurance), détection de profil (T3), justesse (T5). **Points d'attention :** prévoir un dissipateur ; le Pi n'a pas d'horloge interne, donc il faut garder les événements en attente tant que l'heure n'est pas synchronisée (NTP).
+
 **Ce qui ne sort jamais :** image, frame, pixels, vidéo.
 **Ce qui peut sortir :** keypoints, confiance, angles, classe de posture, événement, horodatage.
 

@@ -476,6 +476,53 @@ Pour les tests, prévoir un **mode rapide** (fenêtre 10 s, durée minimale 10 s
 
 Uniquement des **CSV de chiffres** dans `resultats/` : heure, côté, confiances, angles, mouvement, classe, label (pour les exemples étiquetés), coordonnées des 17 points. **Jamais d'image** : ni `cv2.imwrite`, ni enregistrement vidéo.
 
+### 5.8 Déroulé d'une vraie session (`poc.py`)
+
+En vraie session, **il n'y a pas de flux vidéo continu** : le Pi prend une image de temps en temps, l'analyse, puis l'efface. Le flux continu de `live.py` ne sert qu'aux tests et aux réglages.
+
+```text
+Démarrer (depuis l'app)
+   │
+   ▼
+Calibration : 10 s assis droit → posture de référence
+   │
+   ▼
+┌─────────────── boucle, jusqu'à « Terminer » ───────────────┐
+│ 1. prendre UNE image                          (~55 ms)     │
+│ 2. MoveNet → 17 points                        (~21 ms)     │
+│ 3. effacer l'image (elle n'a existé qu'en mémoire)         │
+│ 4. points → angles tête et tronc → posture de cette image  │
+│ 5. ajouter cette posture à l'historique des 60 dernières s │
+│ 6. si mauvaise ≥ 70 % pendant 2 min → ÉVÉNEMENT (alerte)   │
+│ 7. envoyer l'état à l'app (angles, posture, score)         │
+│ 8. attendre avant l'image suivante (§5.6) :                │
+│      tout va bien          → 10 s                          │
+│      posture « en doute »  →  2 s                          │
+│      personne absente      → 30 s                          │
+└────────────────────────────────────────────────────────────┘
+```
+
+Il n'y a **pas de fenêtre ni d'écran** sur le Pi : il tourne « à l'aveugle ».
+
+**Exemple sur quelques minutes**
+
+| Heure | Posture de l'image | Ce qui se passe |
+|---|---|---|
+| 14:00:00 | bonne | image suivante dans 10 s |
+| 14:00:10 | bonne | 10 s |
+| 14:00:20 | tête en avant | « en doute » → on accélère à **2 s** |
+| 14:00:22 | tête en avant | 2 s |
+| 14:00:24 | bonne | (la personne a bougé) |
+| … (une image toutes les 2 s) | surtout tête en avant | plus de 70 % de mauvaises images… |
+| **14:02:20** | tête en avant | **depuis 2 min → « Tête en avant détectée »** envoyé à l'app |
+| … | | |
+| 14:05:40 | bonne | moins de 40 % de mauvaises → **fin de l'événement** (durée 3 min 20 s) |
+| 14:05:50 | bonne | tout va bien → retour à 10 s |
+
+Au total : **6 images par minute** quand tout va bien, 30 en cas de doute, soit **moins de 1 seconde de calcul par minute**. Le Pi reste froid et aucune image n'est gardée.
+
+L'écran « session en cours » de l'app n'est donc pas une vidéo : la silhouette y est mise à jour **à chaque image** (toutes les 2 à 10 s) avec les deux angles reçus.
+
 ---
 
 ## 6. Plan de test, étape par étape
