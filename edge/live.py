@@ -181,22 +181,35 @@ def main():
         texte(affichage, f"IA {ms_ia:.0f} ms | {'calibre' if reference else 'sans calibration'} | {profil} "
                          f"| affichage {mode}", 0)
 
+        # Diagnostic : confiance des 3 points du côté bloqué, et ceux sous le seuil
+        o, e, h = COTES[cote]
+        confs = {"oreille": pts[o, 2], "epaule": pts[e, 2], "hanche": pts[h, 2]}
+        mal_vus = [nom for nom, c in confs.items() if c < CONF_MIN]
+        conf_txt = "  ".join(f"{nom} {c:.2f}" for nom, c in confs.items())
+        txt_ecart = "-" if ecart is None else f"{ecart:.2f}"
+
         if a is None and de_face:
-            texte(affichage, f"UNKNOWN : pas de profil (ecart > {ECART_EPAULES_MAX})", 1, ORANGE)
+            texte(affichage, f"UNKNOWN : pas de profil (ecart {txt_ecart} > {ECART_EPAULES_MAX})", 1, ORANGE)
         elif a is None:
-            texte(affichage, "UNKNOWN : oreille, epaule ou hanche mal vue", 1, GRIS)
+            texte(affichage, f"UNKNOWN : mal vu ({', '.join(mal_vus)}) - cote {cote}", 1, GRIS)
         else:
             texte(affichage, f"Cote {a['cote']} | Tete {a['tete']:.0f} | Tronc {a['tronc']:+.0f} | "
                              f"Oreille-epaule-hanche {a['tete_tronc']:.0f} (deg)", 1, BLANC, 0.55)
             regles = postures(a, reference)
             for i, (nom, (mauvaise, regle)) in enumerate(regles.items()):
                 texte(affichage, f"{nom} : {'OUI' if mauvaise else 'non'}  ({regle})", 2 + i, ROUGE if mauvaise else VERT)
-            if time.monotonic() - dernier_affichage >= 1:   # une ligne par seconde dans le terminal
-                dernier_affichage = time.monotonic()
+
+        if time.monotonic() - dernier_affichage >= 1:   # une ligne par seconde dans le terminal, UNKNOWN compris
+            dernier_affichage = time.monotonic()
+            debut = f"{time.strftime('%H:%M:%S')}  {cote:6s}"
+            if a is None and de_face:
+                print(f"{debut}  UNKNOWN pas de profil   écart épaules {txt_ecart}   conf {conf_txt}")
+            elif a is None:
+                print(f"{debut}  UNKNOWN mal vu : {', '.join(mal_vus)}   conf {conf_txt}")
+            else:
                 mauvaises = [nom for nom, (m, _) in regles.items() if m] or ["bonne posture"]
-                print(f"{time.strftime('%H:%M:%S')}  {a['cote']:6s}  tête {a['tete']:4.0f}°  "
-                      f"tronc {a['tronc']:+4.0f}°  oreille-épaule-hanche {a['tete_tronc']:4.0f}°  "
-                      f"→ {', '.join(mauvaises)}")
+                print(f"{debut}  tête {a['tete']:4.0f}°  tronc {a['tronc']:+4.0f}°  "
+                      f"oreille-épaule-hanche {a['tete_tronc']:4.0f}°  écart {txt_ecart}  → {', '.join(mauvaises)}")
 
         if calibration is not None:
             reste = fin_calibration - time.monotonic()
