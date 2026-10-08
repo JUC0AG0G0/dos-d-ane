@@ -40,12 +40,13 @@ export class AuthController {
   @Public()
   @Post('register')
   @ApiOperation({
-    summary: 'Crée un compte (rôle user) et connecte l’appareil',
+    summary: 'Crée un compte (rôle user)',
+    description: 'Ne connecte pas : appeler ensuite /api/auth/login.',
   })
-  @ApiCreatedResponse({ type: LoginResponseDto })
+  @ApiCreatedResponse({ type: UserDto })
   @ApiBadRequestResponse({ description: 'Champs invalides' })
-  @ApiConflictResponse({ description: 'Email déjà utilisé' })
-  register(@Body() dto: RegisterDto): Promise<LoginResponseDto> {
+  @ApiConflictResponse({ description: 'Email ou nom affiché déjà utilisé' })
+  register(@Body() dto: RegisterDto): Promise<UserDto> {
     return this.auth.register(dto);
   }
 

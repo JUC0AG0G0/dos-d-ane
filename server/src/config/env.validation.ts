@@ -24,6 +24,13 @@ export function validateEnv(
     errors.push('DATABASE_URL manquante');
   }
 
+  // HS256 demande une clé d'au moins 256 bits (RFC 7518, section 3.2).
+  if (typeof config.JWT_SECRET !== 'string' || config.JWT_SECRET.length < 32) {
+    errors.push(
+      'JWT_SECRET manquante ou trop courte (32 caractères minimum) : la générer avec `openssl rand -base64 48` et la mettre dans .env.dev',
+    );
+  }
+
   if (errors.length > 0) {
     throw new Error(`Configuration invalide : ${errors.join('; ')}`);
   }

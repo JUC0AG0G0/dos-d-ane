@@ -4,7 +4,7 @@ import { TimestampedEntity } from './base/base.entity.js';
 
 export class User extends TimestampedEntity implements UserRow {
   email: string;
-  displayName: string | null;
+  displayName: string;
   passwordHash: string;
   role: Role;
 }

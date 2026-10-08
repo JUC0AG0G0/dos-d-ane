@@ -36,7 +36,7 @@ async function bootstrap() {
         .addBearerAuth({
           type: 'http',
           scheme: 'bearer',
-          bearerFormat: 'token opaque',
+          bearerFormat: 'JWT',
           description: 'accessToken renvoyé par /api/auth/login',
         })
         .build(),

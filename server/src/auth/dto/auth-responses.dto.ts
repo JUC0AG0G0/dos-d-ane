@@ -8,8 +8,8 @@ export class UserDto {
   @ApiProperty({ example: 'jules@example.com' })
   email: string;
 
-  @ApiProperty({ type: String, nullable: true, example: 'Jules' })
-  displayName: string | null;
+  @ApiProperty({ example: 'Jules' })
+  displayName: string;
 
   @ApiProperty({ enum: Role, enumName: 'Role', example: Role.user })
   role: Role;
@@ -20,7 +20,7 @@ export class UserDto {
 
 export class LoginResponseDto {
   @ApiProperty({
-    description: 'À envoyer dans Authorization: Bearer <token>',
+    description: 'JWT à envoyer dans Authorization: Bearer <token>',
   })
   accessToken: string;
 

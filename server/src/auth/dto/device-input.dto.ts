@@ -7,9 +7,9 @@ export const LOGIN_DEVICE_TYPES = [DeviceType.Web, DeviceType.Mobile] as const;
 export type LoginDeviceType = (typeof LOGIN_DEVICE_TYPES)[number];
 
 /**
- * Appareil de connexion. Le client garde l'id renvoyé par la première
- * connexion et le renvoie ensuite : l'appareil est réutilisé au lieu d'en
- * créer un nouveau.
+ * Appareil de connexion, facultatif (navigateur web par défaut). Le client
+ * garde l'id renvoyé par la première connexion et le renvoie ensuite :
+ * l'appareil est réutilisé au lieu d'en créer un nouveau.
  */
 export class DeviceInputDto {
   @ApiPropertyOptional({

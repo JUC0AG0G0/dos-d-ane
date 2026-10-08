@@ -4,6 +4,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '../generated/prisma/client.js';
 import { CaptureStatus, DeviceType } from '../entities/index.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -17,7 +18,15 @@ import type {
   UserDto,
 } from './dto/auth-responses.dto.js';
 import { hashPassword, verifyPassword } from './password.js';
-import { generateToken, hashToken, SESSION_TTL_MS } from './token.js';
+
+/** Durée de validité d'une session de connexion (et de son JWT). */
+const SESSION_TTL_S = 30 * 24 * 60 * 60;
+
+/** Contenu du JWT : l'utilisateur et la session qu'il représente. */
+interface JwtPayload {
+  sub: string;
+  sid: string;
+}
 
 /** lastUsedAt n'est réécrit qu'au-delà de ce délai, pour limiter les écritures. */
 const LAST_USED_PRECISION_MS = 60 * 1000;
@@ -35,29 +44,58 @@ export class AuthService {
   /** Hash calculé une fois, comparé quand l'email est inconnu (voir login). */
   private readonly dummyHash = hashPassword('dummy-password');
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jwt: JwtService,
+  ) {}
 
-  /** Crée le compte (rôle user par défaut) et ouvre une session. */
-  async register(dto: RegisterDto): Promise<LoginResponseDto> {
-    const passwordHash = await hashPassword(dto.password);
+  /**
+   * Crée le compte, avec le rôle user par défaut. Ne connecte pas : le client
+   * appelle ensuite login.
+   */
+  async register(dto: RegisterDto): Promise<UserDto> {
+    const email = normalizeEmail(dto.email);
+    const displayName = dto.displayName.trim();
+    await this.assertAvailable(email, displayName);
     try {
-      const user = await this.prisma.user.create({
+      return await this.prisma.user.create({
         data: {
-          email: normalizeEmail(dto.email),
-          displayName: dto.displayName?.trim() || null,
-          passwordHash,
+          email,
+          displayName,
+          passwordHash: await hashPassword(dto.password),
         },
         select: userSelect,
       });
-      return await this.openSession(user, dto.device);
     } catch (error) {
+      // Inscription simultanée avec le même email ou nom : l'index unique
+      // de la base tranche.
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        throw new ConflictException('Un compte existe déjà avec cet email');
+        await this.assertAvailable(email, displayName);
       }
       throw error;
+    }
+  }
+
+  /** Refuse un email ou un nom affiché déjà pris (casse ignorée pour le nom). */
+  private async assertAvailable(email: string, displayName: string) {
+    const taken = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { email },
+          { displayName: { equals: displayName, mode: 'insensitive' } },
+        ],
+      },
+      select: { email: true },
+    });
+    if (taken) {
+      throw new ConflictException(
+        taken.email === email
+          ? 'Un compte existe déjà avec cet email'
+          : 'Ce nom affiché est déjà pris',
+      );
     }
   }
 
@@ -79,10 +117,20 @@ export class AuthService {
     return this.openSession(publicUser, dto.device);
   }
 
-  /** Retrouve la session d'un token, ou null si elle est révoquée ou expirée. */
+  /**
+   * Vérifie la signature et l'expiration du JWT, puis que sa session est
+   * toujours active : une session révoquée invalide son JWT immédiatement.
+   * Renvoie null si le token n'est pas valable.
+   */
   async authenticate(token: string): Promise<AuthContext | null> {
-    const session = await this.prisma.authSession.findUnique({
-      where: { tokenHash: hashToken(token) },
+    let payload: JwtPayload;
+    try {
+      payload = await this.jwt.verifyAsync<JwtPayload>(token);
+    } catch {
+      return null;
+    }
+    const session = await this.prisma.authSession.findFirst({
+      where: { id: payload.sid, userId: payload.sub },
       select: {
         id: true,
         userId: true,
@@ -175,11 +223,10 @@ export class AuthService {
    */
   private async openSession(
     user: UserDto,
-    deviceInput: DeviceInputDto,
+    deviceInput: DeviceInputDto = { type: DeviceType.Web },
   ): Promise<LoginResponseDto> {
-    const token = generateToken();
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + SESSION_TTL_MS);
+    const expiresAt = new Date(now.getTime() + SESSION_TTL_S * 1000);
 
     const session = await this.prisma.$transaction(async (tx) => {
       const device = await findOrCreateDevice(tx, user.id, deviceInput);
@@ -191,15 +238,17 @@ export class AuthService {
         data: {
           userId: user.id,
           deviceId: device.id,
-          tokenHash: hashToken(token),
           expiresAt,
         },
         select: { id: true, deviceId: true },
       });
     });
 
+    const payload: JwtPayload = { sub: user.id, sid: session.id };
     return {
-      accessToken: token,
+      accessToken: await this.jwt.signAsync(payload, {
+        expiresIn: SESSION_TTL_S,
+      }),
       expiresAt,
       sessionId: session.id,
       deviceId: session.deviceId,

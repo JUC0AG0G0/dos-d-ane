@@ -91,7 +91,15 @@ Le serveur tourne toujours dans Docker, comme en production.
 
 ## Authentification
 
-`POST /api/auth/register` crée un compte (rôle `user`) et `POST /api/auth/login` connecte ; les deux renvoient un `accessToken` à envoyer dans `Authorization: Bearer <token>` (bouton « Authorize » du Swagger). Chaque connexion ouvre une session sur un appareil (`device`) ; `GET /api/auth/sessions` liste les sessions actives et passées, `DELETE /api/auth/sessions/{id}` en ferme une.
+L'API signe ses tokens (JWT) avec la clé `JWT_SECRET` de `.env.dev`. Elle est vide au départ et le serveur refuse de démarrer sans elle. Pour en générer une (une fois par poste, jamais commitée) :
+
+```bash
+openssl rand -base64 48
+```
+
+Coller le résultat après `JWT_SECRET=` dans `.env.dev`, puis relancer `task dev`. La changer déconnecte tout le monde.
+
+`POST /api/auth/register` crée un compte (email, mot de passe, nom affiché, tous uniques ; rôle `user`), puis `POST /api/auth/login` renvoie un `accessToken` à envoyer dans `Authorization: Bearer <token>` (bouton « Authorize » du Swagger). `GET /api/auth/sessions` liste les connexions actives et passées, `DELETE /api/auth/sessions/{id}` en ferme une.
 
 Toutes les routes exigent d'être connecté, sauf celles marquées `@Public()`. Pour réserver une route à un rôle : `@Roles(Role.admin)`. Le rôle `admin` ne s'attribue qu'en base (`UPDATE users SET role = 'admin' WHERE email = '...'`).
 
