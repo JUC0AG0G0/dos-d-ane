@@ -415,7 +415,8 @@ Le café (14:01) n'a pas déclenché d'alerte ; la vraie mauvaise posture (14:03
 | | **L'écran « en direct »** | **L'alerte** |
 |---|---|---|
 | Quand | mis à jour **à chaque photo** (toutes les 10 s, ou 2 s en cas de doute) | **seulement si** la mauvaise posture est confirmée (70 % pendant 2 min) |
-| Ce qu'on voit | la silhouette, les angles, un statut, le score | une **notification** sur le téléphone (son ou vibration) avec un conseil |
+| Ce qu'on voit | un statut, sa couleur, le score (silhouette animée : plus tard) | une **notification** sur le téléphone (son ou vibration) avec un conseil |
+| Transport | Pi → serveur en WebSocket, serveur → app en SSE ([poc-edge.md](poc-edge.md) §6) | SSE si l'app est ouverte, **notification push** sinon |
 | À quoi ça sert | regarder sa posture quand on **en a envie** | **prévenir** la personne quand elle **ne regarde pas** l'app |
 
 En travaillant, personne ne regarde son téléphone en permanence : **c'est l'alerte qui va chercher la personne**, l'écran en direct n'est qu'un plus.
@@ -428,7 +429,7 @@ En travaillant, personne ne regarde son téléphone en permanence : **c'est l'al
        → « C'est parti ! » Elle pose son téléphone et travaille.
 
 14:00 → 14:03   Tout va bien.
-       Écran en direct (si elle regarde) : silhouette droite, « Posture correcte 🟢 », score 92
+       Écran en direct (si elle regarde) : « Posture correcte 🟢 », score 92
        Aucune notification : elle n'est pas dérangée.
 
 14:01  Elle boit son café (1 photo rouge).
@@ -566,9 +567,11 @@ resume = {score_moyen, secondes_bonne, secondes_moyenne, secondes_a_ameliorer, s
 Exemple de résumé :
 
 ```json
-{ "session": "ses_8f2c41", "periode": "14:00-14:05", "score_moyen": 78,
+{ "id": "res_0042", "session": "ses_8f2c41", "periode": "14:00-14:05", "score_moyen": 78,
   "secondes_bonne": 210, "secondes_moyenne": 60, "secondes_a_ameliorer": 30, "secondes_ignore": 0 }
 ```
+
+Le format exact des trois messages et leur transport (WebSocket, HTTPS, SSE, notification push) sont décrits dans [poc-edge.md](poc-edge.md) §6.
 
 **Les bonnes postures sont donc bien envoyées**, sous forme de **temps et de score** dans les résumés. Ce sont des chiffres agrégés, jamais les points du corps ni les images.
 
@@ -578,7 +581,7 @@ Exemple de résumé :
 
 | Limite | Conséquence | Piste |
 |---|---|---|
-| **Vue de face** | angles faux, statuts qui clignotent | détecter « pas de profil » (épaules trop écartées par rapport au tronc) et ignorer l'image |
+| **Vue de face** | angles faux, statuts qui clignotent | ✅ traité : épaules trop écartées par rapport au tronc (> 0,35) → image ignorée (§6.1, guichet 2). Seuil à confirmer par les tests |
 | **Dos rond « en C »** | la courbure de la colonne est invisible : MoveNet n'a aucun point le long du dos, seulement oreille, épaule et hanche reliées par des droites | souvent détecté **indirectement** (tête en avant, tronc penché). Piste à tester : le « tassement » (longueur épaule–hanche plus courte que celle de la calibration) |
 | **Points qui tremblent** d'une image à l'autre | verdict qui change autour du seuil | normal : le filtre dans le temps (70 % sur 1 min, 2 min) l'absorbe |
 

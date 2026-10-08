@@ -41,14 +41,17 @@ Le POC doit montrer que :
 │     ↓                                     │
 │  Filtre      confirme dans le temps       │
 │     ↓                                     │
-│  Événement                                │
+│  Événement, résumé, état en direct        │
 └────────────────────┬──────────────────────┘
-                     │ HTTPS / JSON, chiffres seulement
+                     │ WebSocket + HTTPS / JSON, chiffres seulement (§6)
                      ▼
               Serveur (équipe)
+                     │ SSE (+ notification push)
+                     ▼
+                 App mobile
 ```
 
-**La frontière à valider :** les pixels restent sur le Pi, seules les données dérivées (keypoints, angles, événements) peuvent en sortir.
+**La frontière à valider :** les pixels et les keypoints restent sur le Pi ; seules les données dérivées (angles, posture, score, événements, résumés) en sortent.
 
 ---
 
@@ -229,14 +232,39 @@ Soit environ **4 % d'un cœur** à la cadence la plus rapide (1 image / 2 s), et
 
 **À confirmer par les tests :** vitesse réelle de l'IA (T1), tenue sur 8 h (endurance), détection de profil (T3), justesse (T5). **Points d'attention :** prévoir un dissipateur ; le Pi n'a pas d'horloge interne, donc il faut garder les événements en attente tant que l'heure n'est pas synchronisée (NTP).
 
-**Ce qui ne sort jamais :** image, frame, pixels, vidéo.
-**Ce qui peut sortir :** keypoints, confiance, angles, classe de posture, événement, horodatage.
+**Ce qui ne sort jamais :** image, frame, pixels, vidéo, **ni les keypoints** (points du corps).
+**Ce qui sort :** angles, posture, couleur, score, événements, résumés, horodatage, tous marqués du numéro de session.
+
+### Les messages et leur transport (proposition, à valider avec l'équipe)
+
+| Message | Sens | Quand | Transport | Stocké ? |
+|---|---|---|---|---|
+| **Commandes** : démarrer / arrêter la session `ses_…`, seuils | serveur → Pi | au démarrage, à l'arrêt, quand l'admin change un seuil | **WebSocket** | — |
+| **État en direct** : posture, couleur, angle tête, angle tronc, score de la photo | Pi → serveur → app | à chaque photo (2 à 10 s) | Pi → serveur : **WebSocket** ; serveur → app : **SSE** | ❌ relayé seulement |
+| **Événement** : début et fin d'une alerte | Pi → serveur → app | quand le filtre temporel confirme | Pi → serveur : **HTTPS POST** ; serveur → app : **SSE** (+ notification) | ✅ |
+| **Résumé** : score moyen, temps 🟢 / 🟠 / 🔴, temps ignoré | Pi → serveur | toutes les 5 min | **HTTPS POST** | ✅ |
+| **Actions de l'utilisateur** : connexion, démarrer, terminer, historique | app → serveur | à la demande | **HTTPS (REST)** | ✅ |
 
 ```json
-{ "device": "pi-poste-01", "type": "FORWARD_HEAD",
-  "start": "2026-10-07T14:02:10Z", "duration_s": 210,
-  "head_angle_avg": 43.1, "confidence_avg": 0.71 }
+// état en direct (WebSocket)
+{ "session": "ses_8f2c41", "t": "2026-10-08T14:05:12Z", "posture": "FORWARD_HEAD",
+  "couleur": "rouge", "tete": 68.2, "tronc": 5.0, "score": 64 }
+
+// événement (HTTPS POST)
+{ "id": "evt_0193", "session": "ses_8f2c41", "type": "FORWARD_HEAD", "phase": "debut",
+  "debut": "2026-10-08T14:03:10Z", "tete_moy": 68.4, "tronc_moy": 6.1 }
+
+// résumé (HTTPS POST)
+{ "id": "res_0042", "session": "ses_8f2c41", "periode": "14:00-14:05", "score_moyen": 78,
+  "secondes_bonne": 210, "secondes_moyenne": 60, "secondes_a_ameliorer": 30, "secondes_ignore": 0 }
 ```
+
+**Pourquoi ces choix :**
+
+- **WebSocket entre le Pi et le serveur** : c'est le Pi qui ouvre la connexion (sortante), donc elle passe les box et pare-feu, et le serveur peut lui envoyer des commandes sans connaître son adresse. Une seule connexion sert aux deux sens. Si elle tombe, le Pi la rouvre et continue d'analyser avec les derniers seuils reçus.
+- **HTTPS POST pour ce qui est stocké** (événements, résumés) : chaque message a un `id`, le serveur ignore un doublon. Si le réseau est coupé, le Pi garde les messages en file d'attente et les renvoie plus tard. Rien n'est perdu, contrairement à un message WebSocket envoyé pendant une coupure.
+- **SSE entre le serveur et l'app** : l'app n'a besoin que de **recevoir** (état en direct, alertes) ; ses actions passent par le REST classique. SSE, c'est du HTTP simple avec reconnexion automatique, et NestJS le gère nativement (`@Sse`). Une WebSocket convient aussi si l'équipe préfère une seule technologie (`@nestjs/websockets`).
+- **Limite importante :** WebSocket et SSE ne fonctionnent que **quand l'app est ouverte**. Téléphone verrouillé ou app en arrière-plan, le système coupe la connexion. Pour que l'alerte arrive quand même, il faut une **notification push** (Firebase Cloud Messaging, ou Expo Push selon la techno de l'app), envoyée par le serveur à la réception d'un événement « début ». **MVP :** alerte par SSE quand l'app est ouverte ; **push** dès que possible, car c'est le cas normal (personne ne regarde son téléphone en travaillant).
 
 ---
 

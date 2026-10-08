@@ -28,7 +28,7 @@ Les personnes qui travaillent assises devant un ordinateur prennent de mauvaises
 1. J'arrive à mon poste et je me **connecte** à l'app mobile (email + mot de passe).
 2. J'appuie sur **« Démarrer »** : la session commence. Le serveur relie mon compte au Raspberry du poste.
 3. Je travaille normalement. Le **Raspberry Pi** regarde régulièrement : il capture une image, l'analyse et l'efface aussitôt. **Rien n'est enregistré.**
-4. Seulement si une mauvaise posture **dure** plusieurs minutes (par exemple « tête en avant pendant 3 min »), ou si je reste immobile trop longtemps, le Raspberry envoie ce **résultat chiffré** au serveur.
+4. Le Raspberry envoie au serveur des **chiffres seulement** : l'état en direct (posture, score), un résumé toutes les 5 min, et une **alerte** seulement si une mauvaise posture **dure** plusieurs minutes (par exemple « tête en avant pendant 3 min ») ou si je reste immobile trop longtemps. L'alerte m'arrive en **notification** sur le téléphone.
 5. Je termine la session : l'app affiche mon **score**, ce qui a été détecté, et des **conseils et exercices** adaptés.
 6. Sur le **site web**, je retrouve mon historique. L'**administrateur** voit les postures les plus fréquentes, sans savoir qui est qui.
 
@@ -109,7 +109,8 @@ Les **seuils de départ** viennent d'une méthode d'ergonomie reconnue (**RULA**
 | Cadence de capture adaptative | — |
 | Détection par règles | IA de classification entraînée sur nos données |
 | Serveur NestJS + base PostgreSQL | squelette animé en direct dans l'app |
-| App mobile : connexion, bouton « Démarrer / Terminer », score, conseils, exercices | notifications en temps réel |
+| App mobile : connexion, bouton « Démarrer / Terminer », état en direct et score (SSE), alerte quand l'app est ouverte, conseils, exercices | notification push quand l'app est fermée (prioritaire) |
+| Pi ↔ serveur : WebSocket (commandes, état en direct) + HTTPS (événements, résumés) | — |
 | Session liée au seul Raspberry du MVP | plusieurs postes : poste attribué par l'admin, ou QR code à scanner si les postes sont partagés |
 | Site web : historique + stats admin | outil d'annotation des données |
 | Aucune image stockée ni envoyée | analyse d'une photo prise avec le téléphone |
@@ -128,6 +129,7 @@ Les **seuils de départ** viennent d'une méthode d'ergonomie reconnue (**RULA**
 | **Peu de captures, cadence adaptative** | une posture dure des minutes : inutile de filmer en continu. On capture plus souvent seulement en cas de doute (sobriété, demandée par le sujet). | flux vidéo : plus de calcul, plus de chaleur, aucun gain |
 | **4 postures mesurables de profil** | mieux vaut peu de postures bien détectées que beaucoup mal détectées ; on en ajoute une fois les premières validées | viser toutes les postures dès le départ : impossible à valider |
 | **NestJS + PostgreSQL** | un seul serveur pour le mobile, le web et le Raspberry | — |
+| **WebSocket (Pi) + SSE (app) + HTTPS** | temps réel sans interroger le serveur en boucle ; le Pi ouvre lui-même la connexion (passe les pare-feu) ; ce qui est stocké passe en HTTPS avec renvoi si le réseau coupe | interroger le serveur toutes les secondes (polling) : lent et coûteux ; WebSocket aussi côté app : possible si l'équipe préfère une seule techno |
 
 ---
 
