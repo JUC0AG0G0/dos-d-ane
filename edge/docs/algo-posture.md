@@ -53,7 +53,7 @@ augmente   ● épaule  (x=300, y=200)
 
 ⚠️ **y augmente vers le bas**, contrairement à un graphique de maths. C'est pour ça que les formules font des soustractions « à l'envers » ([poc-raspberry.md](poc-raspberry.md) §5.3).
 
-MoveNet donne aussi, pour chaque point, une **confiance** entre 0 et 1. En dessous de **0,3**, le point est jugé mal vu, et l'image est ignorée (UNKNOWN) plutôt que de calculer un angle faux. On utilise le **côté le mieux vu** (gauche ou droit) : celui qui fait face à la caméra.
+MoveNet donne aussi, pour chaque point, une **confiance** entre 0 et 1. En dessous de **0,2**, le point est jugé mal vu, et l'image est ignorée (UNKNOWN) plutôt que de calculer un angle faux. Le seuil était de 0,3 au départ : la mesure du 8 octobre a montré que, de profil, l'oreille et l'épaule sont souvent vues entre 0,2 et 0,3 avec des angles corrects, et que 0,3 rejetait 20 % des images pour rien. On utilise le **côté le mieux vu** (gauche ou droit) : celui qui fait face à la caméra.
 
 ---
 
@@ -196,7 +196,7 @@ Toutes les quelques secondes, le Pi prend une photo et la fait passer par 4 cont
 **Guichet 1 : « Est-ce que je vois bien la personne ? »** MoveNet donne une note de confiance (0 à 1) pour chaque point.
 
 ```text
-oreille : 0,85   épaule : 0,90   hanche : 0,78    → tout est au-dessus de 0,3 → ✅ on continue
+oreille : 0,85   épaule : 0,90   hanche : 0,78    → tout est au-dessus de 0,2 → ✅ on continue
 oreille : 0,85   épaule : 0,90   hanche : 0,12    → la hanche est mal vue (cachée par le bureau ?)
                                                      → ❌ image IGNORÉE (« UNKNOWN »)
 ```
@@ -362,7 +362,7 @@ Le café (14:01) n'a pas déclenché d'alerte ; la vraie mauvaise posture (14:03
 
 | Cause | Protection |
 |---|---|
-| point mal détecté par l'IA | **guichet 1** : confiance < 0,3 → image ignorée |
+| point mal détecté par l'IA | **guichet 1** : confiance < 0,2 → image ignorée |
 | personne de face | **guichet 2** : pas de profil → image ignorée |
 | corps différent (oreille naturellement en avant) | **calibration** : comparaison à sa propre référence |
 | geste bref (café, stylo) | **filtre** : 70 % pendant 2 min |

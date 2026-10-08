@@ -16,7 +16,10 @@ DOSSIER_EDGE = Path(__file__).resolve().parent
 MODELE_PAR_DEFAUT = DOSSIER_EDGE / "models" / "movenet_lightning_int8.tflite"
 DOSSIER_RESULTATS = DOSSIER_EDGE / "resultats"
 
-CONF_MIN = 0.3        # en dessous, un point est jugé mal détecté
+# En dessous, un point est jugé mal détecté. 0,20 et non 0,30 : de profil, l'oreille et l'épaule
+# sont souvent vues entre 0,20 et 0,30 ; mesuré le 08/10/2026 (331 images), le seuil de 0,30 rejetait
+# 20 % des images alors que leurs angles étaient les mêmes que les autres (99 % exploitables à 0,20).
+CONF_MIN = 0.2
 ECART_EPAULES_MAX = 0.35   # écart des 2 épaules ÷ tronc ; au-delà, la personne n'est pas de profil
 
 # Numéros MoveNet des points utiles, par côté : oreille, épaule, hanche

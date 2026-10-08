@@ -295,6 +295,8 @@ Les deux attendent une image **192×192×3 en `uint8`** et renvoient **17 points
 | Le Pi **redémarrait tout seul** environ 1 min 20 après le lancement du flux de la webcam (2 fois) | la LifeCam VX-1000 utilise un vieux pilote (`gspca_sonixj`) qui **figeait le système** ; le chien de garde (*watchdog*, 1 min) redémarrait alors le Pi. Alimentation (5,1 V / 3 A, `throttled=0x0`), température (57 °C) et charge (0,2) écartées grâce aux journaux conservés et à un relevé toutes les 10 s. | webcam remplacée par une **Logitech C110** (pilote `uvcvideo`) : flux plus fluide, aucun blocage |
 | Le code de capture analysait des images vieilles d'environ 5 s (vu au T2 : temps de capture médian de 2 ms, trop rapide pour être vrai) | la webcam garde 4 images en réserve | réserve réduite à 1 image (§5.1) : temps de capture médian de 55 ms, images fraîches |
 | L'aperçu de la webcam était saccadé dans VNC | VNC renvoie toute la vidéo par le Wi-Fi | regarder sur un écran HDMI branché au Pi ; les scripts du POC n'affichent rien et ne sont pas concernés |
+| Dans `live.py`, le côté vu (gauche / droite) et les verdicts clignotaient | à chaque image, le côté le mieux vu était recalculé ; de profil, MoveNet devine le côté caché avec une confiance parfois aussi haute | côté **bloqué** (`CoteStable`) : il ne change que si l'autre côté est nettement meilleur 5 images d'affilée. Mesuré ensuite : un seul côté sur 331 images |
+| `UNKNOWN` fréquents alors que la personne était bien de profil (20 % des images) | seuil de confiance de 0,30 trop strict : oreille et épaule souvent vues entre 0,20 et 0,30 | seuil abaissé à **0,20** : 99 % d'images exploitables sur le même enregistrement, angles inchangés (tête 62° en moyenne pour les images récupérées comme pour les autres) |
 | `ssh pi` échouait par moments (« Could not resolve hostname ») | le Wi-Fi de l'école ne transmet pas toujours les noms `.local` | passer par l'IP du Pi (§3.2) |
 | Les docs étaient sur la branche `docs`, absente de `develop` | branches créées séparément depuis `main` | branche `feat/edge-poc` créée depuis `develop`, docs copiées dans `edge/docs/` |
 | Le lien de téléchargement Kaggle semblait renvoyer une 404 | Kaggle répond 404 aux requêtes de type `HEAD` (`curl -I`) | télécharger normalement avec `curl -L` (§3.4) |
@@ -399,7 +401,7 @@ De profil, on garde **le côté le mieux vu** : celui dont l'oreille, l'épaule 
 import math
 
 COTES = {"gauche": (3, 5, 11), "droite": (4, 6, 12)}   # oreille, épaule, hanche
-CONF_MIN = 0.3
+CONF_MIN = 0.2      # 0,3 au départ : trop strict de profil (mesure du 08/10/2026, §3.5)
 ECART_EPAULES_MAX = 0.35   # écart des 2 épaules ÷ tronc ; au-delà, la personne n'est pas de profil
 
 def cote_vu(pts):
