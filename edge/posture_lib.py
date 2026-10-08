@@ -47,7 +47,9 @@ def capturer(cam):
     """Renvoie une image fraîche (en mémoire uniquement), ou None si la capture échoue."""
     cam.grab()                            # jette l'image en réserve, prise lors de la capture précédente
     ok, image = cam.read()                # attend une image fraîche
-    return image if ok else None
+    # copy() : OpenCV peut réutiliser la même zone mémoire d'une capture à l'autre ; sans copie,
+    # ce qu'on dessine sur l'image (textes de live.py) se retrouvait sur les images suivantes.
+    return image.copy() if ok else None
 
 
 # ---------- MoveNet ----------
