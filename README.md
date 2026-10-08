@@ -89,6 +89,12 @@ Seul `.env.dev.example` est versionné. Ton `.env.dev` (ports, base, pgAdmin) es
 
 Le serveur tourne toujours dans Docker, comme en production.
 
+## Authentification
+
+`POST /api/auth/register` crée un compte (rôle `user`) et `POST /api/auth/login` connecte ; les deux renvoient un `accessToken` à envoyer dans `Authorization: Bearer <token>` (bouton « Authorize » du Swagger). Chaque connexion ouvre une session sur un appareil (`device`) ; `GET /api/auth/sessions` liste les sessions actives et passées, `DELETE /api/auth/sessions/{id}` en ferme une.
+
+Toutes les routes exigent d'être connecté, sauf celles marquées `@Public()`. Pour réserver une route à un rôle : `@Roles(Role.admin)`. Le rôle `admin` ne s'attribue qu'en base (`UPDATE users SET role = 'admin' WHERE email = '...'`).
+
 ## Branches
 
 `main` et `develop` ne reçoivent que des pull requests. Une branche par tâche, créée depuis `develop`.

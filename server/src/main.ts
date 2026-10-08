@@ -1,3 +1,4 @@
+import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -8,6 +9,10 @@ async function bootstrap() {
   const config = app.get(ConfigService);
 
   app.setGlobalPrefix('api');
+  // Valide les corps de requête d'après les DTO ; refuse les champs inconnus.
+  app.useGlobalPipes(
+    new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }),
+  );
   app.enableCors({
     origin: config
       .get<string>('CORS_ORIGINS', '')
@@ -28,9 +33,18 @@ async function bootstrap() {
       new DocumentBuilder()
         .setTitle("Dos d'âne API")
         .setVersion(process.env.APP_VERSION ?? 'dev')
+        .addBearerAuth({
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'token opaque',
+          description: 'accessToken renvoyé par /api/auth/login',
+        })
         .build(),
     );
-    SwaggerModule.setup('api/docs', app, document);
+    SwaggerModule.setup('api/docs', app, document, {
+      // Garde le token saisi dans « Authorize » après un rechargement.
+      swaggerOptions: { persistAuthorization: true },
+    });
   }
 
   await app.listen(config.get<number>('PORT', 3000));

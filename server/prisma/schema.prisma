@@ -20,13 +20,11 @@ datasource db {
   provider = "postgresql"
 }
 
-/// Rôle d'un compte : user, admin.
-model Role {
-  id    String @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  name  String @unique
-  users User[]
-
-  @@map("roles")
+/// Rôle d'un compte. Tout compte créé est user ; admin ne s'attribue qu'à la
+/// main, en base.
+enum Role {
+  user
+  admin
 }
 
 model User {
@@ -34,8 +32,7 @@ model User {
   email            String            @unique
   displayName      String?
   passwordHash     String
-  roleId           String            @db.Uuid
-  role             Role              @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  role             Role              @default(user)
   devices          Device[]
   authSessions     AuthSession[]
   analysisSessions AnalysisSession[]
@@ -68,16 +65,19 @@ model Device {
 }
 
 /// Connexion d'un utilisateur sur un appareil. Seul le hash du token est stocké.
+/// Une session est active tant qu'elle n'est ni révoquée ni expirée ; elle
+/// reste en base ensuite pour l'historique des connexions.
 model AuthSession {
-  id        String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  userId    String    @db.Uuid
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  deviceId  String    @db.Uuid
-  device    Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-  tokenHash String    @unique
-  expiresAt DateTime  @db.Timestamptz(3)
-  revokedAt DateTime? @db.Timestamptz(3)
-  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  id         String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  userId     String    @db.Uuid
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId   String    @db.Uuid
+  device     Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  expiresAt  DateTime  @db.Timestamptz(3)
+  revokedAt  DateTime? @db.Timestamptz(3)
+  lastUsedAt DateTime  @default(now()) @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
 
   @@index([userId])
   @@index([deviceId])
