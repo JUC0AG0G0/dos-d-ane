@@ -292,6 +292,7 @@ Les deux attendent une image **192×192×3 en `uint8`** et renvoient **17 points
 | L'Imager 2 ne démarrait pas (`libOpenGL.so.0`, plugin Qt `xcb`) | bibliothèques manquantes sur le PC | `sudo apt install libopengl0 libxcb-cursor0`, lancement avec `sudo` |
 | VNC redemande d'accepter le certificat à chaque connexion | TigerVNC n'arrive pas à le mémoriser | sans conséquence : vérifier que c'est bien `CN=dosdane-pi` et cliquer « Oui » |
 | Le Pi **redémarrait tout seul** environ 1 min 20 après le lancement du flux de la webcam (2 fois) | la LifeCam VX-1000 utilise un vieux pilote (`gspca_sonixj`) qui **figeait le système** ; le chien de garde (*watchdog*, 1 min) redémarrait alors le Pi. Alimentation (5,1 V / 3 A, `throttled=0x0`), température (57 °C) et charge (0,2) écartées grâce aux journaux conservés et à un relevé toutes les 10 s. | webcam remplacée par une **Logitech C110** (pilote `uvcvideo`) : flux plus fluide, aucun blocage |
+| Le code de capture analysait des images vieilles d'environ 5 s (vu au T2 : temps de capture médian de 2 ms, trop rapide pour être vrai) | la webcam garde 4 images en réserve | réserve réduite à 1 image (§5.1) : temps de capture médian de 55 ms, images fraîches |
 | L'aperçu de la webcam était saccadé dans VNC | VNC renvoie toute la vidéo par le Wi-Fi | regarder sur un écran HDMI branché au Pi ; les scripts du POC n'affichent rien et ne sont pas concernés |
 | `ssh pi` échouait par moments (« Could not resolve hostname ») | le Wi-Fi de l'école ne transmet pas toujours les noms `.local` | passer par l'IP du Pi (§3.2) |
 | Les docs étaient sur la branche `docs`, absente de `develop` | branches créées séparément depuis `main` | branche `feat/edge-poc` créée depuis `develop`, docs copiées dans `edge/docs/` |
@@ -310,14 +311,18 @@ Les deux attendent une image **192×192×3 en `uint8`** et renvoient **17 points
 ├── .gitignore            ← exclut models/*.tflite et resultats/
 ├── .venv/                ← environnement Python (non commité)
 ├── models/               ← movenet_lightning_int8.tflite, movenet_lightning_float16.tflite (non commités)
-├── posture_lib.py        ← fonctions communes : caméra, MoveNet, angles, règles, filtre
-├── t2_camera.py          ← test caméra
-├── t1_vitesse.py         ← test vitesse de l'IA
-├── live.py               ← fenêtre de debug + enregistrement d'exemples étiquetés
-├── poc.py                ← chaîne complète : cadence adaptative, règles, événements
-├── evaluer.py            ← calcul des scores (T5) à partir des exemples étiquetés
-└── resultats/            ← CSV de mesures (jamais d'images)
+├── README.md             ← installer, lancer, rôle de chaque fichier
+├── posture_lib.py        ← LE CŒUR, commun à tous : caméra, MoveNet, angles, règles (puis filtre, score, profil)
+├── poc.py                ← la vraie session (§5.8) : cadence adaptative, filtre, événements   (à écrire)
+├── live.py               ← outil de debug : fenêtre en direct (puis enregistrement d'exemples étiquetés)
+├── tests_poc/            ← outils de mesure, pas utilisés en session
+│   ├── t2_camera.py         test caméra
+│   ├── t1_vitesse.py        test vitesse de l'IA        (à écrire)
+│   └── evaluer.py           scores T5                    (à écrire)
+└── resultats/            ← CSV de mesures (jamais d'images, non commités)
 ```
+
+Tous les scripts **importent** `posture_lib.py` au lieu de recopier le code : une correction profite à tous. Les tests se lancent depuis `edge/` avec `python -m tests_poc.t2_camera`.
 
 Le code est directement dans le dépôt (`edge/`) : il est versionné dès le début. Une fois le POC validé, il sera réorganisé en paquet Python (`pyproject.toml`) pour devenir le service du Pi.
 
@@ -330,18 +335,20 @@ Le code est directement dans le dépôt (`edge/`) : il est versionné dès le d�
 ```python
 import cv2
 
-cam = cv2.VideoCapture(0)                 # 0 = première webcam USB
+cam = cv2.VideoCapture(0, cv2.CAP_V4L2)   # 0 = première webcam USB
 cam.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
 cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+cam.set(cv2.CAP_PROP_BUFFERSIZE, 1)       # une seule image en réserve
 
 def capturer(cam):
-    for _ in range(3):                    # vider les images en attente
-        cam.grab()                        # pour avoir une image récente
-    ok, image = cam.read()
+    cam.grab()                            # jette l'image en réserve, prise lors de la capture précédente
+    ok, image = cam.read()                # attend une image fraîche
     return image if ok else None
 ```
 
 L'image n'existe **qu'en mémoire** : on ne l'écrit jamais sur le disque.
+
+⚠️ **Piège des images périmées.** Par défaut, la webcam garde **4 images en réserve**. Après plusieurs secondes sans lecture, ces 4 images sont anciennes, et les lire est instantané. La première version de ce code (3 `grab()` puis `read()`) analysait donc la 4ᵉ image en réserve, **vieille d'environ 5 s**. Mesuré sur le Pi : les 4 premières lectures prennent 0 ms (images en réserve), la 5ᵉ environ 50 ms (image fraîche). Avec une réserve de 1, il suffit de jeter une image. Ce code est celui de `ouvrir_camera()` et `capturer()` dans `posture_lib.py`.
 
 ### 5.2 Trouver les points du corps (MoveNet)
 
