@@ -73,9 +73,13 @@ tasks:
 
   # --- Base de données (Prisma) -------------------------------------------
 
-  db:migrate:
-    desc: Crée et applique une migration après modification de prisma/schema.prisma (stack lancée)
+  db:generate:
+    desc: Crée une migration depuis les changements de prisma/schema.prisma, sans l'appliquer (`-- nom`, stack lancée)
     interactive: true
+    cmd: "{{.COMPOSE}} exec server npm run db:generate -- {{if .CLI_ARGS}}--name {{.CLI_ARGS}}{{end}}"
+
+  db:migrate:
+    desc: Applique à la base les migrations pas encore appliquées (stack lancée)
     cmd: "{{.COMPOSE}} exec server npm run db:migrate"
 
   db:dump:
@@ -83,10 +87,15 @@ tasks:
     cmd: sh scripts/db-dump.sh
 
   db:restore:
-    desc: Remplace la base de la stack lancée par un dump (le plus récent de dumps/, ou `-- fichier.sql`)
+    desc: Annule la dernière migration (`-- migration` pour revenir à celle-ci, `-- dump` ou `-- fichier.sql` pour charger un dump)
     interactive: true
-    prompt: Les données actuelles de la base seront remplacées par celles du dump. Continuer ?
-    cmd: sh scripts/db-restore.sh {{.CLI_ARGS}}
+    prompt: La base va être modifiée (migrations annulées ou données remplacées par un dump). Continuer ?
+    cmd: |
+      case "{{.CLI_ARGS}}" in
+        dump) sh scripts/db-restore.sh ;;
+        *.sql) sh scripts/db-restore.sh {{.CLI_ARGS}} ;;
+        *) sh scripts/db-rollback.sh {{.CLI_ARGS}} ;;
+      esac
 
   # --- Docker -------------------------------------------------------------
 

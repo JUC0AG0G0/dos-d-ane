@@ -1,5 +1,5 @@
 #!/bin/sh
-# Remplace la base de dev par le contenu d'un dump (`task db:restore`,
+# Remplace la base de dev par le contenu d'un dump (`task db:restore -- dump`,
 # `task dev:restore`). Sans argument, prend le dump le plus récent de dumps/.
 # La base est supprimée puis recréée : il ne reste que les données du dump.
 cd "$(dirname "$0")/.." || exit 1

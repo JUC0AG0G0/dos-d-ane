@@ -13,7 +13,8 @@
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
     "typecheck": "prisma generate && tsc --noEmit",
-    "db:migrate": "prisma migrate dev"
+    "db:generate": "prisma migrate dev --create-only",
+    "db:migrate": "prisma migrate deploy"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
