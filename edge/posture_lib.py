@@ -87,12 +87,41 @@ def cote_vu(pts):
     return max(COTES, key=lambda c: pts[list(COTES[c]), 2].mean())
 
 
-def ecart_epaules(pts):
+class CoteStable:
+    """Choisit le côté vu (gauche / droite) sans le faire basculer à chaque image.
+
+    De profil, MoveNet devine les points du côté caché et leur donne parfois une confiance presque
+    aussi haute que ceux du côté visible : le meilleur côté changeait d'une image à l'autre et les
+    angles sautaient. La caméra ne bouge pas pendant une session, donc on garde le côté choisi et on
+    ne change que si l'autre est nettement meilleur pendant plusieurs images d'affilée.
+    """
+
+    MARGE = 0.15         # confiance moyenne d'avance nécessaire pour envisager de changer
+    IMAGES = 5           # nombre d'images d'affilée où l'autre côté doit être nettement meilleur
+
+    def __init__(self):
+        self.cote = None
+        self.compteur = 0
+
+    def maj(self, pts):
+        conf = {c: float(pts[list(COTES[c]), 2].mean()) for c in COTES}
+        if self.cote is None:
+            self.cote = max(conf, key=conf.get)
+            return self.cote
+        autre = "droite" if self.cote == "gauche" else "gauche"
+        self.compteur = self.compteur + 1 if conf[autre] > conf[self.cote] + self.MARGE else 0
+        if self.compteur >= self.IMAGES:
+            self.cote, self.compteur = autre, 0
+        return self.cote
+
+
+def ecart_epaules(pts, cote=None):
     """Écart horizontal entre les deux épaules ÷ longueur du tronc : ≈ 0 de profil, ≈ 0,8 de face.
 
     None si non mesurable : de profil, l'épaule côté mur est souvent cachée, et c'est normal.
+    cote : côté à utiliser (voir CoteStable) ; par défaut, le mieux vu sur cette image.
     """
-    _, e, h = COTES[cote_vu(pts)]
+    _, e, h = COTES[cote or cote_vu(pts)]
     if min(pts[5, 2], pts[6, 2], pts[h, 2]) < CONF_MIN:
         return None
     longueur_tronc = float(np.linalg.norm(pts[e, :2] - pts[h, :2]))
@@ -101,13 +130,16 @@ def ecart_epaules(pts):
     return abs(float(pts[5, 0] - pts[6, 0])) / longueur_tronc
 
 
-def angles(pts):
-    """Angles de la tête et du tronc du côté le mieux vu (§5.3). None si points peu fiables."""
-    cote = cote_vu(pts)
+def angles(pts, cote=None):
+    """Angles de la tête et du tronc (§5.3). None si points peu fiables.
+
+    cote : côté à utiliser (voir CoteStable) ; par défaut, le mieux vu sur cette image.
+    """
+    cote = cote or cote_vu(pts)
     o, e, h = COTES[cote]
     if min(pts[o, 2], pts[e, 2], pts[h, 2]) < CONF_MIN:
         return None                                    # capture ignorée (UNKNOWN)
-    ecart = ecart_epaules(pts)
+    ecart = ecart_epaules(pts, cote)
     if ecart is not None and ecart > ECART_EPAULES_MAX:
         return None                                    # pas de profil : angles faux (UNKNOWN)
     oreille, epaule, hanche = pts[o, :2], pts[e, :2], pts[h, :2]

@@ -10,21 +10,31 @@ Touches (dans la fenêtre, ou tapées dans le terminal puis Entrée, utile sans 
     p = fond noir directement (squelette seul, sans l'image)
     c = calibration : rester assis droit 10 s, la posture devient la référence
     r = revenir aux règles sans calibration
+    0 à 4 = enregistrer chaque image dans resultats/live_<date>.csv avec une étiquette :
+            0 bonne posture, 1 tête en avant, 2 dos penché, 3 avachi, 4 dos en « C »
+    9 = arrêter l'enregistrement
+Le CSV ne contient que des chiffres (angles, points), jamais d'image, et reste sur le Pi.
 Lancer depuis edge/ avec .venv activé :  python live.py
 Depuis le PC, fenêtre sur l'écran du Pi et commandes dans le terminal du PC :
     ssh -t pi 'cd ~/dos-d-ane/edge && DISPLAY=:0 XDG_RUNTIME_DIR=/run/user/1000 .venv/bin/python live.py'
 """
 
+import csv
 import queue
 import sys
 import threading
 import time
+from datetime import datetime
 
 import cv2
 import numpy as np
 
-from posture_lib import (COTES, CONF_MIN, ECART_EPAULES_MAX, SQUELETTE, MoveNet, angles, capturer,
-                         ecart_epaules, ouvrir_camera, postures)
+from posture_lib import (COTES, CONF_MIN, DOSSIER_RESULTATS, ECART_EPAULES_MAX, SQUELETTE, CoteStable,
+                         MoveNet, angles, capturer, ecart_epaules, ouvrir_camera, postures)
+
+ETIQUETTES = {"0": "GOOD", "1": "FORWARD_HEAD", "2": "TRUNK_FORWARD", "3": "TRUNK_BACKWARD", "4": "C_SHAPE"}
+NOMS_ETIQUETTES = {"GOOD": "bonne posture", "FORWARD_HEAD": "tete en avant", "TRUNK_FORWARD": "dos penche",
+                   "TRUNK_BACKWARD": "avachi", "C_SHAPE": "dos en C"}
 
 IMAGES_PAR_S = 5      # limite pour la chauffe
 DUREE_CALIBRATION = 10
@@ -70,6 +80,58 @@ def dessiner(image, pts, cote_vu):
             cv2.line(image, (int(pts[a, 0]), int(pts[a, 1])), (int(pts[b, 0]), int(pts[b, 1])), ROUGE, 3)
 
 
+class Enregistreur:
+    """Écrit une ligne de chiffres par image analysée, avec l'étiquette choisie (jamais d'image)."""
+
+    def __init__(self):
+        self.fichier = None
+        self.ecrivain = None
+        self.etiquette = None     # None = pas d'enregistrement en cours
+        self.lignes = 0
+
+    def demarrer(self, etiquette):
+        if self.fichier is None:
+            DOSSIER_RESULTATS.mkdir(exist_ok=True)
+            chemin = DOSSIER_RESULTATS / f"live_{datetime.now():%Y-%m-%d_%H%M%S}.csv"
+            self.fichier = open(chemin, "w", newline="")
+            self.ecrivain = csv.writer(self.fichier)
+            self.ecrivain.writerow(
+                ["heure", "etiquette", "cote", "conf_oreille", "conf_epaule", "conf_hanche", "tete", "tronc",
+                 "tete_tronc", "ecart_epaules", "longueur_tronc", "calibre", "regle_tete_avant",
+                 "regle_dos_penche", "regle_avachi"]
+                + [f"{c}{i}" for i in range(17) for c in ("x", "y", "c")])
+            print(f"Enregistrement dans {chemin}")
+        self.etiquette = etiquette
+        print(f"● Enregistrement : {NOMS_ETIQUETTES[etiquette]}")
+
+    def arreter(self):
+        if self.etiquette:
+            print(f"Enregistrement arrêté ({self.lignes} lignes au total)")
+        self.etiquette = None
+
+    def ligne(self, pts, cote, a, reference):
+        """Une ligne par image ; angles vides si l'image est ignorée (utile pour compter au T3)."""
+        if not self.etiquette:
+            return
+        o, e, h = COTES[cote]
+        regles = [int(m) for m, _ in postures(a, reference).values()] if a else ["", "", ""]
+        valeurs = ([a[k] for k in ("tete", "tronc", "tete_tronc")] if a else ["", "", ""]) \
+            + [a["ecart_epaules"] if a and a["ecart_epaules"] is not None else "",
+               a["longueur_tronc"] if a else ""]
+        self.ecrivain.writerow(
+            [datetime.now().isoformat(timespec="milliseconds"), self.etiquette, cote,
+             f"{pts[o, 2]:.3f}", f"{pts[e, 2]:.3f}", f"{pts[h, 2]:.3f}"]
+            + [f"{v:.2f}" if isinstance(v, float) else v for v in valeurs]
+            + [int(reference is not None)] + regles
+            + [f"{v:.3f}" for v in pts.reshape(-1)])
+        self.fichier.flush()
+        self.lignes += 1
+
+    def fermer(self):
+        if self.fichier:
+            self.fichier.close()
+
+
 def lire_terminal(commandes):
     """Met dans la file chaque commande tapée dans le terminal (q, p, c, r + Entrée)."""
     for ligne in sys.stdin:
@@ -84,7 +146,10 @@ def main():
     threading.Thread(target=lire_terminal, args=(commandes,), daemon=True).start()
     print("Commandes : c = calibration, f = affichage (flou / normal / noir), p = fond noir, "
           "r = sans calibration, q = quitter (puis Entrée)")
+    print("Enregistrement : 0 bonne, 1 tête en avant, 2 dos penché, 3 avachi, 4 dos en C, 9 arrêter")
     dernier_affichage = 0.0
+    cote_stable = CoteStable()
+    enregistreur = Enregistreur()
 
     mode = "flou"
     reference = None          # posture de référence (calibration)
@@ -101,12 +166,17 @@ def main():
         t0 = time.perf_counter()
         pts = movenet.points(image)
         ms_ia = (time.perf_counter() - t0) * 1000
-        a = angles(pts)
-        ecart = ecart_epaules(pts)
+        cote = cote_stable.maj(pts)       # côté bloqué : ne saute plus d'une image à l'autre
+        a = angles(pts, cote)
+        ecart = ecart_epaules(pts, cote)
         de_face = ecart is not None and ecart > ECART_EPAULES_MAX
+        enregistreur.ligne(pts, cote, a, reference)
 
         affichage = image_affichee(image, mode)
         dessiner(affichage, pts, a["cote"] if a else None)
+        if enregistreur.etiquette:
+            texte(affichage, f"* ENREGISTREMENT : {NOMS_ETIQUETTES[enregistreur.etiquette]} "
+                             f"({enregistreur.lignes} lignes)", 7, ROUGE, 0.6)
         profil = "epaule cachee" if ecart is None else f"ecart epaules {ecart:.2f}"
         texte(affichage, f"IA {ms_ia:.0f} ms | {'calibre' if reference else 'sans calibration'} | {profil} "
                          f"| affichage {mode}", 0)
@@ -160,9 +230,15 @@ def main():
             calibration, fin_calibration = [], time.monotonic() + DUREE_CALIBRATION
         if touche == ord("r"):
             reference = None
+        if chr(touche) in ETIQUETTES:
+            enregistreur.demarrer(ETIQUETTES[chr(touche)])
+        if touche == ord("9"):
+            enregistreur.arreter()
 
         time.sleep(max(0.0, 1 / IMAGES_PAR_S - (time.perf_counter() - t_boucle)))
 
+    enregistreur.arreter()
+    enregistreur.fermer()
     cam.release()
     cv2.destroyAllWindows()
 
