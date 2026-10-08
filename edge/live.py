@@ -17,7 +17,8 @@ import time
 import cv2
 import numpy as np
 
-from posture_lib import COTES, CONF_MIN, SQUELETTE, MoveNet, angles, capturer, ouvrir_camera, postures
+from posture_lib import (COTES, CONF_MIN, ECART_EPAULES_MAX, SQUELETTE, MoveNet, angles, capturer,
+                         ecart_epaules, ouvrir_camera, postures)
 
 IMAGES_PAR_S = 5      # limite pour la chauffe
 DUREE_CALIBRATION = 10
@@ -68,12 +69,17 @@ def main():
         pts = movenet.points(image)
         ms_ia = (time.perf_counter() - t0) * 1000
         a = angles(pts)
+        ecart = ecart_epaules(pts)
+        de_face = ecart is not None and ecart > ECART_EPAULES_MAX
 
         affichage = np.zeros_like(image) if vie_privee else image
         dessiner(affichage, pts, a["cote"] if a else None)
-        texte(affichage, f"IA {ms_ia:.0f} ms | {'calibre' if reference else 'sans calibration'}", 0)
+        profil = "epaule cachee" if ecart is None else f"ecart epaules {ecart:.2f}"
+        texte(affichage, f"IA {ms_ia:.0f} ms | {'calibre' if reference else 'sans calibration'} | {profil}", 0)
 
-        if a is None:
+        if a is None and de_face:
+            texte(affichage, f"UNKNOWN : pas de profil (ecart > {ECART_EPAULES_MAX})", 1, ORANGE)
+        elif a is None:
             texte(affichage, "UNKNOWN : oreille, epaule ou hanche mal vue", 1, GRIS)
         else:
             texte(affichage, f"Cote {a['cote']} | Tete {a['tete']:.0f} deg | Tronc {a['tronc']:+.0f} deg", 1, BLANC, 0.6)

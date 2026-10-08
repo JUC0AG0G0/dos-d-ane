@@ -179,7 +179,15 @@ oreille : 0,85   épaule : 0,90   hanche : 0,12    → la hanche est mal vue (ca
 
 👉 Si on ne voit pas bien, on ne juge pas. On ne devine jamais un point.
 
-**Guichet 2 : « Est-ce que la personne est bien de profil ? »** (à ajouter) Si les deux épaules sont bien écartées sur l'image, la personne est de face : ❌ image IGNORÉE.
+**Guichet 2 : « Est-ce que la personne est bien de profil ? »** On mesure l'écart horizontal entre les deux épaules, divisé par la longueur du tronc (pour ne pas dépendre de la distance à la caméra). De profil, les deux épaules sont l'une derrière l'autre : écart proche de 0. De face, elles sont bien écartées : environ 0,8.
+
+```text
+écart 0,06  → de profil                                   → ✅ on continue
+écart 0,75  → de face ou très en biais (> 0,35)           → ❌ image IGNORÉE (« UNKNOWN »)
+épaule côté mur cachée → normal de profil, non mesurable  → ✅ on continue
+```
+
+Le seuil de **0,35** (environ 25° de rotation) est une valeur de départ, à ajuster par les tests. Dans `live.py`, l'écart s'affiche en haut de l'image : pratique pour placer la caméra. Idée reprise de la démo « Body Posture Analyzer » (LearnOpenCV, MediaPipe).
 
 👉 Si la vue est mauvaise, on ne juge pas.
 

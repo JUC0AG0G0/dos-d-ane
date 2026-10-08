@@ -21,7 +21,7 @@ Documentation de référence : `docs/poc-raspberry.md` (plan, installation, briq
 
 - Toute logique réutilisable va dans `posture_lib.py` ; les scripts l'**importent**, ils ne recopient pas de code.
 - Les tests se lancent depuis `edge/` : `python -m tests_poc.t2_camera --court`.
-- Les seuils (50°, 20°, −25°, 70 %, 40 %, 2 min…) sont des **valeurs de départ** à ajuster par les tests ; ils seront à terme envoyés par le serveur.
+- Les seuils (50°, 20°, −25°, écart des épaules 0,35, 70 %, 40 %, 2 min…) sont des **valeurs de départ** à ajuster par les tests ; ils seront à terme envoyés par le serveur.
 
 ## Conventions de code
 

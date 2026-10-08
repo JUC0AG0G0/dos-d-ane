@@ -17,6 +17,7 @@ MODELE_PAR_DEFAUT = DOSSIER_EDGE / "models" / "movenet_lightning_int8.tflite"
 DOSSIER_RESULTATS = DOSSIER_EDGE / "resultats"
 
 CONF_MIN = 0.3        # en dessous, un point est jugé mal détecté
+ECART_EPAULES_MAX = 0.35   # écart des 2 épaules ÷ tronc ; au-delà, la personne n'est pas de profil
 
 # Numéros MoveNet des points utiles, par côté : oreille, épaule, hanche
 COTES = {"gauche": (3, 5, 11), "droite": (4, 6, 12)}
@@ -79,12 +80,34 @@ class MoveNet:
 
 # ---------- Angles et règles ----------
 
+def cote_vu(pts):
+    """Côté (gauche / droite) dont l'oreille, l'épaule et la hanche sont les mieux vues."""
+    return max(COTES, key=lambda c: pts[list(COTES[c]), 2].mean())
+
+
+def ecart_epaules(pts):
+    """Écart horizontal entre les deux épaules ÷ longueur du tronc : ≈ 0 de profil, ≈ 0,8 de face.
+
+    None si non mesurable : de profil, l'épaule côté mur est souvent cachée, et c'est normal.
+    """
+    _, e, h = COTES[cote_vu(pts)]
+    if min(pts[5, 2], pts[6, 2], pts[h, 2]) < CONF_MIN:
+        return None
+    longueur_tronc = float(np.linalg.norm(pts[e, :2] - pts[h, :2]))
+    if longueur_tronc <= 0:
+        return None
+    return abs(float(pts[5, 0] - pts[6, 0])) / longueur_tronc
+
+
 def angles(pts):
     """Angles de la tête et du tronc du côté le mieux vu (§5.3). None si points peu fiables."""
-    cote = max(COTES, key=lambda c: pts[list(COTES[c]), 2].mean())
+    cote = cote_vu(pts)
     o, e, h = COTES[cote]
     if min(pts[o, 2], pts[e, 2], pts[h, 2]) < CONF_MIN:
         return None                                    # capture ignorée (UNKNOWN)
+    ecart = ecart_epaules(pts)
+    if ecart is not None and ecart > ECART_EPAULES_MAX:
+        return None                                    # pas de profil : angles faux (UNKNOWN)
     oreille, epaule, hanche = pts[o, :2], pts[e, :2], pts[h, :2]
 
     # sens du regard : +1 si la personne regarde vers la droite de l'image
@@ -98,7 +121,8 @@ def angles(pts):
     # Tronc : 0° = droit ; > 0 = penché en avant ; < 0 = penché en arrière (avachi).
     tronc = math.degrees(math.atan2((epaule[0] - hanche[0]) * sens, hanche[1] - epaule[1]))
     longueur_tronc = float(np.linalg.norm(epaule - hanche))
-    return {"cote": cote, "tete": tete, "tronc": tronc, "longueur_tronc": longueur_tronc}
+    return {"cote": cote, "tete": tete, "tronc": tronc, "longueur_tronc": longueur_tronc,
+            "ecart_epaules": ecart}
 
 
 def postures(a, ref=None):
