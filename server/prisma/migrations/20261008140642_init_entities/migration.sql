@@ -1,3 +1,6 @@
+-- CreateEnum
+CREATE TYPE "BodyPart" AS ENUM ('nose', 'left_eye', 'right_eye', 'left_ear', 'right_ear', 'left_shoulder', 'right_shoulder', 'left_elbow', 'right_elbow', 'left_wrist', 'right_wrist', 'left_hip', 'right_hip', 'left_knee', 'right_knee', 'left_ankle', 'right_ankle');
+
 -- CreateTable
 CREATE TABLE "roles" (
     "id" UUID NOT NULL DEFAULT uuidv7(),
@@ -84,19 +87,10 @@ CREATE TABLE "captures" (
 );
 
 -- CreateTable
-CREATE TABLE "bodyParts" (
-    "id" UUID NOT NULL DEFAULT uuidv7(),
-    "code" TEXT NOT NULL,
-    "label" TEXT NOT NULL,
-
-    CONSTRAINT "bodyParts_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "keypoints" (
     "id" UUID NOT NULL DEFAULT uuidv7(),
     "captureId" UUID NOT NULL,
-    "bodyPartId" UUID NOT NULL,
+    "bodyPart" "BodyPart" NOT NULL,
     "x" INTEGER NOT NULL,
     "y" INTEGER NOT NULL,
     "confidence" DOUBLE PRECISION,
@@ -136,10 +130,7 @@ CREATE UNIQUE INDEX "deviceSessions_analysisSessionId_deviceId_key" ON "deviceSe
 CREATE INDEX "captures_deviceSessionId_capturedAt_idx" ON "captures"("deviceSessionId", "capturedAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "bodyParts_code_key" ON "bodyParts"("code");
-
--- CreateIndex
-CREATE UNIQUE INDEX "keypoints_captureId_bodyPartId_key" ON "keypoints"("captureId", "bodyPartId");
+CREATE UNIQUE INDEX "keypoints_captureId_bodyPart_key" ON "keypoints"("captureId", "bodyPart");
 
 -- AddForeignKey
 ALTER TABLE "users" ADD CONSTRAINT "users_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "roles"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -160,16 +151,13 @@ ALTER TABLE "analysisSessions" ADD CONSTRAINT "analysisSessions_userId_fkey" FOR
 ALTER TABLE "deviceSessions" ADD CONSTRAINT "deviceSessions_analysisSessionId_fkey" FOREIGN KEY ("analysisSessionId") REFERENCES "analysisSessions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "deviceSessions" ADD CONSTRAINT "deviceSessions_deviceId_fkey" FOREIGN KEY ("deviceId") REFERENCES "devices"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "deviceSessions" ADD CONSTRAINT "deviceSessions_deviceId_fkey" FOREIGN KEY ("deviceId") REFERENCES "devices"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "captures" ADD CONSTRAINT "captures_deviceSessionId_fkey" FOREIGN KEY ("deviceSessionId") REFERENCES "deviceSessions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "keypoints" ADD CONSTRAINT "keypoints_captureId_fkey" FOREIGN KEY ("captureId") REFERENCES "captures"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "keypoints" ADD CONSTRAINT "keypoints_bodyPartId_fkey" FOREIGN KEY ("bodyPartId") REFERENCES "bodyParts"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- Contraintes CHECK ajoutées à la main (Prisma ne sait pas les décrire).
 

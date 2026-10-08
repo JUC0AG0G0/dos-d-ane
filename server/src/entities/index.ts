@@ -4,7 +4,7 @@ export * from './base/identifiable.interface.js';
 export * from './base/updatable.interface.js';
 export * from './analysis-session.entity.js';
 export * from './auth-session.entity.js';
-export * from './body-part.entity.js';
+export * from './body-part.js';
 export * from './capture.entity.js';
 export * from './device.entity.js';
 export * from './device-session.entity.js';

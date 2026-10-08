@@ -100,12 +100,15 @@ model AnalysisSession {
 }
 
 /// Participation d'un appareil éligible à une session d'analyse.
+/// Supprimer un appareil supprime ses sessions et leurs captures. Un Restrict
+/// bloquerait la suppression d'un utilisateur (droit à l'effacement), car
+/// PostgreSQL supprime ses appareils avant ses sessions d'analyse.
 model DeviceSession {
   id                String          @id @default(dbgenerated("uuidv7()")) @db.Uuid
   analysisSessionId String          @db.Uuid
   analysisSession   AnalysisSession @relation(fields: [analysisSessionId], references: [id], onDelete: Cascade)
   deviceId          String          @db.Uuid
-  device            Device          @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  device            Device          @relation(fields: [deviceId], references: [id], onDelete: Cascade)
   startedAt         DateTime        @db.Timestamptz(3)
   endedAt           DateTime?       @db.Timestamptz(3)
   captures          Capture[]
@@ -132,14 +135,27 @@ model Capture {
   @@map("captures")
 }
 
-/// Articulation ou partie du corps : head, left_shoulder, right_hip...
-model BodyPart {
-  id        String     @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  code      String     @unique
-  label     String
-  keypoints Keypoint[]
-
-  @@map("bodyParts")
+/// Articulation détectée par le modèle de pose. Reprend les 17 points du
+/// format COCO (MoveNet, YOLO-Pose, OpenPose), avec les mêmes noms : nose sert
+/// de point pour la tête.
+enum BodyPart {
+  nose
+  left_eye
+  right_eye
+  left_ear
+  right_ear
+  left_shoulder
+  right_shoulder
+  left_elbow
+  right_elbow
+  left_wrist
+  right_wrist
+  left_hip
+  right_hip
+  left_knee
+  right_knee
+  left_ankle
+  right_ankle
 }
 
 /// Point d'une articulation sur une capture, en pixels (origine en haut à
@@ -148,13 +164,12 @@ model Keypoint {
   id         String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
   captureId  String   @db.Uuid
   capture    Capture  @relation(fields: [captureId], references: [id], onDelete: Cascade)
-  bodyPartId String   @db.Uuid
-  bodyPart   BodyPart @relation(fields: [bodyPartId], references: [id], onDelete: Restrict)
+  bodyPart   BodyPart
   x          Int
   y          Int
   confidence Float?
   createdAt  DateTime @default(now()) @db.Timestamptz(3)
 
-  @@unique([captureId, bodyPartId])
+  @@unique([captureId, bodyPart])
   @@map("keypoints")
 }
