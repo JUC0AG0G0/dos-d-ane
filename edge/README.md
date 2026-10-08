@@ -3,7 +3,7 @@
 Webcam de profil → MoveNet (17 points du corps) → angles tête et tronc → règles de posture.
 **Aucune image ne quitte le Pi ni n'est écrite sur le disque.**
 
-Plan et résultats du POC : [docs/poc-raspberry.md](docs/poc-raspberry.md).
+Plan et résultats du POC : [docs/poc-raspberry.md](docs/poc-raspberry.md). Explication simple de l'algorithme (angles, seuils) : [docs/algo-posture.md](docs/algo-posture.md).
 
 ## Installation (sur le Pi)
 

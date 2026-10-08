@@ -3,6 +3,7 @@
 > Plan pour démarrer les tests **directement sur le Raspberry Pi**, avec la webcam USB.
 > Objectif : prouver que la chaîne **caméra → MoveNet → angles → règles → résultat** fonctionne sur le matériel final, et mesurer ses performances.
 > Référence de la solution : [solution-mvp.md](solution-mvp.md). Les tests T1 à T7 y sont définis au §8.
+> Explication simple de l'algorithme (axes, angles, seuils, entraînement éventuel) : [algo-posture.md](algo-posture.md).
 
 ---
 
@@ -609,7 +610,7 @@ L'écran « session en cours » de l'app n'est donc pas une vidéo : la silhouet
 
 | Test | Date | Conditions | Mesure obtenue | Critère | Réussi ? | Remarques / plan B |
 |---|---|---|---|---|---|---|
-| T2 caméra | | webcam ___, 640×480 | ___ échecs / 720 captures | 0 échec | | |
+| T2 caméra | 08/10/2026 | Logitech C110, 640×480, 1 capture / 5 s, **44 min** (arrêté avant l'heure prévue) | **0 échec / 526 captures** ; capture médiane 52 ms, 95 % sous 66 ms, pire 70 ms (476 ms pour la 1ʳᵉ, démarrage de la webcam) ; 52,1 → 57,4 °C (max 58,4 °C) ; throttled `0x0` | 0 échec | ✅ (sur 44 min) | à refaire sur 1 h complète ; LifeCam VX-1000 écartée avant ce test (figeait le Pi) |
 | T1 vitesse | | modèle ___, threads ___ | moy ___ ms, p95 ___ ms, temp ___ °C | < 150 ms | | |
 | T3 détection | | 3 pers. × 3 éclairages | ___ % exploitables, écart-type ___° | ≥ 90 %, < 3° | | |
 | T5 tête en avant | | ___ personnes | F1 ___ | ≥ 0,80 | | |

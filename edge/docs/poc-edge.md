@@ -66,6 +66,30 @@ Le RGPD demande de ne collecter que le nécessaire (**minimisation**, art. 5) et
 
 **Nuance :** le traitement local réduit fortement l'exposition, mais il ne rend pas les données anonymes. Des keypoints ou des angles liés à une session restent des **données personnelles pseudonymisées**. Il faut donc limiter ce qui est envoyé et prévoir une durée de conservation.
 
+### En utilisation réelle : compte → session → Pi
+
+```text
+App mobile : connexion au compte → « Démarrer la session »
+      │
+      ▼
+Serveur : crée une session (ex. ses_8f2c41), liée au compte
+      │  envoie au Pi : « démarre, session ses_8f2c41 »
+      ▼
+Pi : analyse → envoie des événements marqués « ses_8f2c41 »
+      │  (il ne connaît ni le nom, ni l'email, ni le compte)
+      ▼
+Serveur : relie la session au compte → l'utilisateur voit ses résultats
+```
+
+Protections à prévoir (surtout côté serveur et app, à valider avec l'équipe) :
+
+1. **Le Pi ne sait pas qui est devant lui** : il ne reçoit qu'un numéro de session. Un Pi volé ou piraté ne contient ni nom, ni email, ni image.
+2. **Le serveur protège le lien compte ↔ événements** : seul l'utilisateur voit ses résultats ; supprimer le compte supprime ses sessions et événements ; durée de conservation fixée (ex. 12 mois, puis effacement ou agrégation) ; consentement à l'inscription expliquant ce qui est mesuré (des angles, jamais d'image).
+3. **L'employeur ne voit pas les personnes** : suivre la posture de chaque salarié serait de la surveillance, très encadrée (droit du travail, RGPD). Le site admin ne montre que des **statistiques globales**, à partir d'un nombre minimum de personnes (ex. 5) pour qu'on ne puisse pas deviner qui est qui.
+4. **Données proches de la santé** : la posture d'une personne peut être considérée comme une donnée liée à sa santé, encore plus protégée. Raison de plus pour rester minimal, et garder la mention « ne remplace pas l'avis d'un professionnel de santé ».
+
+Pendant les **tests du POC** (réglage des seuils), les CSV restent sur le Pi, hors de Git, avec un code par personne testée (`P01`…) et sont effacés une fois les seuils réglés.
+
 ---
 
 ## 4. Choix techniques
