@@ -6,7 +6,8 @@ faire chauffer le Pi.
 
 Touches (dans la fenêtre, ou tapées dans le terminal puis Entrée, utile sans clavier sur le Pi) :
     q = quitter
-    p = mode vie privée (squelette sur fond noir, sans l'image)
+    f = changer d'affichage : tout flouté (par défaut) → normal → fond noir → tout flouté…
+    p = fond noir directement (squelette seul, sans l'image)
     c = calibration : rester assis droit 10 s, la posture devient la référence
     r = revenir aux règles sans calibration
 Lancer depuis edge/ avec .venv activé :  python live.py
@@ -29,6 +30,21 @@ IMAGES_PAR_S = 5      # limite pour la chauffe
 DUREE_CALIBRATION = 10
 
 BLANC, VERT, ROUGE, ORANGE, GRIS = (255, 255, 255), (0, 200, 0), (0, 0, 255), (0, 165, 255), (160, 160, 160)
+
+# Modes d'affichage. « flou » par défaut : visages (y compris des personnes au fond, que
+# MoveNet ne voit pas) et écrans illisibles, mais silhouettes visibles pour placer la caméra.
+MODES = ["flou", "normal", "noir"]
+
+
+def image_affichee(image, mode):
+    """Image à afficher selon le mode. L'analyse, elle, se fait toujours sur l'image nette."""
+    if mode == "noir":
+        return np.zeros_like(image)
+    if mode == "flou":                    # pixellisation : ~3 ms sur le Pi, contre ~30 ms pour un flou gaussien
+        h, w = image.shape[:2]
+        petit = cv2.resize(image, (40, 30), interpolation=cv2.INTER_AREA)
+        return cv2.resize(petit, (w, h), interpolation=cv2.INTER_NEAREST)
+    return image
 
 
 def texte(image, txt, ligne, couleur=BLANC, taille=0.55):
@@ -66,10 +82,11 @@ def main():
     movenet = MoveNet()
     commandes = queue.Queue()
     threading.Thread(target=lire_terminal, args=(commandes,), daemon=True).start()
-    print("Commandes : c = calibration, p = vie privée, r = sans calibration, q = quitter (puis Entrée)")
+    print("Commandes : c = calibration, f = affichage (flou / normal / noir), p = fond noir, "
+          "r = sans calibration, q = quitter (puis Entrée)")
     dernier_affichage = 0.0
 
-    vie_privee = False
+    mode = "flou"
     reference = None          # posture de référence (calibration)
     calibration = None        # liste des angles pendant la calibration, None sinon
     fin_calibration = 0.0
@@ -88,10 +105,11 @@ def main():
         ecart = ecart_epaules(pts)
         de_face = ecart is not None and ecart > ECART_EPAULES_MAX
 
-        affichage = np.zeros_like(image) if vie_privee else image
+        affichage = image_affichee(image, mode)
         dessiner(affichage, pts, a["cote"] if a else None)
         profil = "epaule cachee" if ecart is None else f"ecart epaules {ecart:.2f}"
-        texte(affichage, f"IA {ms_ia:.0f} ms | {'calibre' if reference else 'sans calibration'} | {profil}", 0)
+        texte(affichage, f"IA {ms_ia:.0f} ms | {'calibre' if reference else 'sans calibration'} | {profil} "
+                         f"| affichage {mode}", 0)
 
         if a is None and de_face:
             texte(affichage, f"UNKNOWN : pas de profil (ecart > {ECART_EPAULES_MAX})", 1, ORANGE)
@@ -135,7 +153,9 @@ def main():
         if touche == ord("q"):
             break
         if touche == ord("p"):
-            vie_privee = not vie_privee
+            mode = "flou" if mode == "noir" else "noir"
+        if touche == ord("f"):
+            mode = MODES[(MODES.index(mode) + 1) % len(MODES)]
         if touche == ord("c"):
             calibration, fin_calibration = [], time.monotonic() + DUREE_CALIBRATION
         if touche == ord("r"):
