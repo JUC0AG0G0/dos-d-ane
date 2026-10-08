@@ -65,6 +65,8 @@ task dev
 
 Si un port est déjà pris, `task dev` propose d'en prendre un libre au hasard.
 
+Le rechargement à chaud est toujours actif : chaque modification de `server/src` recompile et relance l'API (`task logs` pour suivre).
+
 ## Commandes
 
 | Commande | Rôle |

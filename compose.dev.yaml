@@ -6,6 +6,13 @@ services:
     build: !reset null
     working_dir: /app
     command: sh -c "npm ci --no-audit --no-fund && npm run start:dev"
+    # Rechargement à chaud : `nest start --watch` recompile et relance l'API à
+    # chaque modification de server/src. Les fichiers sont scrutés (polling)
+    # car Docker Desktop (Windows, macOS) ne signale pas toujours les
+    # modifications faites hors du conteneur.
+    environment:
+      TSC_WATCHFILE: DynamicPriorityPolling
+      TSC_WATCHDIRECTORY: DynamicPriorityPolling
     volumes:
       - ./server:/app
       - server-node-modules:/app/node_modules
