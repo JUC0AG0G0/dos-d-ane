@@ -8,6 +8,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Req,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -22,7 +23,9 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import type { AuthContext } from './auth.guard.js';
+import type { Request } from 'express';
 import { AuthService } from './auth.service.js';
+import { readClientInfo } from './client-info.js';
 import { CurrentAuth, Public } from './decorators.js';
 import {
   LoginResponseDto,
@@ -56,13 +59,17 @@ export class AuthController {
   @ApiOperation({
     summary: 'Connexion par email et mot de passe',
     description:
-      'Ouvre une session sur l’appareil et ferme celle qui y était encore ouverte.',
+      'Ouvre une session sur l’appareil et ferme celle qui y était encore ouverte. ' +
+      'Le nom et le modèle de l’appareil sont déduits du User-Agent, l’adresse IP est enregistrée avec la session.',
   })
   @ApiOkResponse({ type: LoginResponseDto })
   @ApiBadRequestResponse({ description: 'Champs invalides' })
   @ApiUnauthorizedResponse({ description: 'Email ou mot de passe incorrect' })
-  login(@Body() dto: LoginDto): Promise<LoginResponseDto> {
-    return this.auth.login(dto);
+  login(
+    @Body() dto: LoginDto,
+    @Req() request: Request,
+  ): Promise<LoginResponseDto> {
+    return this.auth.login(dto, readClientInfo(request));
   }
 
   @ApiBearerAuth()

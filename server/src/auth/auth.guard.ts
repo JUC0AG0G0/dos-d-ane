@@ -6,7 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import type { Role } from '../entities/index.js';
 import { AuthService } from './auth.service.js';
 import { IS_PUBLIC_KEY, ROLES_KEY } from './decorators.js';
@@ -15,6 +15,8 @@ export interface AuthContext {
   userId: string;
   role: Role;
   sessionId: string;
+  /** Nouvelle expiration de la session, prolongée par cette requête. */
+  expiresAt: Date;
 }
 
 export type AuthenticatedRequest = Request & { auth?: AuthContext };
@@ -46,6 +48,11 @@ export class AuthGuard implements CanActivate {
       throw new UnauthorizedException('Session invalide ou expirée');
     }
     request.auth = auth;
+    // Le client sait jusqu'à quand sa session reste valable sans requête.
+    context
+      .switchToHttp()
+      .getResponse<Response>()
+      .setHeader('X-Session-Expires-At', auth.expiresAt.toISOString());
 
     const roles = this.reflector.getAllAndOverride<Role[] | undefined>(
       ROLES_KEY,

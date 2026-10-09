@@ -23,7 +23,7 @@ export class LoginDto {
   @ApiPropertyOptional({
     type: DeviceInputDto,
     description:
-      'Facultatif : sans lui, la connexion est enregistrée comme un navigateur web.',
+      'Facultatif : sans lui, la connexion est enregistrée comme un navigateur web. Nom et modèle sont déduits du User-Agent.',
   })
   @IsOptional()
   @ValidateNested()

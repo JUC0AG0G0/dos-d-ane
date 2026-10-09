@@ -69,6 +69,8 @@ model Device {
 
 /// Connexion d'un utilisateur sur un appareil. Le JWT renvoyé au client porte
 /// l'id de cette session (sid) : il n'est accepté que si elle est active.
+/// expiresAt est repoussée à chaque requête (expiration glissante).
+/// ipAddress et userAgent sont relevés à la connexion.
 /// Une session est active tant qu'elle n'est ni révoquée ni expirée ; elle
 /// reste en base ensuite pour l'historique des connexions.
 model AuthSession {
@@ -80,6 +82,8 @@ model AuthSession {
   expiresAt  DateTime  @db.Timestamptz(3)
   revokedAt  DateTime? @db.Timestamptz(3)
   lastUsedAt DateTime  @default(now()) @db.Timestamptz(3)
+  ipAddress  String?
+  userAgent  String?
   createdAt  DateTime  @default(now()) @db.Timestamptz(3)
 
   @@index([userId])

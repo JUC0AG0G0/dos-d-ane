@@ -24,7 +24,10 @@ export class LoginResponseDto {
   })
   accessToken: string;
 
-  @ApiProperty()
+  @ApiProperty({
+    description:
+      'Expiration de la session, repoussée à chaque requête (en-tête X-Session-Expires-At)',
+  })
   expiresAt: Date;
 
   @ApiProperty({ format: 'uuid' })
@@ -73,8 +76,18 @@ export class SessionDto {
   @ApiProperty({ description: 'Dernière requête (à la minute près)' })
   lastUsedAt: Date;
 
-  @ApiProperty()
+  @ApiProperty({
+    description: 'Prolongée à chaque requête de cette session',
+  })
   expiresAt: Date;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: '203.0.113.7',
+    description: 'Adresse IP à la connexion',
+  })
+  ipAddress: string | null;
 
   @ApiProperty({
     type: Date,

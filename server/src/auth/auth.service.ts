@@ -4,6 +4,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '../generated/prisma/client.js';
 import { CaptureStatus, DeviceType } from '../entities/index.js';
@@ -17,19 +18,25 @@ import type {
   SessionDto,
   UserDto,
 } from './dto/auth-responses.dto.js';
+import type { ClientInfo } from './client-info.js';
 import { hashPassword, verifyPassword } from './password.js';
 
-/** Durée de validité d'une session de connexion (et de son JWT). */
-const SESSION_TTL_S = 30 * 24 * 60 * 60;
-
-/** Contenu du JWT : l'utilisateur et la session qu'il représente. */
+/**
+ * Contenu du JWT : l'utilisateur et la session qu'il représente. Le JWT n'a
+ * pas d'expiration propre : c'est la session en base qui expire, et chaque
+ * requête la prolonge (expiration glissante).
+ */
 interface JwtPayload {
   sub: string;
   sid: string;
 }
 
-/** lastUsedAt n'est réécrit qu'au-delà de ce délai, pour limiter les écritures. */
-const LAST_USED_PRECISION_MS = 60 * 1000;
+/**
+ * La session n'est prolongée (lastUsedAt et expiresAt) qu'au-delà de ce
+ * délai depuis la dernière prolongation, pour ne pas écrire en base à
+ * chaque requête. L'expiration est donc juste à une minute près.
+ */
+const RENEW_PRECISION_MS = 60 * 1000;
 
 const userSelect = {
   id: true,
@@ -44,10 +51,17 @@ export class AuthService {
   /** Hash calculé une fois, comparé quand l'email est inconnu (voir login). */
   private readonly dummyHash = hashPassword('dummy-password');
 
+  /** Durée d'inactivité après laquelle une session expire. */
+  private readonly sessionTtlMs: number;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
-  ) {}
+    config: ConfigService,
+  ) {
+    this.sessionTtlMs =
+      config.getOrThrow<number>('SESSION_TTL_MINUTES') * 60 * 1000;
+  }
 
   /**
    * Crée le compte, avec le rôle user par défaut. Ne connecte pas : le client
@@ -99,7 +113,7 @@ export class AuthService {
     }
   }
 
-  async login(dto: LoginDto): Promise<LoginResponseDto> {
+  async login(dto: LoginDto, client: ClientInfo): Promise<LoginResponseDto> {
     const user = await this.prisma.user.findUnique({
       where: { email: normalizeEmail(dto.email) },
       select: { ...userSelect, passwordHash: true },
@@ -114,13 +128,14 @@ export class AuthService {
       throw new UnauthorizedException('Email ou mot de passe incorrect');
     }
     const { passwordHash: _, ...publicUser } = user;
-    return this.openSession(publicUser, dto.device);
+    return this.openSession(publicUser, dto.device, client);
   }
 
   /**
-   * Vérifie la signature et l'expiration du JWT, puis que sa session est
-   * toujours active : une session révoquée invalide son JWT immédiatement.
-   * Renvoie null si le token n'est pas valable.
+   * Vérifie la signature du JWT, puis que sa session est toujours active :
+   * une session révoquée invalide son JWT immédiatement. Prolonge la session
+   * (expiresAt = maintenant + SESSION_TTL_MINUTES). Renvoie null si le token
+   * n'est pas valable.
    */
   async authenticate(token: string): Promise<AuthContext | null> {
     let payload: JwtPayload;
@@ -144,16 +159,19 @@ export class AuthService {
     if (!session || session.revokedAt || session.expiresAt <= now) {
       return null;
     }
-    if (now.getTime() - session.lastUsedAt.getTime() > LAST_USED_PRECISION_MS) {
+    let expiresAt = session.expiresAt;
+    if (now.getTime() - session.lastUsedAt.getTime() > RENEW_PRECISION_MS) {
+      expiresAt = new Date(now.getTime() + this.sessionTtlMs);
       await this.prisma.authSession.update({
         where: { id: session.id },
-        data: { lastUsedAt: now },
+        data: { lastUsedAt: now, expiresAt },
       });
     }
     return {
       userId: session.userId,
       role: session.user.role,
       sessionId: session.id,
+      expiresAt,
     };
   }
 
@@ -176,6 +194,7 @@ export class AuthService {
         lastUsedAt: true,
         expiresAt: true,
         revokedAt: true,
+        ipAddress: true,
         device: { select: { id: true, name: true, type: true, model: true } },
       },
     });
@@ -218,18 +237,20 @@ export class AuthService {
 
   /**
    * Ouvre une session sur l'appareil indiqué (réutilisé s'il appartient à
-   * l'utilisateur, créé sinon). Les sessions encore ouvertes sur cet
-   * appareil sont fermées : une seule session active par appareil.
+   * l'utilisateur, créé sinon à partir du User-Agent). Les sessions encore
+   * ouvertes sur cet appareil sont fermées : une seule session active par
+   * appareil.
    */
   private async openSession(
     user: UserDto,
-    deviceInput: DeviceInputDto = { type: DeviceType.Web },
+    deviceInput: DeviceInputDto = {},
+    client: ClientInfo,
   ): Promise<LoginResponseDto> {
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + SESSION_TTL_S * 1000);
+    const expiresAt = new Date(now.getTime() + this.sessionTtlMs);
 
     const session = await this.prisma.$transaction(async (tx) => {
-      const device = await findOrCreateDevice(tx, user.id, deviceInput);
+      const device = await findOrCreateDevice(tx, user.id, deviceInput, client);
       await tx.authSession.updateMany({
         where: { deviceId: device.id, revokedAt: null, expiresAt: { gt: now } },
         data: { revokedAt: now },
@@ -239,6 +260,8 @@ export class AuthService {
           userId: user.id,
           deviceId: device.id,
           expiresAt,
+          ipAddress: client.ipAddress,
+          userAgent: client.userAgent,
         },
         select: { id: true, deviceId: true },
       });
@@ -246,9 +269,7 @@ export class AuthService {
 
     const payload: JwtPayload = { sub: user.id, sid: session.id };
     return {
-      accessToken: await this.jwt.signAsync(payload, {
-        expiresIn: SESSION_TTL_S,
-      }),
+      accessToken: await this.jwt.signAsync(payload),
       expiresAt,
       sessionId: session.id,
       deviceId: session.deviceId,
@@ -261,21 +282,24 @@ async function findOrCreateDevice(
   tx: Prisma.TransactionClient,
   userId: string,
   input: DeviceInputDto,
+  client: ClientInfo,
 ) {
+  const type = input.type ?? DeviceType.Web;
   if (input.id) {
     const existing = await tx.device.findFirst({
-      where: { id: input.id, userId, type: input.type },
+      where: { id: input.id, userId, type },
       select: { id: true },
     });
     if (existing) return existing;
   }
-  const mobile = input.type === DeviceType.Mobile;
+  const mobile = type === DeviceType.Mobile;
   return tx.device.create({
     data: {
       userId,
-      type: input.type,
-      name: input.name?.trim() || (mobile ? 'Téléphone' : 'Navigateur'),
-      model: input.model?.trim() || null,
+      type,
+      // Renommable ensuite par l'utilisateur (PATCH /api/devices/{id}).
+      name: client.deviceName ?? (mobile ? 'Téléphone' : 'Navigateur'),
+      model: client.deviceModel,
       // Un téléphone peut capturer, mais la capture reste coupée tant que
       // l'utilisateur ne l'active pas. Un navigateur ne capture jamais.
       captureEligible: mobile,

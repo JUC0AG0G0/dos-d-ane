@@ -8,4 +8,6 @@ export class AuthSession extends CreatedEntity implements AuthSessionRow {
   expiresAt: Date;
   revokedAt: Date | null;
   lastUsedAt: Date;
+  ipAddress: string | null;
+  userAgent: string | null;
 }
