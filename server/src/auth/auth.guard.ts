@@ -48,7 +48,6 @@ export class AuthGuard implements CanActivate {
       throw new UnauthorizedException('Session invalide ou expirée');
     }
     request.auth = auth;
-    // Le client sait jusqu'à quand sa session reste valable sans requête.
     context
       .switchToHttp()
       .getResponse<Response>()
