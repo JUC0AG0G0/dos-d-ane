@@ -8,7 +8,6 @@ import { AuthService } from './auth.service.js';
 
 @Module({
   imports: [
-    // JWT signés en HS256 avec JWT_SECRET (.env.dev).
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
