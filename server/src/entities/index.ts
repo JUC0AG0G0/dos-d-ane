@@ -9,5 +9,5 @@ export * from './capture.entity.js';
 export * from './device.entity.js';
 export * from './device-session.entity.js';
 export * from './keypoint.entity.js';
-export * from './role.entity.js';
+export * from './role.js';
 export * from './user.entity.js';
