@@ -28,7 +28,7 @@ Documentation de référence : `docs/poc-raspberry.md` (plan, installation, briq
 - Python **compatible 3.11+** (le Pi tourne en 3.13, `mise.toml` du dépôt indique 3.11).
 - Noms, commentaires et messages **en français**, comme le code existant. Commentaires courts, seulement pour le « pourquoi ».
 - Dépendances figées dans `requirements.txt` ; en ajouter une seulement si nécessaire, et figer sa version.
-- Points MoveNet : tableau `(17, 3)` = `(x, y, confiance)` en pixels ; un point est fiable si confiance ≥ `CONF_MIN` (0,2, abaissé de 0,3 après mesure). Image ou côté douteux → `None` / UNKNOWN, jamais une valeur inventée.
+- Points MoveNet : tableau `(17, 3)` = `(x, y, confiance)` en pixels ; un point est fiable si confiance ≥ `CONF_MIN` (0,2, abaissé de 0,3 après mesure). Image ou côté douteux → `None` / UNKNOWN, jamais une valeur inventée ; seule exception, `Completeur` reprend la dernière position fiable d'**un seul** point mal vu depuis ≤ 2 s.
 - Angles : tête ≈ 90° = droite, plus petit = tête en avant ; tronc 0° = droit, > 0 = penché en avant, < 0 = avachi en arrière. Valables **uniquement de profil**.
 
 ## Pièges connus

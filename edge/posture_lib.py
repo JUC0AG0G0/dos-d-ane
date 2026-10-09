@@ -6,6 +6,7 @@ Aucune image n'est jamais écrite : elles n'existent qu'en mémoire.
 
 import math
 import subprocess
+import time
 from pathlib import Path
 
 import cv2
@@ -116,6 +117,40 @@ class CoteStable:
         if self.compteur >= self.IMAGES:
             self.cote, self.compteur = autre, 0
         return self.cote
+
+
+class Completeur:
+    """Remplace UN point mal vu (oreille, épaule ou hanche) par sa dernière position fiable.
+
+    Plutôt que d'ignorer l'image pour un trou court (bras qui passe devant, confiance qui chute
+    une image), on reprend la position vue juste avant. Seulement si un seul des 3 points manque
+    et qu'il a été bien vu il y a moins de DUREE_MAX secondes : au-delà, l'image reste ignorée,
+    on n'invente pas une posture. Le contrôle « de profil » s'applique ensuite normalement.
+    """
+
+    DUREE_MAX = 2.0      # s : ~10 images à 5 img/s (live.py), 1 image à la cadence « doute » (2 s)
+    NOMS = ("oreille", "epaule", "hanche")
+
+    def __init__(self):
+        self.derniers = {}   # numéro MoveNet → (x, y, instant de la dernière vue fiable)
+
+    def maj(self, pts, cote, instant=None):
+        """Renvoie (points éventuellement complétés, nom du point complété ou None)."""
+        instant = time.monotonic() if instant is None else instant
+        indices = COTES[cote]
+        for i in indices:
+            if pts[i, 2] >= CONF_MIN:
+                self.derniers[i] = (pts[i, 0], pts[i, 1], instant)
+        mal_vus = [i for i in indices if pts[i, 2] < CONF_MIN]
+        if len(mal_vus) != 1:
+            return pts, None
+        i = mal_vus[0]
+        dernier = self.derniers.get(i)
+        if dernier is None or instant - dernier[2] > self.DUREE_MAX:
+            return pts, None
+        pts = pts.copy()
+        pts[i] = (dernier[0], dernier[1], CONF_MIN)
+        return pts, self.NOMS[indices.index(i)]
 
 
 def ecart_epaules(pts, cote=None):

@@ -29,8 +29,8 @@ from datetime import datetime
 import cv2
 import numpy as np
 
-from posture_lib import (COTES, CONF_MIN, DOSSIER_RESULTATS, ECART_EPAULES_MAX, SQUELETTE, CoteStable,
-                         MoveNet, angles, capturer, ecart_epaules, ouvrir_camera, postures)
+from posture_lib import (COTES, CONF_MIN, DOSSIER_RESULTATS, ECART_EPAULES_MAX, SQUELETTE, Completeur,
+                         CoteStable, MoveNet, angles, capturer, ecart_epaules, ouvrir_camera, postures)
 
 ETIQUETTES = {"0": "GOOD", "1": "FORWARD_HEAD", "2": "TRUNK_FORWARD", "3": "TRUNK_BACKWARD", "4": "C_SHAPE"}
 NOMS_ETIQUETTES = {"GOOD": "bonne posture", "FORWARD_HEAD": "tete en avant", "TRUNK_FORWARD": "dos penche",
@@ -104,7 +104,7 @@ class Enregistreur:
             self.ecrivain.writerow(
                 ["heure", "etiquette", "cote", "conf_oreille", "conf_epaule", "conf_hanche", "tete", "tronc",
                  "tete_tronc", "ecart_epaules", "longueur_tronc", "calibre", "regle_tete_avant",
-                 "regle_dos_penche", "regle_avachi"]
+                 "regle_dos_penche", "regle_avachi", "point_complete"]
                 + [f"{c}{i}" for i in range(17) for c in ("x", "y", "c")])
             print(f"Enregistrement dans {chemin}")
         self.etiquette = etiquette
@@ -115,8 +115,11 @@ class Enregistreur:
             print(f"Enregistrement arrêté ({self.lignes} lignes au total)")
         self.etiquette = None
 
-    def ligne(self, pts, cote, a, reference):
-        """Une ligne par image ; angles vides si l'image est ignorée (utile pour compter au T3)."""
+    def ligne(self, pts, cote, a, reference, complete=None):
+        """Une ligne par image ; angles vides si l'image est ignorée (utile pour compter au T3).
+
+        pts : points bruts de MoveNet (confiances réelles) ; complete : point repris de l'image d'avant.
+        """
         if not self.etiquette:
             return
         o, e, h = COTES[cote]
@@ -128,7 +131,7 @@ class Enregistreur:
             [datetime.now().isoformat(timespec="milliseconds"), self.etiquette, cote,
              f"{pts[o, 2]:.3f}", f"{pts[e, 2]:.3f}", f"{pts[h, 2]:.3f}"]
             + [f"{v:.2f}" if isinstance(v, float) else v for v in valeurs]
-            + [int(reference is not None)] + regles
+            + [int(reference is not None)] + regles + [complete or ""]
             + [f"{v:.3f}" for v in pts.reshape(-1)])
         self.fichier.flush()
         self.lignes += 1
@@ -155,6 +158,7 @@ def main():
     print("Enregistrement : 0 bonne, 1 tête en avant, 2 dos penché, 3 avachi, 4 dos en C, 9 arrêter")
     dernier_affichage = 0.0
     cote_stable = CoteStable()
+    completeur = Completeur()
     enregistreur = Enregistreur()
 
     mode = "flou"
@@ -173,13 +177,14 @@ def main():
         pts = movenet.points(image)
         ms_ia = (time.perf_counter() - t0) * 1000
         cote = cote_stable.maj(pts)       # côté bloqué : ne saute plus d'une image à l'autre
-        a = angles(pts, cote)
-        ecart = ecart_epaules(pts, cote)
+        pts_c, complete = completeur.maj(pts, cote)   # trou court : point repris de l'image d'avant
+        a = angles(pts_c, cote)
+        ecart = ecart_epaules(pts_c, cote)
         de_face = ecart is not None and ecart > ECART_EPAULES_MAX
-        enregistreur.ligne(pts, cote, a, reference)
+        enregistreur.ligne(pts, cote, a, reference, complete)
 
         affichage = image_affichee(image, mode)
-        dessiner(affichage, pts, a["cote"] if a else None)
+        dessiner(affichage, pts_c, a["cote"] if a else None)
         if enregistreur.etiquette:
             texte(affichage, f"* ENREGISTREMENT : {NOMS_ETIQUETTES[enregistreur.etiquette]} "
                              f"({enregistreur.lignes} lignes)", 7, ROUGE, 0.6)
@@ -200,7 +205,8 @@ def main():
             texte(affichage, f"UNKNOWN : mal vu ({', '.join(mal_vus)}) - cote {cote}", 1, GRIS)
         else:
             texte(affichage, f"Cote {a['cote']} | Tete {a['tete']:.0f} | Tronc {a['tronc']:+.0f} | "
-                             f"Oreille-epaule-hanche {a['tete_tronc']:.0f} (deg)", 1, BLANC, 0.55)
+                             f"Oreille-epaule-hanche {a['tete_tronc']:.0f} (deg)"
+                             + (f" | {complete} completee" if complete else ""), 1, BLANC, 0.55)
             regles = postures(a, reference)
             for i, (nom, (mauvaise, regle)) in enumerate(regles.items()):
                 texte(affichage, f"{nom} : {'OUI' if mauvaise else 'non'}  ({regle})", 2 + i, ROUGE if mauvaise else VERT)
@@ -215,7 +221,8 @@ def main():
             else:
                 mauvaises = [nom for nom, (m, _) in regles.items() if m] or ["bonne posture"]
                 print(f"{debut}  tête {a['tete']:4.0f}°  tronc {a['tronc']:+4.0f}°  "
-                      f"oreille-épaule-hanche {a['tete_tronc']:4.0f}°  écart {txt_ecart}  → {', '.join(mauvaises)}")
+                      f"oreille-épaule-hanche {a['tete_tronc']:4.0f}°  écart {txt_ecart}  → {', '.join(mauvaises)}"
+                      + (f"   ({complete} complétée)" if complete else ""))
 
         if calibration is not None:
             reste = fin_calibration - time.monotonic()

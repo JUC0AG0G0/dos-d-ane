@@ -499,7 +499,7 @@ Pour les tests, prévoir un **mode rapide** (fenêtre 10 s, durée minimale 10 s
 | Situation | Délai avant la capture suivante |
 |---|---|
 | personne détectée, rien d'anormal | 10 s |
-| au moins une posture « en doute » (part de mauvaises captures > 30 %) | 2 s |
+| « en doute » : **dès la première capture mauvaise**, et tant qu'il en reste au moins une dans les 60 dernières secondes | 2 s |
 | aucune personne détectée | 30 s |
 
 ### 5.7 Ce qui est enregistré pendant le POC
@@ -547,7 +547,7 @@ Il n'y a **pas de fenêtre ni d'écran** sur le Pi : il tourne « à l'aveugle �
 | **14:02:20** | tête en avant | **depuis 2 min → « Tête en avant détectée »** envoyé à l'app |
 | … | | |
 | 14:05:40 | bonne | moins de 40 % de mauvaises → **fin de l'événement** (durée 3 min 20 s) |
-| 14:05:50 | bonne | tout va bien → retour à 10 s |
+| ~14:06:40 | bonne | plus aucune image mauvaise depuis 60 s → retour à 10 s |
 
 Au total : **6 images par minute** quand tout va bien, 30 en cas de doute, soit **moins de 1 seconde de calcul par minute**. Le Pi reste froid et aucune image n'est gardée.
 

@@ -5,6 +5,61 @@
 
 ---
 
+## Les règles en une page
+
+Toutes les valeurs sont des **valeurs de départ**, réglées ensuite par nos mesures (objectif F1 ≥ 0,80 par posture, < 1 fausse alerte par heure). Code : `posture_lib.py`.
+
+```text
+① Capture ─► ② Squelette ─► ③ Contrôles ─► ④ Angles + règles ─► ⑤ Filtre dans le temps ─► alerte
+  (mémoire)    (MoveNet,      (image          (verdict de           (fenêtre glissante,
+                17 points)     exploitable ?)  CETTE image)          70 % / 40 %)
+```
+
+**① Capture.** Une image en mémoire seulement (jamais écrite, jamais envoyée). Cadence adaptative : 10 s si la posture est bonne ; **2 s dès la première image mauvaise**, tant qu'il reste au moins une image mauvaise dans les 60 dernières secondes (la fenêtre contient alors ~30 images au lieu de 6) ; 30 s si personne n'est détecté.
+
+**② Squelette.** MoveNet donne 17 points (x, y, confiance). On n'en garde que 3, du côté visible : **oreille, épaule, hanche**.
+
+**③ Contrôles**, dans l'ordre. Un contrôle raté → image **IGNORÉE** (UNKNOWN), comptée ni bonne ni mauvaise.
+
+| # | Contrôle | Règle | Valeur |
+|---|---|---|---|
+| C1 | Côté vu | côté gauche ou droit le mieux vu, choisi au début puis **bloqué** ; change seulement si l'autre a 0,15 de confiance d'avance pendant 5 images d'affilée | `CoteStable` |
+| C2 | Points fiables | confiance de l'oreille, de l'épaule **et** de la hanche ≥ 0,20 | `CONF_MIN` |
+| C2 bis | Trou court | si **un seul** point est sous 0,20 et qu'il était bien vu il y a **≤ 2 s**, on reprend sa dernière position au lieu d'ignorer l'image | `Completeur` |
+| C3 | De profil | écart des 2 épaules ÷ longueur du tronc ≤ 0,35 (jamais complété) | `ECART_EPAULES_MAX` |
+
+La caméra peut être à gauche ou à droite : C1 choisit le côté, et le calcul des angles tient compte du sens du regard, donc les angles ont le même sens des deux côtés.
+
+**④ Angles et règles** (une image peut cumuler plusieurs postures).
+
+| Angle | Définition | Lecture |
+|---|---|---|
+| Tête | droite épaule → oreille, par rapport à l'horizontale | 90° = oreille au-dessus de l'épaule ; plus petit = tête en avant |
+| Tronc | droite hanche → épaule, par rapport à la verticale | 0° = droit ; > 0 = penché en avant ; < 0 = avachi en arrière |
+
+| Posture | Sans calibration | Avec calibration (réf. = médiane sur 10 s assis droit) | Origine du seuil de départ |
+|---|---|---|---|
+| Tête en avant | tête < 50° | tête < réf − 8° | angle cranio-vertébral (notre angle part de l'épaule et non de C7 : seuil à recaler) |
+| Dos penché en avant | tronc > +20° | tronc > réf + 12° | méthode RULA (tronc fléchi > 20°) |
+| Avachi en arrière | tronc < −25° | tronc < réf − 12° | pas de source : valeur à fixer par nos mesures |
+
+Verdict de l'image : **BONNE**, **MAUVAISE (posture)** ou **IGNORÉE**.
+
+**⑤ Filtre dans le temps**, posture par posture. Une image seule ne déclenche jamais d'alerte.
+
+| Règle | Valeur |
+|---|---|
+| Fenêtre glissante | verdicts des 60 dernières secondes, images IGNORÉES exclues |
+| Début d'alerte | ≥ 70 % de MAUVAISES dans la fenêtre, pendant 2 min d'affilée |
+| Fin d'alerte | < 40 % (l'écart 70 / 40 évite une alerte qui clignote) |
+| Immobilité | déplacement médian des points ÷ longueur du tronc < 0,02 pendant 50 min → « Levez-vous » |
+
+**À trancher :**
+
+- La règle d'absence (personne partie du poste) reste à définir, par exemple « aucun point fiable sur 3 images d'affilée ».
+
+---
+
 ## 1. Où en est le POC (8 octobre 2026)
 
 | Étape | État |
@@ -198,10 +253,11 @@ Toutes les quelques secondes, le Pi prend une photo et la fait passer par 4 cont
 ```text
 oreille : 0,85   épaule : 0,90   hanche : 0,78    → tout est au-dessus de 0,2 → ✅ on continue
 oreille : 0,85   épaule : 0,90   hanche : 0,12    → la hanche est mal vue (cachée par le bureau ?)
-                                                     → ❌ image IGNORÉE (« UNKNOWN »)
+   … mais bien vue il y a moins de 2 s           → on reprend sa dernière position → ✅ on continue
+   … sinon, ou si 2 points sont mal vus          → ❌ image IGNORÉE (« UNKNOWN »)
 ```
 
-👉 Si on ne voit pas bien, on ne juge pas. On ne devine jamais un point.
+👉 Un trou **court sur un seul point** (bras qui passe devant, confiance qui chute une image) est complété avec l'image d'avant : le corps n'a pas bougé en 2 s. Au-delà, on ne juge pas : on n'invente jamais une posture.
 
 **Guichet 2 : « Est-ce que la personne est bien de profil ? »** On mesure l'écart horizontal entre les deux épaules, divisé par la longueur du tronc (pour ne pas dépendre de la distance à la caméra). De profil, les deux épaules sont l'une derrière l'autre : écart proche de 0. De face, elles sont bien écartées : environ 0,8.
 
