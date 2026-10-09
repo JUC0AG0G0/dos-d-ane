@@ -14,7 +14,7 @@ services:
       SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
       DATABASE_URL: ${DATABASE_URL}
       JWT_SECRET: ${JWT_SECRET}
-      SESSION_TTL_MINUTES: ${SESSION_TTL_MINUTES:-30}
+      SESSION_TTL_MINUTES: ${SESSION_TTL_MINUTES:-60}
     ports:
       - "${PORT:-3000}:3000"
     depends_on:
