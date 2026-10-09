@@ -15,7 +15,6 @@ export interface AuthContext {
   userId: string;
   role: Role;
   sessionId: string;
-  /** Nouvelle expiration de la session, prolongée par cette requête. */
   expiresAt: Date;
 }
 
