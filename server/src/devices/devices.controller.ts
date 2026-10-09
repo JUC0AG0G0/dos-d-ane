@@ -38,8 +38,6 @@ export class DevicesController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: RenameDeviceDto,
   ): Promise<SessionDeviceDto> {
-    // updateMany filtre sur le propriétaire : on ne renomme jamais
-    // l'appareil d'un autre utilisateur.
     const { count } = await this.prisma.device.updateMany({
       where: { id, userId: auth.userId },
       data: { name: dto.name },
