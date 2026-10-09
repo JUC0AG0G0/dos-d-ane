@@ -297,7 +297,6 @@ async function findOrCreateDevice(
     data: {
       userId,
       type,
-      // Renommable ensuite par l'utilisateur (PATCH /api/devices/{id}).
       name: client.deviceName ?? (mobile ? 'Téléphone' : 'Navigateur'),
       model: client.deviceModel,
       // Un téléphone peut capturer, mais la capture reste coupée tant que
