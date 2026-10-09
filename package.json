@@ -1,7 +1,7 @@
 {
   "name": "dos-d-ane",
   "private": true,
-  "description": "Outillage commun du dépôt (hooks Git). Le serveur a son propre package.json dans server/.",
+  "description": "Outillage commun du dépôt (hooks Git). Le serveur et le client ont leur propre package.json (server/, client/).",
   "scripts": {
     "prepare": "husky"
   },

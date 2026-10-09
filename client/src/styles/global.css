@@ -1,0 +1,113 @@
+:root {
+  --color-text: #1f2328;
+  --color-muted: #59636e;
+  --color-bg: #ffffff;
+  --color-surface: #f6f8fa;
+  --color-border: #d1d9e0;
+  --color-ok: #1a7f37;
+  --color-warn: #9a6700;
+  --color-error: #d1242f;
+
+  color-scheme: light dark;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-text: #f0f6fc;
+    --color-muted: #9198a1;
+    --color-bg: #0d1117;
+    --color-surface: #151b23;
+    --color-border: #3d444d;
+    --color-ok: #3fb950;
+    --color-warn: #d29922;
+    --color-error: #f85149;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+}
+
+/* --- Layout --- */
+.layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.layout__header,
+.layout__footer {
+  padding: 1rem 1.5rem;
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  border-style: solid;
+  border-width: 0;
+}
+
+.layout__header {
+  border-bottom-width: 1px;
+}
+
+.layout__footer {
+  border-top-width: 1px;
+}
+
+.layout__brand {
+  font-weight: 600;
+  font-size: 1.25rem;
+  text-decoration: none;
+}
+
+.layout__main {
+  flex: 1;
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+.disclaimer {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--color-muted);
+}
+
+/* --- Feature health --- */
+.api-status::before {
+  content: '● ';
+}
+
+.api-status--loading {
+  color: var(--color-muted);
+}
+
+.api-status--up {
+  color: var(--color-ok);
+}
+
+.api-status--database-down {
+  color: var(--color-warn);
+}
+
+.api-status--unreachable {
+  color: var(--color-error);
+}

@@ -1,6 +1,28 @@
 # Surcharge de développement (`task dev`) : code monté en volume, rechargement
 # à chaud et pgAdmin.
 services:
+  client:
+    image: node:26-alpine
+    build: !reset null
+    working_dir: /app
+    command: sh -c "npm ci --no-audit --no-fund && npm run dev"
+    # Rechargement à chaud par Vite, fichiers scrutés comme pour le serveur.
+    # /api est relayé au serveur dans le réseau Docker.
+    environment:
+      VITE_WATCH_POLLING: "true"
+      API_URL: http://server:3000
+    volumes:
+      - ./client:/app
+      - client-node-modules:/app/node_modules
+    ports: !override
+      - "${CLIENT_PORT:-5173}:5173"
+    # Permet à `task dev` d'attendre que le front réponde avant d'afficher les URL.
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:5173/"]
+      interval: 10s
+      start_period: 5m
+      start_interval: 2s
+
   server:
     image: node:26-alpine
     build: !reset null
@@ -65,4 +87,5 @@ configs:
     content: "db:5432:*:${POSTGRES_USER}:${POSTGRES_PASSWORD}"
 
 volumes:
+  client-node-modules:
   server-node-modules:
