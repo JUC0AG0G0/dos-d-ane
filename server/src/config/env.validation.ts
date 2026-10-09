@@ -24,7 +24,7 @@ export function validateEnv(
     errors.push('DATABASE_URL manquante');
   }
 
-  const sessionTtl = Number(config.SESSION_TTL_MINUTES ?? 30);
+  const sessionTtl = Number(config.SESSION_TTL_MINUTES ?? 60);
   if (!Number.isInteger(sessionTtl) || sessionTtl < 1) {
     errors.push('SESSION_TTL_MINUTES doit être un entier positif');
   }
