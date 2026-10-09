@@ -118,8 +118,6 @@ export class AuthService {
       where: { email: normalizeEmail(dto.email) },
       select: { ...userSelect, passwordHash: true },
     });
-    // Même temps de réponse que l'email existe ou non : on ne révèle pas
-    // quels emails ont un compte.
     const valid = await verifyPassword(
       dto.password,
       user?.passwordHash ?? (await this.dummyHash),
