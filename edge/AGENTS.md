@@ -2,20 +2,20 @@
 
 Partie **edge** du projet Dos d'âne (POC Fil Rouge Master UHA 4.0, 2026) : un Raspberry Pi 4 regarde une personne assise **de profil** avec une webcam, détecte les points du corps (MoveNet), calcule des angles et détecte les mauvaises postures. Le reste du dépôt (`server/` NestJS, mise, Taskfile) ne concerne pas ce dossier.
 
-Documentation de référence : `docs/poc-raspberry.md` (plan, installation, briques §5, tests §6, fiche de résultats §7), `docs/poc-edge.md` (choix techniques, RGPD, répartition Pi / serveur) et `docs/algo-posture.md` (explication de l'algorithme : axes, angles, seuils). Lire la section concernée avant de modifier le code correspondant.
+Documentation de référence : `docs/poc-raspberry.md` (plan, installation, briques §5, tests §6, fiche de résultats §7), `docs/algo-posture.md` (**référence de l'algorithme** : contrôles, angles, seuils et leurs sources, filtre, score) et `docs/Audit_technique_final_Fil_Rouge_Master_UHA_4_0_v3.md` (architecture complète : RGPD, rôle du Pi et du serveur, messages §7.2). `docs/solution-mvp.md` résume la solution. Chaque sujet n'est décrit qu'**une fois** : ailleurs, mettre un lien plutôt que recopier. Lire la section concernée avant de modifier le code correspondant.
 
 ## Règles à ne jamais enfreindre
 
 - **Aucune image ne quitte le Pi ni n'est écrite sur le disque** : pas de `cv2.imwrite`, pas d'enregistrement vidéo, pas d'envoi de pixels. Seuls des chiffres (points, angles, postures, événements) peuvent être écrits dans `resultats/`.
 - **Rien dans `resultats/` ni dans `models/*.tflite` n'est commité** (données personnelles des volontaires ; modèles téléchargés). Ne pas modifier `edge/.gitignore` pour les inclure.
-- **Les points du corps ne partent pas au serveur** : en session réelle, seuls l'état en direct (2 angles, posture, score), les événements et des résumés par période sont envoyés (`docs/poc-edge.md` §6, `docs/poc-raspberry.md` §5.8).
+- **Les points du corps ne partent pas au serveur** : en session réelle, seuls l'état en direct (2 angles, posture, score), les événements et des résumés par période sont envoyés (audit §7.2, `docs/poc-raspberry.md` §5.5).
 
 ## Organisation
 
 | Fichier | Rôle |
 |---|---|
 | `posture_lib.py` | **le cœur, commun à tous** : `ouvrir_camera()`, `capturer()`, `MoveNet`, `angles()`, `postures()`, `temperature_pi()` |
-| `poc.py` | la vraie session (à écrire, §5.8) |
+| `poc.py` | la vraie session (à écrire, §5.5) |
 | `live.py` | outil de debug avec fenêtre (pas utilisé en session) |
 | `tests_poc/` | outils de mesure : `t2_camera.py` (puis `t1_vitesse.py`, `evaluer.py`) |
 

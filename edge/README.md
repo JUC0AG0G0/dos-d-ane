@@ -23,7 +23,7 @@ Modèles MoveNet à placer dans `models/` (non commités) : voir [docs/poc-raspb
 | Fichier | Rôle | En session réelle ? |
 |---|---|---|
 | `posture_lib.py` | le cœur : caméra, MoveNet, angles, règles | ✅ |
-| `poc.py` | la vraie session (à écrire, §5.8 de la doc) | ✅ |
+| `poc.py` | la vraie session (à écrire, §5.5 de `docs/poc-raspberry.md`) | ✅ |
 | `live.py` | outil de debug : fenêtre en direct avec squelette, angles et règles | ❌ |
 | `tests_poc/` | tests de mesure (T1, T2, T5…) | ❌ |
 | `models/` | modèles MoveNet `.tflite` (non commités) | |

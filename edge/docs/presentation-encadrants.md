@@ -87,13 +87,13 @@
 
 ---
 
-## Slide 7 — Méthode : PC d'abord, puis Raspberry · *1 min*
+## Slide 7 — Méthode : les risques d'abord · *1 min*
 
 **À afficher :** le bandeau du bas du [schéma MVP](images/schema-mvp.png) (étapes 1 → 2 → 3).
 
 **À dire :**
-- **Étape 1 :** on valide l'IA sur PC avec une webcam placée de profil.
-- **Étape 2 :** on passe sur le Raspberry avec **la même webcam USB et le même code**. Si un problème apparaît, on sait qu'il vient du matériel, pas de l'algorithme. L'Arducam CSI est testée en alternative (T2).
+- **Étape 1 :** on a commencé **directement sur le Raspberry**, pour lever tout de suite les risques matériels (caméra, IA, vitesse, chauffe). Grâce à la webcam USB, le même code tourne aussi sur un PC.
+- **Étape 2 :** on règle l'algorithme avec de vraies mesures (outil `live.py`, enregistrements étiquetés).
 - **Étape 3 :** on branche le serveur et les apps pour la démo complète.
 
 ---
@@ -104,12 +104,12 @@
 
 **À dire :**
 - **Fait :**
-  - analyse du sujet ;
-  - choix d'architecture et audit technique ;
-  - squelette du code : serveur, site, app mobile, programme du Raspberry, déploiement automatique ;
-  - schémas.
-- **Prochaine étape :** T1 et T2, l'installation de l'IA et de la caméra sur le Raspberry. C'est le risque principal, nous le traitons en premier.
-- Ensuite : tests de MoveNet sur PC, calcul des angles et premières règles.
+  - Raspberry installé, webcam USB, IA MoveNet : ~21 ms par image ;
+  - **T2** réussi : 0 échec sur 526 captures ;
+  - `live.py` : squelette, angles, règles et verdict en direct, calibration, enregistrement d'exemples étiquetés ;
+  - premiers blocages résolus (webcam qui figeait le Pi, images périmées, seuil de confiance réglé par la mesure).
+- **Prochaine étape :** T3 (détection de profil, plusieurs personnes), puis enregistrer des volontaires pour régler les seuils (T5).
+- Ensuite : `poc.py` (cadence adaptative, alertes), puis le branchement au serveur.
 
 ---
 
@@ -118,7 +118,7 @@
 **À afficher :** la colonne « Plus tard » du §6 de [solution-mvp.md](solution-mvp.md).
 
 **À dire :**
-- Deuxième caméra de face, squelette animé en direct dans l'app, notifications, outil d'annotation, IA de classification entraînée sur nos propres données.
+- Deuxième caméra de face, silhouette animée en direct dans l'app, notifications push, outil d'annotation, IA de classification entraînée sur nos propres données.
 - **Le MVP reste volontairement petit** pour être fiable et démontrable.
 
 ---
@@ -129,7 +129,7 @@
 |---|---|
 | *Où est l'IA, si vous utilisez une IA déjà entraînée ?* | MoveNet fournit les points du corps. Notre travail d'IA porte sur : le **benchmark** MoveNet / MediaPipe sur notre cas réel, la **validation** des règles (précision, fausses alertes) et, ensuite, un **classifieur entraîné** sur nos propres données annotées pour remplacer les règles. |
 | *Pourquoi pas envoyer les images au serveur, comme sur le schéma du sujet ?* | Le sujet lui-même demande de favoriser les traitements sans transfert et de ne pas stocker la donnée brute. Le Raspberry suffit pour le calcul : l'envoi d'images n'apporte rien et crée un risque. |
-| *Vos seuils, d'où viennent-ils ?* | D'une méthode d'ergonomie publiée (RULA, 1993), puis ajustés par nos tests T5 et par une posture de référence propre à chaque personne. |
+| *Vos seuils, d'où viennent-ils ?* | De méthodes d'ergonomie publiées : angle cranio-vertébral (tête), RULA 1993 (dos penché), REBA 2000 (avachi). Puis personnalisés par une posture de référence propre à chaque personne, et ajustés par nos tests T5. Tableau complet dans [algo-posture.md](algo-posture.md). |
 | *Et si le Raspberry est trop lent ?* | Test T1 en premier. Plans B : photos moins fréquentes, autre moteur IA, ou un mini-PC à la place. L'architecture ne change pas. |
 | *Pourquoi une webcam USB et pas la caméra Raspberry (Arducam) ?* | Avec la webcam, c'est le même code sur PC et sur Pi, le câble est long (placement de profil facile) et on n'a rien à configurer. L'Arducam CSI est comparée dans le test T2 ; le programme accepte les deux. |
 | *Comment savez-vous qui est devant la caméra ?* | L'utilisateur se connecte et démarre lui-même la session. Avec un seul Raspberry, la session lui est rattachée directement. Avec plusieurs postes partagés, on ajoutera un QR code par poste. Pas de reconnaissance faciale. |

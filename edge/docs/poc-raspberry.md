@@ -30,9 +30,9 @@ Le code se construit brique par brique, directement sur le Pi. Chaque brique est
 | 1 | Webcam USB sur le Pi + OpenCV | §5.1 | étape 1 (T2) |
 | 2 | Ajouter MoveNet Lightning | §3.4, §5.2 | étape 2 (T1) |
 | 3 | Afficher les keypoints (fenêtre de debug) | `live.py` | étape 3 (T3) |
-| 4 | Calculer les angles avec NumPy, en ignorant les points peu fiables (confidence) | §5.3 | étape 3 (T3) |
-| 5 | Détecter les postures (règles + calibration) | §5.4 | étapes 4 et 5 (T5) |
-| 6 | Ajouter le filtrage dans le temps et la cadence adaptative | §5.5, §5.6 | étapes 5 et 6 (T5, T7) |
+| 4 | Calculer les angles, en ignorant les points peu fiables (confidence) | §5.3 | étape 3 (T3) |
+| 5 | Détecter les postures (règles + calibration) | §5.3 | étapes 4 et 5 (T5) |
+| 6 | Ajouter le filtrage dans le temps et la cadence adaptative | §5.5 | étapes 5 et 6 (T5, T7) |
 
 La confidence n'arrive pas à la fin : dès la brique 4, une capture dont l'oreille, l'épaule ou la hanche est mal détectée est ignorée (UNKNOWN) avant même les règles.
 
@@ -316,7 +316,7 @@ Les deux attendent une image **192×192×3 en `uint8`** et renvoient **17 points
 ├── models/               ← movenet_lightning_int8.tflite, movenet_lightning_float16.tflite (non commités)
 ├── README.md             ← installer, lancer, rôle de chaque fichier
 ├── posture_lib.py        ← LE CŒUR, commun à tous : caméra, MoveNet, angles, règles (puis filtre, score, profil)
-├── poc.py                ← la vraie session (§5.8) : cadence adaptative, filtre, événements   (à écrire)
+├── poc.py                ← la vraie session (§5.5) : cadence adaptative, filtre, événements   (à écrire)
 ├── live.py               ← outil de debug : fenêtre en direct (puis enregistrement d'exemples étiquetés)
 ├── tests_poc/            ← outils de mesure, pas utilisés en session
 │   ├── t2_camera.py         test caméra
@@ -393,120 +393,27 @@ Numéros des points utiles :
 | épaule | 5 | 6 |
 | hanche | 11 | 12 |
 
-### 5.3 Calculer les angles (NumPy)
+### 5.3 Des points aux angles, puis aux postures
 
-De profil, on garde **le côté le mieux vu** : celui dont l'oreille, l'épaule et la hanche ont la meilleure confiance.
+Le code est dans `posture_lib.py` (il n'est pas recopié ici, pour ne pas avoir deux versions qui divergent). Le **fonctionnement** (contrôles, angles, règles et sources des seuils, calibration, filtre dans le temps, cadence adaptative) est expliqué **une seule fois**, dans [algo-posture.md](algo-posture.md), « Les règles en une page ».
 
-```python
-import math
-
-COTES = {"gauche": (3, 5, 11), "droite": (4, 6, 12)}   # oreille, épaule, hanche
-CONF_MIN = 0.2      # 0,3 au départ : trop strict de profil (mesure du 08/10/2026, §3.5)
-ECART_EPAULES_MAX = 0.35   # écart des 2 épaules ÷ tronc ; au-delà, la personne n'est pas de profil
-
-def cote_vu(pts):
-    return max(COTES, key=lambda c: pts[list(COTES[c]), 2].mean())
-
-def ecart_epaules(pts):
-    # ≈ 0 de profil, ≈ 0,8 de face ; None si l'épaule côté mur est cachée (normal de profil)
-    _, e, h = COTES[cote_vu(pts)]
-    if min(pts[5, 2], pts[6, 2], pts[h, 2]) < CONF_MIN:
-        return None
-    longueur_tronc = float(np.linalg.norm(pts[e, :2] - pts[h, :2]))
-    if longueur_tronc <= 0:
-        return None
-    return abs(float(pts[5, 0] - pts[6, 0])) / longueur_tronc
-
-def angles(pts):
-    cote = cote_vu(pts)
-    o, e, h = COTES[cote]
-    if min(pts[o, 2], pts[e, 2], pts[h, 2]) < CONF_MIN:
-        return None                                    # capture ignorée (UNKNOWN)
-    ecart = ecart_epaules(pts)
-    if ecart is not None and ecart > ECART_EPAULES_MAX:
-        return None                                    # pas de profil : angles faux (UNKNOWN)
-    oreille, epaule, hanche = pts[o, :2], pts[e, :2], pts[h, :2]
-
-    # sens du regard : +1 si la personne regarde vers la droite de l'image
-    if pts[0, 2] >= CONF_MIN:
-        sens = 1 if pts[0, 0] >= oreille[0] else -1
-    else:
-        sens = 1 if oreille[0] >= epaule[0] else -1
-
-    # Tête en avant : angle entre l'horizontale à l'épaule et la droite épaule → oreille.
-    # 90° = oreille à la verticale de l'épaule ; plus l'angle baisse, plus la tête avance.
-    tete = math.degrees(math.atan2(epaule[1] - oreille[1], (oreille[0] - epaule[0]) * sens))
-
-    # Tronc : 0° = droit ; > 0 = penché en avant ; < 0 = penché en arrière (avachi).
-    tronc = math.degrees(math.atan2((epaule[0] - hanche[0]) * sens, hanche[1] - epaule[1]))
-
-    longueur_tronc = float(np.linalg.norm(epaule - hanche))
-    return {"cote": cote, "tete": tete, "tronc": tronc, "longueur_tronc": longueur_tronc,
-            "ecart_epaules": ecart}
-```
-
-**Contrôle de profil :** les angles n'ont de sens que de profil. Si les deux épaules sont trop écartées sur l'image (écart > 0,35 × longueur du tronc), la personne est de face ou en biais, et la capture est ignorée (UNKNOWN). `live.py` affiche cet écart pour aider à placer la caméra.
-
-(L'axe y d'une image va vers le **bas**, d'où les soustractions dans ce sens.)
-
-**Mouvement** (pour l'immobilité) : déplacement médian des points bien détectés entre deux captures, divisé par la longueur du tronc. Cela le rend indépendant de la distance à la caméra.
-
-```python
-def mouvement(pts_avant, pts, longueur_tronc):
-    ok = (pts_avant[:, 2] >= CONF_MIN) & (pts[:, 2] >= CONF_MIN)
-    if ok.sum() < 3 or longueur_tronc <= 0:
-        return None
-    d = np.linalg.norm(pts[ok, :2] - pts_avant[ok, :2], axis=1)
-    return float(np.median(d) / longueur_tronc)
-```
-
-### 5.4 Les règles (les 4 postures)
-
-Valeurs **de départ**, à ajuster avec le test T5. Les seuils du tronc s'appuient sur la méthode **RULA** (0–20° / 20–60°).
-
-| Posture | Règle sans calibration | Règle avec calibration (posture de référence) |
-|---|---|---|
-| Tête en avant | `tete < 50°` | `tete < ref_tete − 8°` |
-| Dos penché en avant | `tronc > 20°` | `tronc > ref_tronc + 12°` |
-| Avachi, penché en arrière | `tronc < −25°` | `tronc < ref_tronc − 12°` |
-| Immobilité prolongée | `mouvement < 0,02` pendant 50 min | idem |
-
-**Calibration** : au début, la personne s'assoit droite pendant 10 s. On prend la **médiane** de `tete` et `tronc` sur ces captures : ce sont `ref_tete` et `ref_tronc`.
-
-### 5.5 Vérification dans le temps (anti fausses alertes)
-
-Pour chaque posture, on garde l'historique des captures des **60 dernières secondes** :
-
-```text
-capture ignorée (UNKNOWN)       → ne compte pas
-part de captures « mauvaises » ≥ 70 % pendant au moins 2 min  → DÉBUT d'événement
-pendant l'événement, part < 40 %                                → FIN d'événement
-```
-
-Le seuil d'entrée (70 %) est plus haut que le seuil de sortie (40 %), pour qu'un événement ne clignote pas.
-
-Exemple de résultat :
-
-```text
-DÉBUT  FORWARD_HEAD    14:02:10
-FIN    FORWARD_HEAD    14:05:40   durée 3 min 30 s   tete moyenne 43°
-```
-
-Pour les tests, prévoir un **mode rapide** (fenêtre 10 s, durée minimale 10 s, immobilité 1 min) afin de ne pas attendre des minutes.
-
-### 5.6 Cadence adaptative
-
-| Situation | Délai avant la capture suivante |
+| Étape | Code dans `posture_lib.py` |
 |---|---|
-| personne détectée, rien d'anormal | 10 s |
-| « en doute » : **dès la première capture mauvaise**, et tant qu'il en reste au moins une dans les 60 dernières secondes | 2 s |
-| aucune personne détectée | 30 s |
+| choisir le côté vu (gauche / droite) et le bloquer | `CoteStable` |
+| reprendre un seul point mal vu depuis ≤ 2 s | `Completeur` |
+| vérifier que la personne est de profil | `ecart_epaules()`, `ECART_EPAULES_MAX` |
+| ignorer les points peu sûrs | `CONF_MIN` |
+| calculer tête, tronc et oreille–épaule–hanche | `angles()` |
+| appliquer les règles (avec ou sans calibration) | `postures()` |
+| filtre dans le temps, cadence, score, mouvement | à écrire (`poc.py`) |
 
-### 5.7 Ce qui est enregistré pendant le POC
+**Mode rapide pour les tests** : prévoir une fenêtre de 10 s, une durée minimale de 10 s et une immobilité de 1 min, pour ne pas attendre des minutes.
+
+### 5.4 Ce qui est enregistré pendant le POC
 
 Uniquement des **CSV de chiffres** dans `resultats/` : heure, côté, confiances, angles, mouvement, classe, label (pour les exemples étiquetés), coordonnées des 17 points. **Jamais d'image** : ni `cv2.imwrite`, ni enregistrement vidéo.
 
-### 5.8 Déroulé d'une vraie session (`poc.py`)
+### 5.5 Déroulé d'une vraie session (`poc.py`)
 
 En vraie session, **il n'y a pas de flux vidéo continu** : le Pi prend une image de temps en temps, l'analyse, puis l'efface. Le flux continu de `live.py` ne sert qu'aux tests et aux réglages.
 
@@ -525,7 +432,7 @@ Calibration : 10 s assis droit → posture de référence
 │ 5. ajouter cette posture à l'historique des 60 dernières s │
 │ 6. si mauvaise ≥ 70 % pendant 2 min → ÉVÉNEMENT (alerte)   │
 │ 7. envoyer l'état à l'app (angles, posture, score)         │
-│ 8. attendre avant l'image suivante (§5.6) :                │
+│ 8. attendre avant l'image suivante :                       │
 │      tout va bien          → 10 s                          │
 │      posture « en doute »  →  2 s                          │
 │      personne absente      → 30 s                          │
@@ -577,9 +484,9 @@ L'écran « session en cours » de l'app n'est donc pas une vidéo : la silhouet
 
 ### Étape 3 — T3 : voir la personne de profil · *1 journée*
 
-- Script `live.py` : fenêtre de debug avec l'image, le squelette, les angles et la confiance. Le même affichage sur fond neutre (mode PRIVACY MAX) doit aussi être disponible.
+- Script `live.py` ✅ : fenêtre de debug avec l'image (floutée par défaut, nette ou fond noir avec `f` / `p`), le squelette, les angles, les règles et la cause des `UNKNOWN`.
 - **3 personnes × 3 éclairages** (lumière du jour, plafonnier, contre-jour léger) × 2 distances.
-- Compter la part de captures où l'oreille, l'épaule et la hanche ont une confiance ≥ 0,3.
+- Compter la part de captures où l'oreille, l'épaule et la hanche ont une confiance ≥ 0,2 (`CONF_MIN`, abaissé de 0,3 après la mesure du 8 octobre, §3.5).
 - Mesurer la **stabilité** : personne immobile 60 s, écart-type de `tete` et de `tronc`.
 - **Réussi si :** ≥ 90 % de captures exploitables, et écart-type < 3°.
 - **Si échec :** déplacer la caméra (§2), améliorer l'éclairage, essayer MediaPipe.
@@ -600,20 +507,22 @@ L'écran « session en cours » de l'app n'est donc pas une vidéo : la silhouet
 | `1` | FORWARD_HEAD (tête en avant) |
 | `2` | TRUNK_FORWARD (dos penché en avant) |
 | `3` | TRUNK_BACKWARD (avachi en arrière) |
-| `9` | pas d'enregistrement |
+| `4` | C_SHAPE (dos en « C », pour tester si on peut le détecter) |
+| `9` | arrêter l'enregistrement |
 | `q` | quitter |
 
 - Protocole par personne : 10 s droit (référence), puis chaque posture tenue 30 s, dans un ordre mélangé. On ajoute des gestes normaux (boire, attraper un objet) étiquetés GOOD.
 - Au moins **5 personnes** volontaires et d'accord, si possible de morphologies variées.
-- **Livrable :** `resultats/exemples_<date>.csv` (chiffres seulement).
+- **Livrable :** `resultats/live_<date>.csv` (chiffres seulement : label, angles, confiances, 17 points ; jamais d'image). ✅ Enregistrement déjà codé dans `live.py`.
+- **Volontaires :** consentement écrit, un code par personne (`P01`…), CSV laissés sur le Pi, hors de Git. Ces CSV forment aussi le **dataset** du projet (audit §16).
 
 ### Étape 5 — T5 : règles et vérification dans le temps · *1 à 2 jours*
 
-- Script `evaluer.py` : rejoue les règles du §5.4 sur les exemples étiquetés.
+- Script `evaluer.py` : rejoue les règles ([algo-posture.md](algo-posture.md)) sur les exemples étiquetés.
   - **Par capture**, et pour chaque posture : précision, rappel, F1, matrice de confusion.
   - **Distribution des angles** par label (moyenne, écart-type) : c'est ce qui permet d'ajuster les seuils.
   - Comparaison **avec et sans calibration**.
-  - **Par événement**, avec le filtre du §5.5 en mode rapide : nombre de fausses alertes.
+  - **Par événement**, avec le filtre dans le temps en mode rapide (§5.3) : nombre de fausses alertes.
 - **Réussi si :** F1 ≥ 0,80 pour chaque posture, et < 1 fausse alerte par heure.
 - **Si échec :** ajuster les seuils à partir des distributions ; si une posture reste mauvaise, la retirer du MVP et l'expliquer.
 

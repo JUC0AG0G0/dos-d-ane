@@ -1,7 +1,7 @@
 # Comment l'algorithme détecte la posture
 
 > Explication simple de l'algorithme du POC edge : les points, les axes, les angles, les seuils, et la possibilité d'entraîner un modèle plus tard.
-> Détails techniques et code : [poc-raspberry.md](poc-raspberry.md) §5. Choix et RGPD : [poc-edge.md](poc-edge.md).
+> Détails techniques et code : [poc-raspberry.md](poc-raspberry.md) §5. Choix, RGPD et messages vers le serveur : [audit technique](Audit_technique_final_Fil_Rouge_Master_UHA_4_0_v3.md) §7 et §15.
 
 ---
 
@@ -37,11 +37,18 @@ La caméra peut être à gauche ou à droite : C1 choisit le côté, et le calcu
 | Tête | droite épaule → oreille, par rapport à l'horizontale | 90° = oreille au-dessus de l'épaule ; plus petit = tête en avant |
 | Tronc | droite hanche → épaule, par rapport à la verticale | 0° = droit ; > 0 = penché en avant ; < 0 = avachi en arrière |
 
-| Posture | Sans calibration | Avec calibration (réf. = médiane sur 10 s assis droit) | Origine du seuil de départ |
-|---|---|---|---|
-| Tête en avant | tête < 50° | tête < réf − 8° | angle cranio-vertébral (notre angle part de l'épaule et non de C7 : seuil à recaler) |
-| Dos penché en avant | tronc > +20° | tronc > réf + 12° | méthode RULA (tronc fléchi > 20°) |
-| Avachi en arrière | tronc < −25° | tronc < réf − 12° | pas de source : valeur à fixer par nos mesures |
+**Les 4 postures du MVP : ce qu'on mesure, le seuil, sa source, la durée avant alerte.** Les seuils ne sont pas inventés : ils partent de méthodes d'ergonomie publiées, puis sont personnalisés (calibration) et ajustés par nos mesures (test T5).
+
+| Posture | Ce qu'on mesure | Seuil sans calibration | Seuil avec calibration (réf. = médiane sur 10 s assis droit) | Source du seuil de départ | Durée avant alerte |
+|---|---|---|---|---|---|
+| Tête en avant | angle **tête** | tête < 50° | tête < réf − 8° | **angle cranio-vertébral** (Yip et al., 2008 : plus il est petit, plus la tête est en avant). Notre angle part de l'**épaule** et non de la vertèbre C7 : seuil à recaler par T5 | ≥ 70 % d'images mauvaises sur 60 s, **pendant 2 min** |
+| Dos penché en avant | angle **tronc** | tronc > +20° | tronc > réf + 12° | **RULA** (McAtamney & Corlett, 1993) : tronc fléchi de 0 à 20° acceptable, au-delà à surveiller | idem |
+| Avachi en arrière | angle **tronc** | tronc < −25° | tronc < réf − 12° | **REBA** (Hignett & McAtamney, 2000) : un tronc en extension (en arrière) de plus de 20° passe au palier de risque supérieur. −25° est plus tolérant, car un dossier peut soutenir le dos : à fixer par T5 | idem |
+| Immobilité prolongée | **mouvement** : déplacement médian des points ÷ longueur du tronc | < 0,02 | idem (pas de calibration) | ⚠️ **à sourcer** : recommandations de santé publique sur l'interruption du temps assis (pistes : ANSES, INRS, OMS). Vérifier le chiffre exact avant de le citer | **50 min** d'affilée → « Levez-vous » |
+
+- **La durée de 2 min n'a pas de source** : c'est un choix technique, pour qu'un geste bref (boire, ramasser un stylo) ne déclenche jamais d'alerte. Idée appuyée par la norme **ISO 11226** (postures de travail statiques), pour laquelle le caractère acceptable d'une posture dépend de la **durée** pendant laquelle on la garde. Ajustée par T5 et T7.
+- **Calibration** : les écarts −8° et ±12° sont des valeurs de départ, ajustées par T5.
+- **Ce qui part au serveur** (jamais d'image, jamais les points du corps) : voir l'[audit technique](Audit_technique_final_Fil_Rouge_Master_UHA_4_0_v3.md) §7.2.
 
 Verdict de l'image : **BONNE**, **MAUVAISE (posture)** ou **IGNORÉE**.
 
@@ -236,7 +243,7 @@ Un seul verdict ne déclenche **pas** d'alerte. On regarde sur la durée ([poc-r
 - **70 %** des images « mauvaises » sur la dernière minute, **pendant au moins 2 min** → **alerte** ;
 - en dessous de **40 %** → fin de l'alerte.
 
-Ces chiffres sont aussi des seuils à ajuster par les tests. À terme, ils seront envoyés par le serveur pour pouvoir être modifiés sans toucher au Pi ([poc-edge.md](poc-edge.md) §6).
+Ces chiffres sont aussi des seuils à ajuster par les tests. À terme, ils seront envoyés par le serveur pour pouvoir être modifiés sans toucher au Pi ([audit technique](Audit_technique_final_Fil_Rouge_Master_UHA_4_0_v3.md) §7.1).
 
 ---
 
@@ -472,7 +479,7 @@ Le café (14:01) n'a pas déclenché d'alerte ; la vraie mauvaise posture (14:03
 |---|---|---|
 | Quand | mis à jour **à chaque photo** (toutes les 10 s, ou 2 s en cas de doute) | **seulement si** la mauvaise posture est confirmée (70 % pendant 2 min) |
 | Ce qu'on voit | un statut, sa couleur, le score (silhouette animée : plus tard) | une **notification** sur le téléphone (son ou vibration) avec un conseil |
-| Transport | Pi → serveur en WebSocket, serveur → app en SSE ([poc-edge.md](poc-edge.md) §6) | SSE si l'app est ouverte, **notification push** sinon |
+| Transport | Pi → serveur en WebSocket, serveur → app en SSE ([audit technique](Audit_technique_final_Fil_Rouge_Master_UHA_4_0_v3.md) §7.2) | SSE si l'app est ouverte, **notification push** sinon |
 | À quoi ça sert | regarder sa posture quand on **en a envie** | **prévenir** la personne quand elle **ne regarde pas** l'app |
 
 En travaillant, personne ne regarde son téléphone en permanence : **c'est l'alerte qui va chercher la personne**, l'écran en direct n'est qu'un plus.
@@ -627,7 +634,7 @@ Exemple de résumé :
   "secondes_bonne": 210, "secondes_moyenne": 60, "secondes_a_ameliorer": 30, "secondes_ignore": 0 }
 ```
 
-Le format exact des trois messages et leur transport (WebSocket, HTTPS, SSE, notification push) sont décrits dans [poc-edge.md](poc-edge.md) §6.
+Le format exact des trois messages et leur transport (WebSocket, HTTPS, SSE, notification push) sont décrits dans l'[audit technique](Audit_technique_final_Fil_Rouge_Master_UHA_4_0_v3.md) §7.2.
 
 **Les bonnes postures sont donc bien envoyées**, sous forme de **temps et de score** dans les résumés. Ce sont des chiffres agrégés, jamais les points du corps ni les images.
 
@@ -689,5 +696,5 @@ L'**entraînement** se fait sur un **PC**. Le Pi ne fait qu'**utiliser** le mod�
 | 5 | **Calibration** | touche `c`, puis comparer | les seuils personnalisés |
 | 6 | **Enregistrer des exemples** (étape 4) | ajouter les touches `0` à `3` dans `live.py` | les données |
 | 7 | **Ajuster les seuils** (étape 5) | `evaluer.py` : distributions et score F1 | les seuils définitifs |
-| 8 | **`poc.py`** | la vraie session ([poc-raspberry.md](poc-raspberry.md) §5.8) | la chaîne complète |
+| 8 | **`poc.py`** | la vraie session ([poc-raspberry.md](poc-raspberry.md) §5.5) | la chaîne complète |
 | 9 | *(option)* **Entraîner un modèle** | scikit-learn ou TensorFlow | si les règles ne suffisent pas |

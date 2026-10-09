@@ -60,9 +60,8 @@ Pour savoir si une posture est mauvaise, le Raspberry doit **regarder régulièr
 | Situation | Cadence de départ (ajustée par le test T7) |
 |---|---|
 | Posture correcte | 1 capture toutes les **10 s** |
-| Posture douteuse | 1 capture toutes les **2 s**, pour confirmer vite |
-| Mauvaise posture confirmée | on envoie l'événement, puis retour à 10 s |
-| Personne au poste | 1 capture toutes les **30 s** |
+| Posture douteuse : dès qu'une image est mauvaise | 1 capture toutes les **2 s**, pour confirmer vite, tant qu'il reste une image mauvaise dans la dernière minute |
+| Personne absente du poste | 1 capture toutes les **30 s** |
 
 Résultat : on capture beaucoup moins qu'avec une cadence fixe, sans détecter plus tard. C'est la **sobriété** demandée par le sujet.
 
@@ -77,7 +76,7 @@ La caméra est placée **de profil**, car c'est la vue qui permet de voir la tê
 | **Avachi, penché en arrière** | la même inclinaison du buste, mais vers l'arrière | épaule, hanche |
 | **Immobilité prolongée** | les points du corps ne bougent presque pas pendant longtemps (par exemple 50 min), d'où une suggestion de pause | tous les points visibles |
 
-Les **seuils de départ** viennent d'une méthode d'ergonomie reconnue (**RULA**, McAtamney & Corlett, 1993). Ils seront **ajustés par nos tests**.
+Les **seuils de départ** viennent de méthodes d'ergonomie reconnues : l'**angle cranio-vertébral** pour la tête, **RULA** (McAtamney & Corlett, 1993) pour le dos penché, **REBA** (2000) pour l'avachi. Ils sont **personnalisés** par une calibration de 10 s, puis **ajustés par nos tests**. Le tableau complet (angle, seuil, source, durée avant alerte) est dans [algo-posture.md](algo-posture.md).
 
 **Pourquoi pas plus ?** Ce n'est pas une limite du sujet. Chaque posture ajoutée demande un angle, un seuil justifié et des tests. Certaines postures ne se voient pas de profil : épaules inclinées ou penché sur le côté (il faut une vue de face), jambes croisées (cachées par le bureau). Nous en ajouterons **une à la fois, une fois les précédentes validées** : d'abord le cou penché vers le bas (regarder son téléphone), puis la position des coudes. Ajouter une posture revient à ajouter une règle.
 
@@ -153,12 +152,15 @@ Chaque choix est une **hypothèse** : on la teste avant de construire dessus. Si
 
 ## 9. Où on en est
 
+Détail des résultats : [poc-raspberry.md](poc-raspberry.md) §7.
+
 | Fait | En cours / à faire |
 |---|---|
-| Analyse du sujet et des contraintes | **T1, T2** : installation de l'IA et de la caméra sur le Pi |
-| Choix de l'architecture et audit technique | **T3, T4** : premiers tests MoveNet sur PC, webcam de profil |
-| Squelette du code (serveur, site, app mobile, programme du Raspberry, déploiement automatique), sur une branche à fusionner | calcul des angles et premières règles |
-| Schémas de la solution | envoi des résultats au serveur, puis app et site |
+| Analyse du sujet, architecture, audit technique, schémas | **T1** complet (vitesse ; premier essai : ~21 ms par image) |
+| Raspberry Pi installé, webcam USB, IA MoveNet | **T3** : 3 personnes × 3 éclairages, de profil |
+| **T2** ✅ : 0 échec sur 526 captures | enregistrer des volontaires, puis **T5** : régler les seuils (score F1) |
+| `live.py` : squelette, angles, règles et verdict en direct ; calibration ; enregistrement d'exemples étiquetés | `poc.py` : cadence adaptative, filtre dans le temps, alertes (**T7**) |
+| Seuil de confiance réglé par la mesure : 99 % d'images exploitables de profil | envoi des résultats au serveur, puis app et site |
 
 ---
 
