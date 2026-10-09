@@ -48,7 +48,6 @@ async function bootstrap() {
         .build(),
     );
     SwaggerModule.setup('api/docs', app, document, {
-      // Garde le token saisi dans « Authorize » après un rechargement.
       swaggerOptions: { persistAuthorization: true },
     });
   }
