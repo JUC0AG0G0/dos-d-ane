@@ -20,22 +20,22 @@ datasource db {
   provider = "postgresql"
 }
 
-/// Rôle d'un compte : user, admin.
-model Role {
-  id    String @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  name  String @unique
-  users User[]
-
-  @@map("roles")
+/// Rôle d'un compte. Tout compte créé est user ; admin ne s'attribue qu'à la
+/// main, en base.
+enum Role {
+  user
+  admin
 }
 
+/// email (stocké en minuscules) et displayName sont uniques. displayName l'est
+/// sans tenir compte de la casse : index sur lower("displayName") ajouté à la
+/// main dans la migration.
 model User {
   id               String            @id @default(dbgenerated("uuidv7()")) @db.Uuid
   email            String            @unique
-  displayName      String?
+  displayName      String
   passwordHash     String
-  roleId           String            @db.Uuid
-  role             Role              @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  role             Role              @default(user)
   devices          Device[]
   authSessions     AuthSession[]
   analysisSessions AnalysisSession[]
@@ -67,17 +67,24 @@ model Device {
   @@map("devices")
 }
 
-/// Connexion d'un utilisateur sur un appareil. Seul le hash du token est stocké.
+/// Connexion d'un utilisateur sur un appareil. Le JWT renvoyé au client porte
+/// l'id de cette session (sid) : il n'est accepté que si elle est active.
+/// expiresAt est repoussée à chaque requête (expiration glissante).
+/// ipAddress et userAgent sont relevés à la connexion.
+/// Une session est active tant qu'elle n'est ni révoquée ni expirée ; elle
+/// reste en base ensuite pour l'historique des connexions.
 model AuthSession {
-  id        String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  userId    String    @db.Uuid
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  deviceId  String    @db.Uuid
-  device    Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-  tokenHash String    @unique
-  expiresAt DateTime  @db.Timestamptz(3)
-  revokedAt DateTime? @db.Timestamptz(3)
-  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  id         String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  userId     String    @db.Uuid
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId   String    @db.Uuid
+  device     Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime  @db.Timestamptz(3)
+  revokedAt  DateTime? @db.Timestamptz(3)
+  lastUsedAt DateTime  @default(now()) @db.Timestamptz(3)
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
 
   @@index([userId])
   @@index([deviceId])
