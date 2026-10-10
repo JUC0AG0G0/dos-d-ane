@@ -33,22 +33,25 @@ check_port() {
   export "$1=$new"
   echo "  -> $2 sur le port $new"
 }
+check_port CLIENT_PORT "client web"
 check_port PORT "API"
 check_port POSTGRES_PORT "PostgreSQL"
 check_port PGADMIN_PORT "pgAdmin"
 
 if ! $COMPOSE up -d --wait --wait-timeout 300; then
   echo
-  echo "Le démarrage a échoué. Derniers logs du serveur :"
-  $COMPOSE logs --tail 30 server
+  echo "Le démarrage a échoué. Derniers logs du client et du serveur :"
+  $COMPOSE logs --tail 30 client server
   exit 1
 fi
 
+WEB_PORT=${CLIENT_PORT:-$(env_value CLIENT_PORT)}
 API_PORT=${PORT:-$(env_value PORT)}
 DB_PORT=${POSTGRES_PORT:-$(env_value POSTGRES_PORT)}
 PGA_PORT=${PGADMIN_PORT:-$(env_value PGADMIN_PORT)}
 echo
 printf '\033[32m✓\033[0m Stack de dev lancée\n'
+echo "  Client web  http://localhost:$WEB_PORT"
 echo "  API         http://localhost:$API_PORT/api/health"
 echo "  Swagger     http://localhost:$API_PORT/api/docs"
 echo "  pgAdmin     http://localhost:$PGA_PORT"

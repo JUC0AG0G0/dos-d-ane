@@ -11,7 +11,7 @@ Aide à la posture pour le travail sédentaire, POC du Master UHA 4.0 (2026).
 | Outil | Rôle | Installation |
 | --- | --- | --- |
 | [mise](https://mise.jdx.dev) | installe Node, Python et Task aux versions du projet | voir ci-dessous |
-| [Docker](https://docs.docker.com/get-docker/) | fait tourner le serveur, la base et pgAdmin | Docker Desktop (macOS, Windows) ou Docker Engine (Linux) |
+| [Docker](https://docs.docker.com/get-docker/) | fait tourner le client web, le serveur, la base et pgAdmin | Docker Desktop (macOS, Windows) ou Docker Engine (Linux) |
 
 Tout le reste (Node, npm, Python, Task, dépendances, hooks Git) est installé automatiquement.
 
@@ -57,6 +57,7 @@ task dev
 
 ```
 ✓ Stack de dev lancée
+  Client web  http://localhost:5173
   API         http://localhost:3000/api/health
   Swagger     http://localhost:3000/api/docs
   pgAdmin     http://localhost:5050
@@ -65,13 +66,13 @@ task dev
 
 Si un port est déjà pris, `task dev` propose d'en prendre un libre au hasard.
 
-Le rechargement à chaud est toujours actif : chaque modification de `server/src` recompile et relance l'API (`task logs` pour suivre).
+Le rechargement à chaud est toujours actif : chaque modification de `client/src` met la page à jour, chaque modification de `server/src` recompile et relance l'API (`task logs` pour suivre).
 
 ## Commandes
 
 | Commande | Rôle |
 | --- | --- |
-| `task dev` | lance serveur, base et pgAdmin dans Docker et affiche leurs URL |
+| `task dev` | lance client web, serveur, base et pgAdmin dans Docker et affiche leurs URL |
 | `task dev:restore` | relance la stack avec uniquement les données du dernier dump (ou `-- fichier.sql`) |
 | `task logs` | suit les logs |
 | `task down` | arrête tout ; les données sont gardées pour le prochain `task dev` |
@@ -83,13 +84,36 @@ Le rechargement à chaud est toujours actif : chaque modification de `server/src
 | `task db:restore` | annule la dernière migration, revient à une migration ou charge un dump |
 | `task` | liste toutes les commandes |
 
+`task up` construit les images comme en production : le client y est servi par nginx, qui relaie `/api` au serveur.
+
 Les commandes de la base sont détaillées dans [databaseReadME.md](databaseReadME.md).
+
+## Client web
+
+React + Vite + Tailwind + [shadcn/ui](https://ui.shadcn.com) dans `client/src`, importé via `@/` (= `src/`) :
+
+| Dossier | Contenu |
+| --- | --- |
+| `pages/` | un composant par route, déclarée dans `App.tsx` |
+| `components/` | composants réutilisables, sans logique métier ; `layouts/` = cadres de page (connexion, connecté avec barre latérale, public) ; `ui/` = composants shadcn/ui |
+| `features/` | un dossier par fonctionnalité (hooks, composants) ; le reste de l'app n'importe que son `index.ts` |
+| `services/` | tous les appels à l'API : `routes.ts` liste les routes, un service par domaine (`auth.service.ts`…) |
+| `store/` | état global partagé entre pages ([zustand](https://zustand.docs.pmnd.rs)), dont la session dans `auth.store.ts` |
+| `config/` | `env.ts`, seul fichier qui lit les variables d'environnement (`VITE_API_URL`, adresse de l'API) ; `navigation.ts`, entrées de la barre latérale |
+| `hooks/` | hooks génériques (ceux d'une fonctionnalité restent dans `features/`) |
+| `utils/` | fonctions génériques (`cn` pour combiner des classes Tailwind) |
+| `types/` | types partagés, dont les réponses de l'API |
+| `styles/global.css` | thème : couleurs (`--primary`…) et arrondis, mêmes noms que les variables du Figma |
+
+Pages : `/login` et `/register` ; `/` et `/settings` (compte, appareils connectés, confidentialité) demandent d'être connecté ; `/status` montre l'état du serveur et de la base.
+
+Avec `VITE_API_URL=/api` (défaut), le front appelle sa propre origine : Vite (dev) ou nginx (`task up`) relaie au serveur, sans CORS.
 
 ## Configuration
 
-Seul `.env.dev.example` est versionné. Ton `.env.dev` (ports, base, pgAdmin) est créé à partir de lui et tenu à jour automatiquement : à l'entrée dans le dossier, après chaque `git pull` et à chaque `task dev`, les variables nouvelles du modèle y sont ajoutées sans toucher à tes valeurs.
+Seul `.env.dev.example` est versionné. Ton `.env.dev` (ports dont `CLIENT_PORT`, base, pgAdmin) est créé à partir de lui et tenu à jour automatiquement : à l'entrée dans le dossier, après chaque `git pull` et à chaque `task dev`, les variables nouvelles du modèle y sont ajoutées sans toucher à tes valeurs.
 
-Le serveur tourne toujours dans Docker, comme en production.
+Le client et le serveur tournent toujours dans Docker, comme en production.
 
 ## Authentification
 

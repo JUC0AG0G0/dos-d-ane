@@ -22,8 +22,17 @@ tasks:
     deps: [install, hooks, env]
 
   install:
-    desc: Installe les dépendances du serveur (seulement si le lockfile a changé)
+    desc: Installe les dépendances du serveur et du client (seulement si un lockfile a changé)
+    deps: [install:server, install:client]
+
+  install:server:
     dir: server
+    cmd: npm ci --no-audit --no-fund
+    sources: [package.json, package-lock.json]
+    generates: [node_modules/.package-lock.json]
+
+  install:client:
+    dir: client
     cmd: npm ci --no-audit --no-fund
     sources: [package.json, package-lock.json]
     generates: [node_modules/.package-lock.json]
@@ -46,23 +55,40 @@ tasks:
   # --- Vérifications (Husky et CI) ----------------------------------------
 
   lint:
-    desc: Lint et formatage (lancé par Husky avant chaque commit)
+    desc: Lint et formatage du serveur et du client (lancé par Husky avant chaque commit)
+    cmds:
+      - task: lint:app
+        vars: { APP: server }
+      - task: lint:app
+        vars: { APP: client }
+
+  format:
+    desc: Formate le code du serveur et du client
     deps: [install]
-    dir: server
+    cmds:
+      - npm --prefix server run format
+      - npm --prefix client run format
+
+  build:
+    desc: Vérifie que le serveur et le client compilent
+    cmds:
+      - task: build:app
+        vars: { APP: server }
+      - task: build:app
+        vars: { APP: client }
+
+  lint:app:
+    internal: true
+    deps: [install]
+    dir: "{{.APP}}"
     cmds:
       - npm run lint
       - npm run format:check
 
-  format:
-    desc: Formate le code
+  build:app:
+    internal: true
     deps: [install]
-    dir: server
-    cmd: npm run format
-
-  build:
-    desc: Vérifie que le serveur compile
-    deps: [install]
-    dir: server
+    dir: "{{.APP}}"
     cmd: npm run build
 
   check:
@@ -100,7 +126,7 @@ tasks:
   # --- Docker -------------------------------------------------------------
 
   dev:
-    desc: Lance serveur, base et pgAdmin dans Docker puis affiche les URL
+    desc: Lance client web, serveur, base et pgAdmin dans Docker puis affiche les URL
     deps: [env]
     interactive: true
     cmd: sh scripts/dev.sh
@@ -115,7 +141,7 @@ tasks:
       - sh scripts/db-restore.sh {{.CLI_ARGS}}
 
   up:
-    desc: Construit l'image du serveur (comme en production) et la lance avec la base
+    desc: Construit les images du client et du serveur (comme en production) et les lance avec la base
     cmd: docker compose --env-file .env.dev up -d --build --wait
 
   down:
@@ -123,7 +149,7 @@ tasks:
     cmd: "{{.COMPOSE}} down --remove-orphans"
 
   clean:
-    desc: Arrête la stack et SUPPRIME les données (base et node_modules du conteneur)
+    desc: Arrête la stack et SUPPRIME les données (base et node_modules des conteneurs)
     interactive: true
     prompt: Toutes les données de la base locale seront perdues. Continuer ?
     cmd: "{{.COMPOSE}} down --volumes --remove-orphans"
