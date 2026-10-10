@@ -2,7 +2,7 @@ import { Link, Outlet } from 'react-router-dom';
 import { MedicalDisclaimer } from '@/components/MedicalDisclaimer';
 
 /** Cadre commun à toutes les pages : en-tête, contenu, avertissement. */
-export function Layout() {
+export function PublicLayout() {
   return (
     <div className="flex min-h-screen flex-col">
       <header className="border-b bg-card px-6 py-4">

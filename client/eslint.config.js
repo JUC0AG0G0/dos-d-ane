@@ -20,8 +20,12 @@ export default defineConfig([
     },
   },
   {
-    // Composants shadcn/ui : exportent aussi leurs variantes (buttonVariants…).
+    // Composants shadcn/ui copiés tels quels : exportent aussi leurs variantes
+    // (buttonVariants…) et la Sidebar tire une largeur au hasard (squelette).
     files: ['src/components/ui/**'],
-    rules: { 'react-refresh/only-export-components': 'off' },
+    rules: {
+      'react-refresh/only-export-components': 'off',
+      'react-hooks/purity': 'off',
+    },
   },
 ])
