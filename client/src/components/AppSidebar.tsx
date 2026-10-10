@@ -1,4 +1,4 @@
-import { ChevronsUpDown, LogOut } from 'lucide-react';
+import { ChevronsUpDown, LogOut, Settings } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
@@ -22,7 +22,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from '@/components/ui/sidebar';
-import { NAV_ITEMS } from '@/config/navigation';
+import { NAV_SECTIONS } from '@/config/navigation';
 import { useLogout } from '@/features/auth';
 import { useAuthStore } from '@/store';
 
@@ -52,30 +52,40 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
-                <SidebarMenuItem key={to}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname === to}
-                    tooltip={label}
-                  >
-                    <NavLink to={to}>
-                      <Icon />
-                      <span>{label}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {NAV_SECTIONS.map((section) => (
+          <SidebarGroup key={section.label}>
+            <SidebarGroupLabel>{section.label}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {section.items.map(({ to, label, icon: Icon }) => (
+                  <SidebarMenuItem key={to}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={
+                        to === '/' ? pathname === to : pathname.startsWith(to)
+                      }
+                      tooltip={label}
+                    >
+                      <NavLink to={to}>
+                        <Icon />
+                        <span>{label}</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
 
       <SidebarFooter>
+        <p className="rounded-md bg-sidebar-accent/50 p-3 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
+          Conseils généraux de posture et d'exercices.{' '}
+          <strong className="text-sidebar-foreground">
+            Ne remplace pas l'avis d'un professionnel de santé.
+          </strong>
+        </p>
         <SidebarMenu>
           <SidebarMenuItem>
             <DropdownMenu>
@@ -102,6 +112,12 @@ export function AppSidebar() {
                   {user?.email}
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <NavLink to="/settings">
+                    <Settings />
+                    Paramètres
+                  </NavLink>
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   variant="destructive"
                   onSelect={() => void logout()}

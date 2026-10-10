@@ -105,7 +105,7 @@ React + Vite + Tailwind + [shadcn/ui](https://ui.shadcn.com) dans `client/src`, 
 | `types/` | types partagés, dont les réponses de l'API |
 | `styles/global.css` | thème : couleurs (`--primary`…) et arrondis, mêmes noms que les variables du Figma |
 
-Pages : `/login` et `/register` ; `/` demande d'être connecté ; `/status` montre l'état du serveur et de la base.
+Pages : `/login` et `/register` ; `/` et `/settings` (compte, appareils connectés, confidentialité) demandent d'être connecté ; `/status` montre l'état du serveur et de la base.
 
 Avec `VITE_API_URL=/api` (défaut), le front appelle sa propre origine : Vite (dev) ou nginx (`task up`) relaie au serveur, sans CORS.
 
