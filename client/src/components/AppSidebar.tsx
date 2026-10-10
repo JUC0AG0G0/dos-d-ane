@@ -1,4 +1,4 @@
-import { ChevronsUpDown, LogOut, Settings } from 'lucide-react';
+import { ChevronsUpDown, Info, LogOut, Settings } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
@@ -80,11 +80,9 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter>
-        <p className="rounded-md bg-sidebar-accent/50 p-3 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-          Conseils généraux de posture et d'exercices.{' '}
-          <strong className="text-sidebar-foreground">
-            Ne remplace pas l'avis d'un professionnel de santé.
-          </strong>
+        <p className="flex items-start gap-2 rounded-md bg-sidebar-accent/50 p-3 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
+          <Info className="mt-px size-4 shrink-0 text-sidebar-primary" />
+          Ne remplace pas l'avis d'un professionnel de santé.
         </p>
         <SidebarMenu>
           <SidebarMenuItem>

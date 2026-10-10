@@ -21,7 +21,7 @@ export function SettingsPage() {
   }
 
   return (
-    <section className="mx-auto grid max-w-4xl gap-6">
+    <section className="grid gap-6">
       <h1 className="text-3xl font-bold">Paramètres</h1>
       <Tabs
         value={tab}
