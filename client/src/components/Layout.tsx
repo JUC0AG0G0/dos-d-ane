@@ -4,16 +4,16 @@ import { MedicalDisclaimer } from '@/components/MedicalDisclaimer';
 /** Cadre commun à toutes les pages : en-tête, contenu, avertissement. */
 export function Layout() {
   return (
-    <div className="layout">
-      <header className="layout__header">
-        <Link to="/" className="layout__brand">
+    <div className="flex min-h-screen flex-col">
+      <header className="border-b bg-card px-6 py-4">
+        <Link to="/" className="text-xl font-semibold">
           🫏 Dos d'âne
         </Link>
       </header>
-      <main className="layout__main">
+      <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-8">
         <Outlet />
       </main>
-      <footer className="layout__footer">
+      <footer className="border-t bg-card px-6 py-4">
         <MedicalDisclaimer />
       </footer>
     </div>

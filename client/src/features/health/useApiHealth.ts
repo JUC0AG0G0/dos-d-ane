@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getHealth } from './api';
+import { ApiError, healthService } from '@/services';
 
 export type ApiHealthState = 'loading' | 'up' | 'database-down' | 'unreachable';
 
@@ -9,13 +9,14 @@ export function useApiHealth(): ApiHealthState {
 
   useEffect(() => {
     let cancelled = false;
-    getHealth()
+    healthService
+      .get()
       .then(() => !cancelled && setState('up'))
       // 503 : l'API répond mais la base est injoignable.
       .catch((error: unknown) => {
         if (cancelled) return;
-        const status = (error as { status?: number }).status;
-        setState(status === 503 ? 'database-down' : 'unreachable');
+        const databaseDown = error instanceof ApiError && error.status === 503;
+        setState(databaseDown ? 'database-down' : 'unreachable');
       });
     return () => {
       cancelled = true;

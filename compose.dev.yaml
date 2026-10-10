@@ -10,7 +10,8 @@ services:
     # /api est relayé au serveur dans le réseau Docker.
     environment:
       VITE_WATCH_POLLING: "true"
-      API_URL: http://server:3000
+      VITE_API_URL: ${VITE_API_URL:-/api}
+      API_PROXY_TARGET: http://server:3000
     volumes:
       - ./client:/app
       - client-node-modules:/app/node_modules

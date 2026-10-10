@@ -90,17 +90,21 @@ Les commandes de la base sont détaillées dans [databaseReadME.md](databaseRead
 
 ## Client web
 
-React + Vite dans `client/src`, importé via `@/` (= `src/`) :
+React + Vite + Tailwind + [shadcn/ui](https://ui.shadcn.com) dans `client/src`, importé via `@/` (= `src/`) :
 
 | Dossier | Contenu |
 | --- | --- |
 | `pages/` | un composant par route, déclarée dans `App.tsx` |
-| `components/` | composants d'interface réutilisables, sans logique métier |
-| `features/` | un dossier par fonctionnalité (appels API, hooks, composants) ; le reste de l'app n'importe que son `index.ts` |
-| `utils/` | fonctions génériques (`apiFetch` pour appeler l'API) |
+| `components/` | composants réutilisables, sans logique métier ; `components/ui/` = composants shadcn/ui |
+| `features/` | un dossier par fonctionnalité (hooks, composants) ; le reste de l'app n'importe que son `index.ts` |
+| `services/` | tous les appels à l'API : `routes.ts` liste les routes, un service par domaine (`auth.service.ts`…) |
+| `store/` | état global partagé entre pages ([zustand](https://zustand.docs.pmnd.rs)), dont la session dans `auth.store.ts` |
+| `config/env.ts` | seul fichier qui lit les variables d'environnement (`VITE_API_URL`, adresse de l'API) |
+| `utils/` | fonctions génériques (`cn` pour combiner des classes Tailwind) |
 | `types/` | types partagés, dont les réponses de l'API |
+| `styles/global.css` | thème : couleurs (`--primary`…) et arrondis, mêmes noms que les variables du Figma |
 
-Le front appelle toujours `/api/...` sur sa propre origine : Vite (dev) ou nginx (`task up`) relaie au serveur, sans CORS.
+Avec `VITE_API_URL=/api` (défaut), le front appelle sa propre origine : Vite (dev) ou nginx (`task up`) relaie au serveur, sans CORS.
 
 ## Configuration
 
