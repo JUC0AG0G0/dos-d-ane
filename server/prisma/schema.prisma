@@ -20,8 +20,8 @@ datasource db {
   provider = "postgresql"
 }
 
-/// Rôle d'un compte. Tout compte créé est user ; admin ne s'attribue qu'à la
-/// main, en base.
+/// Rôle d'un compte. Tout compte créé est user, sauf l'admin : en production,
+/// celui de ADMIN_EMAIL (créé au démarrage) ; hors production, le premier inscrit.
 enum Role {
   user
   admin

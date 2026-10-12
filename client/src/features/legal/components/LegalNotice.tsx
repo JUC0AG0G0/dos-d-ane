@@ -69,6 +69,14 @@ export function LegalNotice() {
           >
             GNU AGPL v3.0
           </a>
+          . Il est consultable sur{' '}
+          <a
+            href="https://github.com/JUC0AG0G0/dos-d-ane"
+            target="_blank"
+            rel="noreferrer"
+          >
+            le dépôt GitHub du projet
+          </a>
           .
         </p>
         <p>
