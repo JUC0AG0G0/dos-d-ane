@@ -6,6 +6,8 @@ Boucle : capture → MoveNet → l'image est oubliée → angles → règles →
   Tête en avant et cou penché ont un seul nom d'alerte : vus de profil, leurs angles se confondent
   (la part de chacun est gardée dans l'événement et les règles restent séparées dans les mesures).
 - « Levez-vous » après 50 min assis sans pause (absent ≥ 1 min = pause).
+- Résumé toutes les 5 min : score (% du temps en bonne posture), temps vert / orange / rouge,
+  temps ignoré (image mal vue) et absent.
 - Cadence adaptative : 10 s si tout va bien, 2 s dès qu'une image est mauvaise (tant qu'il en reste
   une dans la fenêtre), 30 s si personne n'est vu sur 3 images d'affilée.
 Aucune calibration : les règles utilisent des seuils fixes (algo-posture.md).
@@ -13,6 +15,7 @@ Aucune calibration : les règles utilisent des seuils fixes (algo-posture.md).
 Écrit dans resultats/ (chiffres seulement, jamais d'image) :
     poc_<date>.csv              une ligne par image (format posture_lib.COLONNES_CSV)
     poc_<date>_evenements.csv   début et fin de chaque alerte
+    poc_<date>_resumes.csv      un résumé toutes les 5 min (audit §7.2)
 Rien n'est encore envoyé au serveur : tout passe par envoyer_evenement(), où l'envoi s'ajoutera.
 
 Lancer depuis edge/ avec .venv activé :
@@ -27,7 +30,8 @@ import csv
 import time
 from datetime import datetime
 
-from posture_lib import (COLONNES_CSV, DOSSIER_RESULTATS, Bocal, Completeur, CoteStable, MoveNet, TempsAssis,
+from posture_lib import (COLONNES_CSV, DOSSIER_RESULTATS, DUREE_RESUME, Bocal, Completeur, CoteStable, MoveNet,
+                         Resume, TempsAssis,
                          angles, capturer, ligne_csv, ouvrir_camera, personne_vue, postures, temperature_pi,
                          throttled_pi)
 
@@ -46,17 +50,23 @@ CONSEILS = {TETE: "relevez la tête (téléphone ou écran à hauteur des yeux) 
             "Assis trop longtemps": "levez-vous 2 minutes"}
 COLONNES_EVENEMENTS = ["id", "session", "type", "phase", "heure", "debut", "duree_s", "tete_moy", "tronc_moy",
                        "detail"]
+# secondes_bonne / moyenne / a_ameliorer = temps en vert / orange / rouge (audit §7.2)
+COLONNES_RESUMES = ["id", "session", "periode", "score_moyen", "secondes_bonne", "secondes_moyenne",
+                    "secondes_a_ameliorer", "secondes_ignore", "secondes_absent"]
 
 
 class Session:
-    """Numérote les événements, les affiche et les écrit (puis les enverra au serveur)."""
+    """Numérote les événements et résumés, les affiche et les écrit (puis les enverra au serveur)."""
 
-    def __init__(self, chemin):
+    def __init__(self, base):
         self.id = f"ses_{datetime.now():%Y%m%d_%H%M%S}"
-        self.fichier = open(chemin, "w", newline="")
+        self.fichier = open(f"{base}_evenements.csv", "w", newline="")
         self.ecrivain = csv.writer(self.fichier)
         self.ecrivain.writerow(COLONNES_EVENEMENTS)
-        self.numero = 0
+        self.fichier_resumes = open(f"{base}_resumes.csv", "w", newline="")
+        self.ecrivain_resumes = csv.writer(self.fichier_resumes)
+        self.ecrivain_resumes.writerow(COLONNES_RESUMES)
+        self.numero = self.numero_resume = 0
         self.debuts = {}            # cause → heure de début de l'alerte en cours
         self.nombre = 0             # alertes déclenchées
 
@@ -82,8 +92,25 @@ class Session:
         else:
             print(f"✅ {maintenant:%H:%M:%S}  fin : {cause} (durée {duree // 60} min {duree % 60} s)")
 
+    def envoyer_resume(self, resume, debut):
+        self.numero_resume += 1
+        s = {k: round(v) for k, v in resume.secondes.items()}
+        message = {"id": f"res_{self.numero_resume:04d}", "session": self.id,
+                   "periode": f"{debut:%H:%M}-{datetime.now():%H:%M}", "score_moyen": resume.score(),
+                   "secondes_bonne": s.get("vert", 0), "secondes_moyenne": s.get("orange", 0),
+                   "secondes_a_ameliorer": s.get("rouge", 0), "secondes_ignore": s.get("ignore", 0),
+                   "secondes_absent": s.get("absent", 0)}
+        self.ecrivain_resumes.writerow([message[k] for k in COLONNES_RESUMES])
+        self.fichier_resumes.flush()
+        # (après le POC) : envoi HTTPS POST au serveur, avec ce même message
+        score = "-" if message["score_moyen"] is None else f"{message['score_moyen']} / 100"
+        print(f"📊 résumé {message['periode']} : score {score}, vert {message['secondes_bonne']} s, "
+              f"orange {message['secondes_moyenne']} s, rouge {message['secondes_a_ameliorer']} s, "
+              f"ignoré {message['secondes_ignore']} s, absent {message['secondes_absent']} s")
+
     def fermer(self):
         self.fichier.close()
+        self.fichier_resumes.close()
 
 
 def main():
@@ -95,10 +122,10 @@ def main():
 
     if args.rapide:
         reglages = dict(fenetre=10, confirmation=10, anti_rafale=60)
-        assis = TempsAssis(assis_max=60, pause_min=15)
+        assis, duree_resume = TempsAssis(assis_max=60, pause_min=15), 60
     else:
         reglages = {}
-        assis = TempsAssis()
+        assis, duree_resume = TempsAssis(), DUREE_RESUME
     avant, allonge = Bocal(regroupement=REGROUPEMENT, **reglages), Bocal(**reglages)
 
     cam = ouvrir_camera()
@@ -108,15 +135,18 @@ def main():
     movenet, cote_stable, completeur = MoveNet(), CoteStable(), Completeur()
     DOSSIER_RESULTATS.mkdir(exist_ok=True)
     base = DOSSIER_RESULTATS / f"poc_{datetime.now():%Y-%m-%d_%H%M%S}"
-    session = Session(f"{base}_evenements.csv")
+    session = Session(base)
     mesures = open(f"{base}.csv", "w", newline="")
     ecrivain = csv.writer(mesures)
     ecrivain.writerow(COLONNES_CSV)
 
     print(f"Session {session.id}{' (mode rapide)' if args.rapide else ''} : Ctrl+C pour terminer")
-    print(f"Mesures : {base}.csv   Événements : {base}_evenements.csv")
+    print(f"Mesures : {base}.csv   Événements et résumés : {base}_evenements.csv, _resumes.csv")
     temp_debut, debut_session = temperature_pi(), time.monotonic()
     images, absent_de_suite = 0, 0
+    resume, total = Resume(), Resume()
+    debut_resume, debut_resume_heure = debut_session, datetime.now()
+    precedente = None                 # (instant, état, bonne) de l'image précédente, pour les durées
     try:
         while True:
             t_boucle = time.monotonic()
@@ -157,6 +187,14 @@ def main():
             # État en direct (plus tard envoyé à l'app à chaque image, audit §7.2)
             couleur = "rouge" if "rouge" in (avant.couleur(), allonge.couleur()) else \
                 "orange" if "orange" in (avant.couleur(), allonge.couleur()) else "vert"
+            etat = couleur if a else "absent" if absent_de_suite >= IMAGES_ABSENT else "ignore"
+            if precedente:                # l'image précédente compte jusqu'à celle-ci
+                for r in (resume, total):
+                    r.ajouter(instant - precedente[0], *precedente[1:])
+            precedente = (instant, etat, posture == "bonne posture")
+            if instant - debut_resume >= duree_resume:
+                session.envoyer_resume(resume, debut_resume_heure)
+                resume, debut_resume, debut_resume_heure = Resume(), instant, datetime.now()
             mesure = f"tête {a['tete']:3.0f}°  tronc {a['tronc']:+4.0f}°  " if a else " " * 23
             print(f"{datetime.now():%H:%M:%S}  {couleur:6s} {posture:24s} {mesure}"
                   f"avant {100 * avant.taux():3.0f} %  assis {assis.duree(instant) / 60:4.1f} min")
@@ -178,6 +216,10 @@ def main():
                 session.envoyer_evenement(bocal.alerte, "fin", bocal.moyennes(), bocal.detail())
         if assis.alerte:
             session.envoyer_evenement("Assis trop longtemps", "fin")
+        if precedente:                    # dernière image, puis dernier résumé (période incomplète)
+            for r in (resume, total):
+                r.ajouter(time.monotonic() - precedente[0], *precedente[1:])
+            session.envoyer_resume(resume, debut_resume_heure)
     finally:
         cam.release()
         mesures.close()
@@ -187,6 +229,10 @@ def main():
     print("\n===== Bilan =====")
     print(f"Durée       : {minutes:.1f} min, {images} images ({images / max(minutes, 1e-9):.1f} par minute)")
     print(f"Alertes     : {session.nombre}")
+    score = total.score()
+    suivi = sum(total.secondes[c] for c in ("vert", "orange", "rouge"))
+    print(f"Score       : {'-' if score is None else f'{score} / 100'} (% du temps en bonne posture, sur "
+          f"{suivi / 60:.1f} min suivies ; ignoré {total.secondes['ignore']:.0f} s, absent {total.secondes['absent']:.0f} s)")
     print(f"Température : {temp_debut} °C → {temperature_pi()} °C, throttled {throttled_pi()}")
 
 

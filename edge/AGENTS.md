@@ -17,7 +17,7 @@ Documentation de référence : `docs/poc-raspberry.md` (plan, installation, briq
 | `posture_lib.py` | **le cœur, commun à tous** : `ouvrir_camera()`, `capturer()`, `MoveNet`, `angles()`, `postures()`, `temperature_pi()` |
 | `poc.py` | la vraie session (§5.5) : bocaux, cadence adaptative, événements (sans fenêtre) |
 | `live.py` | outil de debug avec fenêtre (pas utilisé en session) |
-| `tests_poc/` | outils de mesure : `t2_camera.py`, `t4_modeles.py`, `enregistrer.py` (volontaires), `evaluer.py` (F1) ; puis `t1_vitesse.py` |
+| `tests_poc/` | outils de mesure : `t2_camera.py`, `t4_modeles.py`, `enregistrer.py` (volontaires), `evaluer.py` (F1), `confiance.py` (images ignorées) ; puis `t1_vitesse.py` |
 
 - Toute logique réutilisable va dans `posture_lib.py` ; les scripts l'**importent**, ils ne recopient pas de code.
 - Les tests se lancent depuis `edge/` : `python -m tests_poc.t2_camera --court`.

@@ -569,39 +569,22 @@ Ce sont ces couleurs qui remplissent la « Répartition des postures » (Bonne /
 1. **Pas de rafale de notifications** : après une alerte « tête en avant », pas de nouvelle alerte du même type avant **10 minutes**.
 2. **Assis trop longtemps** : alerte à part, « Levez-vous 2 minutes », après **50 minutes** sans quitter son poste.
 
-### 7.4 Le score de 0 à 100 (proposition à valider)
+### 7.4 Le score de 0 à 100
 
-**Score d'une photo** : on part de 100 et on retire des points selon l'écart à la posture de référence (calibration), au-delà d'une petite tolérance :
+**Score d'une période** (5 min, une session, une journée) = **% du temps passé en bonne posture**, hors temps ignoré (image mal vue) et absent. Exemple : sur 2 h suivies, 1 h 30 en bonne posture → score **75**. Code : `posture_lib.Resume`, résumé toutes les 5 min dans `poc.py`.
 
-```text
-écart tête  = (référence tête − tête mesurée) − 3°     (0 si négatif : la tête n'est pas en avant)
-écart tronc = |tronc mesuré − référence tronc| − 4°     (0 si négatif)
-score photo = 100 − 4 × écart tête − 4 × écart tronc     (borné entre 0 et 100)
-```
-
-Exemples avec la référence de Léa (tête 82°, tronc +3°) :
-
-| Photo | Tête | Tronc | Écart tête | Écart tronc | **Score** |
-|---|---|---|---|---|---|
-| assise droite | 80° | +4° | 0° | 0° | **100** |
-| légèrement penchée | 78° | +5° | 1° | 0° | **96** |
-| tête en avant | 70° | +5° | 9° | 0° | **64** |
-| tête en avant + dos penché | 66° | +18° | 13° | 11° | **4** |
-
-**Score d'une période** (5 min, une session, une journée) : la **moyenne des scores des photos, pondérée par le temps**. Chaque photo compte pour la durée jusqu'à la photo suivante. Sans cette pondération, les moments « en doute » (une photo toutes les 2 s) pèseraient 5 fois plus que les moments calmes (une photo toutes les 10 s) et feraient baisser le score à tort. Les photos ignorées ne comptent pas.
-
-**% de bonne posture** = temps passé en 🟢 ÷ temps suivi (hors photos ignorées).
-
-Tous ces chiffres (3°, 4°, 4 points par degré) sont des **valeurs de départ**, à ajuster après les tests pour que le score « parle » aux utilisateurs.
+- **Pondéré par le temps** : chaque image compte pour la durée jusqu'à l'image suivante. Sans cela, les moments « en doute » (une image toutes les 2 s) pèseraient 5 fois plus que les moments calmes (toutes les 10 s) et feraient baisser le score à tort.
+- **Pourquoi pas une note par image** (« un peu penché » 96, « très penché » 4) : la formule prévue au départ comptait les degrés d'écart à la référence de calibration. La calibration a été écartée (§5, Temps 2), et une note par degré demanderait de nouveaux chiffres à inventer puis à valider. Le % du temps en bonne posture s'appuie directement sur les règles validées en T5 et se comprend tout de suite.
+- **Le résumé de 5 min** (audit §7.2) donne aussi le temps en 🟢 / 🟠 / 🔴 (couleur du bocal, §7.3), le **temps ignoré** et le temps absent : le temps ignoré montre si la caméra voyait mal pendant la session (outil d'analyse : `tests_poc/confiance.py`).
 
 **Qui calcule quoi (les couches) :**
 
 ```text
 ┌──────────────── PI (edge) ───────────────────────────┐
-│ ① photo → angles → SCORE DE LA PHOTO (ex. 64)        │
-│ ② toutes les 5 min → SCORE MOYEN des 5 min (ex. 78)  │
+│ ① photo → angles → posture de la photo (🟢 / 🔴)     │
+│ ② toutes les 5 min → SCORE = % temps en bonne posture│
 └───────────────────────────┬──────────────────────────┘
-                            │ état en direct (score photo)
+                            │ état en direct (posture, couleur)
                             │ résumé 5 min (score moyen + temps 🟢🟠🔴)
                             ▼
 ┌──────────────── SERVEUR (NestJS + base) ─────────────┐
@@ -627,41 +610,38 @@ Tous ces chiffres (3°, 4°, 4 points par degré) sont des **valeurs de départ*
                         angles de la photo (tête, tronc)
                        ╱                                ╲
       VERDICT (règles + seuils)                  SCORE (0 à 100)
-      « tête < 50° ? » → 🔴 ou 🟢               « 82 − 70 = 12° d'écart » → 64
+      « tête < 50° ? » → 🔴 ou 🟢               temps en bonne posture ÷ temps suivi
               │                                          │
-      bocal / fenêtre glissante                   moyenne sur 5 min
+      bocal / fenêtre glissante                   sur 5 min, une session, un jour
               │                                          │
       🔔 ALERTE (70 % pendant 2 min)              📊 AFFICHAGE (app, graphiques)
 ```
 
 | | **Verdict** | **Score** |
 |---|---|---|
-| Question | posture **bonne ou mauvaise** ? | posture **à quel point** bonne ? |
+| Question | posture **bonne ou mauvaise** maintenant ? | **quelle part du temps** en bonne posture ? |
 | Résultat | 🟢 ou 🔴 | une note de 0 à 100 |
 | Sert à | **déclencher les alertes** (bocal) et les couleurs | **montrer une note** à l'utilisateur |
 
-Le verdict doit être simple et sûr (oui / non + fenêtre glissante, contre les fausses alertes) ; le score doit être nuancé (« un peu penché » 96, « très penché » 4). Ils partent des mêmes angles, mais pas de la même base : le verdict utilise des seuils fixes (§5, Temps 2), le score l'écart à la référence de calibration. ⚠️ Ce score hérite donc du problème des « deux postures normales » (dossier ou droit) : formule à revoir avec les données T5 avant de l'utiliser.
+Le verdict doit être simple et sûr (oui / non + fenêtre glissante, contre les fausses alertes) ; le score résume la période. Ils partent des **mêmes règles** : une image bonne pour le verdict est une image bonne pour le score.
 
 Dans le code du Pi :
 
 ```python
-# posture_lib.py
-def score_photo(a, ref):          # → note sur 100 pour UNE photo
-
 # poc.py, à chaque photo
-verdict = postures(a, ref)        # → 🟢 / 🔴, va dans le bocal → alertes
-score   = score_photo(a, ref)     # → envoyé à l'app (état en direct)
+regles = postures(a)              # → 🟢 / 🔴, va dans le bocal → alertes
+resume.ajouter(duree, couleur, bonne)   # durée jusqu'à la photo suivante
 
 # poc.py, toutes les 5 min
-resume = {score_moyen, secondes_bonne, secondes_moyenne, secondes_a_ameliorer, secondes_ignore}
+{score_moyen, secondes_bonne, secondes_moyenne, secondes_a_ameliorer, secondes_ignore, secondes_absent}
 ```
 
 ### 7.5 Ce que le Pi envoie (les bonnes postures aussi)
 
 | Message | Quand | Contenu | Stocké sur le serveur ? | Sert à |
 |---|---|---|---|---|
-| **État en direct** | à chaque photo | posture, couleur, angle tête, angle tronc, score de la photo | ❌ relayé à l'app seulement | écran « session en cours » |
-| **Résumé** | toutes les **5 min** | score moyen (pondéré), temps en 🟢 / 🟠 / 🔴, temps ignoré | ✅ | score du jour, score par heure, répartition, % de bonne posture, comparaison avec la veille |
+| **État en direct** | à chaque photo | posture, couleur, angle tête, angle tronc | ❌ relayé à l'app seulement | écran « session en cours » |
+| **Résumé** | toutes les **5 min** | score (% du temps en bonne posture, pondéré), temps en 🟢 / 🟠 / 🔴, temps ignoré et absent | ✅ | score du jour, score par heure, répartition, % de bonne posture, comparaison avec la veille |
 | **Événement** | début et fin d'une alerte | type, début, fin, durée, angles moyens | ✅ | historique, conseils |
 
 Exemple de résumé :

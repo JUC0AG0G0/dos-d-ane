@@ -331,7 +331,8 @@ Tous attendent une image carrée en `uint8` et renvoient **17 points × (y, x, s
 │   ├── t4_modeles.py        Lightning contre Thunder sur les mêmes images : stabilité et vitesse
 │   ├── t1_vitesse.py        test vitesse de l'IA        (à écrire)
 │   ├── enregistrer.py       enregistrement guidé d'un volontaire (étape 4)
-│   └── evaluer.py           scores T5 : F1 par posture
+│   ├── evaluer.py           scores T5 : F1 par posture
+│   └── confiance.py         images ignorées et seuil de confiance
 └── resultats/            ← CSV de mesures (jamais d'images, non commités)
 ```
 
@@ -416,7 +417,7 @@ Le code est dans `posture_lib.py` (il n'est pas recopié ici, pour ne pas avoir 
 | calculer tête, tronc et oreille–épaule–hanche | `angles()` |
 | calculer le cou (oreille → nez) et appliquer les règles (tête < 50°, tronc > 20°, cou > 42°, tronc < −30°, seuils fixes) | `angle_cou()`, `postures()`, `SEUILS` |
 | filtre dans le temps (bocal), temps assis, absence | `Bocal`, `TempsAssis`, `personne_vue()` ; boucle et cadence dans `poc.py` |
-| score de 0 à 100 | pas encore : formule à revoir (algo-posture.md §7.4) |
+| score de 0 à 100 (% du temps en bonne posture) et résumé de 5 min | `Resume` ; résumé écrit par `poc.py` |
 
 **Mode rapide pour les tests** (`python poc.py --rapide`) : fenêtre de 10 s, confirmation de 10 s, anti-rafale de 1 min, « Levez-vous » après 1 min (pause de 15 s), pour ne pas attendre des minutes.
 
