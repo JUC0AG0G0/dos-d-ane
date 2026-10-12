@@ -112,7 +112,7 @@ Coller le résultat après `JWT_SECRET=` dans `.env.dev`, puis relancer `task de
 
 Une session expire après `SESSION_TTL_MINUTES` (60 par défaut) sans requête : chaque requête la repousse, et la nouvelle échéance est renvoyée dans l'en-tête `X-Session-Expires-At`. À la connexion, le nom et le modèle de l'appareil sont déduits du `User-Agent` et l'adresse IP est enregistrée ; `PATCH /api/devices/{id}` renomme un appareil.
 
-Toutes les routes exigent d'être connecté, sauf celles marquées `@Public()`. Pour réserver une route à un rôle : `@Roles(Role.admin)`. Le rôle `admin` ne s'attribue qu'en base (`UPDATE users SET role = 'admin' WHERE email = '...'`).
+Toutes les routes exigent d'être connecté, sauf celles marquées `@Public()`. Pour réserver une route à un rôle : `@Roles(Role.admin)`. Le compte `admin` : en dev, c'est le premier compte inscrit ; en production (`APP_ENV=production`), il est créé au démarrage depuis `ADMIN_EMAIL` et `ADMIN_PASSWORD`, obligatoires et jamais commités. Sinon, il s'attribue en base (`UPDATE users SET role = 'admin' WHERE email = '...'`).
 
 ## Branches
 
