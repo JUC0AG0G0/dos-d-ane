@@ -3,7 +3,10 @@ import {
   ConflictException,
   Controller,
   Get,
+  Logger,
   NotFoundException,
+  Param,
+  ParseUUIDPipe,
   Patch,
 } from '@nestjs/common';
 import {
@@ -14,14 +17,21 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiTooManyRequestsResponse,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { Roles } from '../auth/decorators.js';
-import { UserDto } from '../auth/dto/auth-responses.dto.js';
+import type { AuthContext } from '../auth/auth.guard.js';
+import { CurrentAuth, Roles } from '../auth/decorators.js';
 import { Role } from '../entities/index.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { AdminUserDto, UserEmailDto } from './dto/admin-user.dto.js';
 import { UpdateRolesDto } from './dto/update-roles.dto.js';
+import {
+  EMAIL_REVEALS_PER_WINDOW,
+  EmailRevealLimiter,
+} from './email-reveal-limiter.js';
+import { maskEmail } from './mask-email.js';
 
 const userSelect = {
   id: true,
@@ -31,6 +41,16 @@ const userSelect = {
   createdAt: true,
 } as const;
 
+const toAdminUser = ({
+  email,
+  ...user
+}: {
+  email: string;
+} & Omit<AdminUserDto, 'maskedEmail'>): AdminUserDto => ({
+  ...user,
+  maskedEmail: maskEmail(email),
+});
+
 @ApiTags('users')
 @ApiBearerAuth()
 @ApiUnauthorizedResponse({ description: 'Non connecté' })
@@ -38,16 +58,46 @@ const userSelect = {
 @Roles(Role.admin)
 @Controller('users')
 export class UsersController {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(UsersController.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly revealLimiter: EmailRevealLimiter,
+  ) {}
 
   @Get()
-  @ApiOperation({ summary: 'Liste tous les utilisateurs' })
-  @ApiOkResponse({ type: [UserDto] })
-  list(): Promise<UserDto[]> {
-    return this.prisma.user.findMany({
+  @ApiOperation({ summary: 'Liste tous les utilisateurs (emails masqués)' })
+  @ApiOkResponse({ type: [AdminUserDto] })
+  async list(): Promise<AdminUserDto[]> {
+    const users = await this.prisma.user.findMany({
       select: userSelect,
       orderBy: { createdAt: 'asc' },
     });
+    return users.map(toAdminUser);
+  }
+
+  @Get(':id/email')
+  @ApiOperation({
+    summary: "Affiche l'email d'un utilisateur",
+    description: `Un seul compte par requête, ${EMAIL_REVEALS_PER_WINDOW} par heure et par administrateur, chaque accès est journalisé.`,
+  })
+  @ApiOkResponse({ type: UserEmailDto })
+  @ApiNotFoundResponse({ description: 'Utilisateur introuvable' })
+  @ApiTooManyRequestsResponse({ description: 'Limite horaire atteinte' })
+  async revealEmail(
+    @CurrentAuth() auth: AuthContext,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<UserEmailDto> {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: { email: true },
+    });
+    if (!user) {
+      throw new NotFoundException('Utilisateur introuvable');
+    }
+    this.revealLimiter.consume(auth.userId);
+    this.logger.log(`Email de ${id} affiché par l'admin ${auth.userId}`);
+    return user;
   }
 
   @Patch('role')
@@ -55,11 +105,11 @@ export class UsersController {
     summary: "Change le rôle d'un ou plusieurs utilisateurs",
     description: 'Il reste toujours au moins un administrateur.',
   })
-  @ApiOkResponse({ type: [UserDto] })
+  @ApiOkResponse({ type: [AdminUserDto] })
   @ApiBadRequestResponse({ description: 'Rôle ou identifiants invalides' })
   @ApiNotFoundResponse({ description: 'Utilisateur introuvable' })
   @ApiConflictResponse({ description: 'Dernier administrateur' })
-  updateRoles(@Body() dto: UpdateRolesDto): Promise<UserDto[]> {
+  updateRoles(@Body() dto: UpdateRolesDto): Promise<AdminUserDto[]> {
     const ids = [...new Set(dto.ids)];
     return this.prisma.$transaction(async (tx) => {
       const admins = await tx.$queryRaw<{ id: string }[]>`
@@ -80,11 +130,12 @@ export class UsersController {
         where: { id: { in: ids } },
         data: { role: dto.role },
       });
-      return tx.user.findMany({
+      const users = await tx.user.findMany({
         where: { id: { in: ids } },
         select: userSelect,
         orderBy: { createdAt: 'asc' },
       });
+      return users.map(toAdminUser);
     });
   }
 }

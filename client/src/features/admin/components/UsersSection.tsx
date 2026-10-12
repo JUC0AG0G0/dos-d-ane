@@ -1,4 +1,4 @@
-import { CircleAlert, ShieldCheck, ShieldOff } from 'lucide-react';
+import { CircleAlert, Eye, ShieldCheck, ShieldOff } from 'lucide-react';
 import { useState } from 'react';
 import { Alert, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -22,11 +22,15 @@ import {
 } from '@/components/ui/table';
 import { authService } from '@/features/auth';
 import { useAuthStore } from '@/store';
-import type { Role, User } from '@/types/user';
+import type { Role } from '@/types/user';
 import { formatDateTime } from '@/utils/format';
 import { useUsers } from '../hooks/useUsers';
 import { adminService } from '../services/admin.service';
-import { ROLE_LABELS, type RoleChange } from '../types/admin.types';
+import {
+  ROLE_LABELS,
+  type AdminUser,
+  type RoleChange,
+} from '../types/admin.types';
 import { RoleChangeDialog } from './RoleChangeDialog';
 
 export function UsersSection() {
@@ -35,6 +39,7 @@ export function UsersSection() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [change, setChange] = useState<RoleChange | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [emails, setEmails] = useState<Record<string, string>>({});
 
   const selectedUsers = users.filter((user) => selected.has(user.id));
   const allSelected = users.length > 0 && selected.size === users.length;
@@ -48,9 +53,21 @@ export function UsersSection() {
     });
   }
 
-  function askChange(users: User[], role: Role) {
+  function askChange(users: AdminUser[], role: Role) {
     setActionError(null);
     setChange({ users, role });
+  }
+
+  async function revealEmail(id: string) {
+    setActionError(null);
+    try {
+      const { email } = await adminService.revealEmail(id);
+      setEmails((previous) => ({ ...previous, [id]: email }));
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : "Impossible d'afficher l'email.",
+      );
+    }
   }
 
   async function applyChange({ users, role }: RoleChange) {
@@ -173,7 +190,22 @@ export function UsersSection() {
                           </Badge>
                         )}
                       </TableCell>
-                      <TableCell>{user.email}</TableCell>
+                      <TableCell>
+                        {emails[user.id] ?? (
+                          <span className="inline-flex items-center gap-1">
+                            {user.maskedEmail}
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={`Afficher l'email de ${user.displayName}`}
+                              title="Afficher l'email"
+                              onClick={() => void revealEmail(user.id)}
+                            >
+                              <Eye />
+                            </Button>
+                          </span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Badge
                           variant={

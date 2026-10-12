@@ -1,7 +1,15 @@
-import type { Role, User } from '@/types/user';
+import type { Role } from '@/types/user';
+
+export interface AdminUser {
+  id: string;
+  maskedEmail: string;
+  displayName: string;
+  role: Role;
+  createdAt: string;
+}
 
 export interface RoleChange {
-  users: User[];
+  users: AdminUser[];
   role: Role;
 }
 

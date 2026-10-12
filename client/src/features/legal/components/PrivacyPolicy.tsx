@@ -65,6 +65,10 @@ export function PrivacyPolicy() {
             contactant.
           </li>
           <li>
+            Gérer les comptes (attribuer ou retirer le rôle d'administrateur) :
+            intérêt légitime à administrer le service (art. 6.1.f).
+          </li>
+          <li>
             Repérer les problèmes de posture les plus fréquents pour améliorer
             les exercices : statistiques agrégées et anonymisées, sans accès aux
             données individuelles.
@@ -81,9 +85,16 @@ export function PrivacyPolicy() {
           Vos données ne sont ni vendues, ni louées, ni utilisées à des fins
           publicitaires. Seuls les membres de l'équipe projet chargés de
           l'administration y ont accès, dans la limite de leurs missions. Les
-          administrateurs ne voient que des statistiques anonymisées. Les
           données restent hébergées en France et ne sont pas transférées hors de
           l'Union européenne.
+        </p>
+        <p>
+          Pour gérer les comptes, les administrateurs voient la liste des
+          utilisateurs : nom affiché, rôle, date d'inscription et adresse email
+          masquée (par exemple j***@exemple.fr). Ils ne peuvent afficher
+          l'adresse complète que compte par compte, dans une limite de 10 par
+          heure, et chaque affichage est journalisé. Pour la posture, ils ne
+          voient que des statistiques anonymisées.
         </p>
       </LegalSection>
 
@@ -132,6 +143,10 @@ export function PrivacyPolicy() {
             période d'inactivité.
           </li>
           <li>L'accès aux données d'origine est limité aux administrateurs.</li>
+          <li>
+            Les adresses email sont masquées dans l'administration ; leur
+            affichage complet est limité et journalisé.
+          </li>
         </ul>
       </LegalSection>
 

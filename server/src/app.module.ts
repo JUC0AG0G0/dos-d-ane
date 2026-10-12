@@ -5,6 +5,7 @@ import { validateEnv } from './config/env.validation.js';
 import { DevicesController } from './devices/devices.controller.js';
 import { HealthController } from './health/health.controller.js';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { EmailRevealLimiter } from './users/email-reveal-limiter.js';
 import { UsersController } from './users/users.controller.js';
 
 @Module({
@@ -19,5 +20,6 @@ import { UsersController } from './users/users.controller.js';
     AuthModule,
   ],
   controllers: [HealthController, DevicesController, UsersController],
+  providers: [EmailRevealLimiter],
 })
 export class AppModule {}

@@ -50,7 +50,7 @@ export function RoleChangeDialog({
           {users.map((user) => (
             <li key={user.id} className="px-3 py-2">
               <p className="font-medium">{user.displayName}</p>
-              <p className="text-muted-foreground">{user.email}</p>
+              <p className="text-muted-foreground">{user.maskedEmail}</p>
             </li>
           ))}
         </ul>

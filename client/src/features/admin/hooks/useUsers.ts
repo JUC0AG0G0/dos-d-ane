@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { User } from '@/types/user';
 import { adminService } from '../services/admin.service';
+import type { AdminUser } from '../types/admin.types';
 
 const LOAD_ERROR = 'Impossible de charger les utilisateurs.';
 
 export function useUsers() {
-  const [users, setUsers] = useState<User[] | null>(null);
+  const [users, setUsers] = useState<AdminUser[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
