@@ -1,9 +1,12 @@
+import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
-import illustration from '@/assets/tung_sahur_italian_brainrot_the_series_png_by_amigurumis1a_dkbnx7t-fullview.png';
 import { MedicalDisclaimer } from '@/components/MedicalDisclaimer';
 import { LegalLinks } from '@/features/legal';
+import { getRandomBrainRot } from '@/services/brainRotSelector';
 
 export function AuthLayout() {
+  const [brainRot] = useState(() => getRandomBrainRot());
+
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
       <aside className="hidden flex-col justify-between bg-primary p-10 text-primary-foreground lg:flex">
@@ -11,17 +14,14 @@ export function AuthLayout() {
         <div className="flex items-center gap-8">
           <div className="flex size-40 shrink-0 items-center justify-center rounded-full bg-primary-foreground/15 xl:size-52">
             <img
-              src={illustration}
-              alt="Un âne assis à son bureau qui travaille sur un ordinateur"
+              src={brainRot.image}
+              alt={brainRot.alt}
               className="size-32 rounded-full object-cover shadow-lg xl:size-44"
             />
           </div>
           <div className="space-y-4">
             <h2 className="text-3xl font-bold">Prenez soin de votre dos</h2>
-            <p className="text-primary-foreground/80">
-              Dos d'âne analyse votre posture pendant que vous travaillez et
-              vous propose des conseils et des exercices adaptés.
-            </p>
+            <p className="text-primary-foreground/80">{brainRot.text}</p>
           </div>
         </div>
         <div className="rounded-lg bg-primary-foreground/10 p-4 text-sm">
