@@ -67,16 +67,30 @@ Verdict de l'image : **BONNE**, **MAUVAISE (posture)** ou **IGNORÉE**.
 
 ---
 
-## 1. Où en est le POC (8 octobre 2026)
+## 1. Où en est le POC (12 octobre 2026)
 
 | Étape | État |
 |---|---|
 | Caméra + OpenCV + IA (MoveNet trouve les points, OpenCV les dessine) | ✅ validé |
 | T2 : la webcam tient dans la durée | ✅ 0 échec sur 526 captures (44 min) |
-| Placer la caméra **de profil** et vérifier que les points sont bien vus (T3) | ⬜ prochaine étape |
-| Voir en direct angles, règles et verdict bonne / mauvaise posture | ⬜ code prêt (`live.py`), à tester de profil |
-| Régler les seuils avec de vraies mesures (étapes 4 et 5) | ⬜ |
+| Choix du modèle (T4) | ✅ **MoveNet Thunder** : tête 2,9° d'écart-type au lieu de 4,9° avec Lightning, 70 ms par image |
+| Caméra **de profil**, points bien vus (T3) | ✅ pour 1 personne : 100 % d'images exploitables, angles stables à < 3° |
+| Les angles bougent dans le bon sens pour les 4 postures | ✅ vérifié dans `live.py` |
+| Régler les seuils avec de vraies mesures (étapes 4 et 5) | ⏳ 1ᵉʳ essai sur 1 personne (ci-dessous) ; autres volontaires à enregistrer |
 | (Plus tard, optionnel) entraîner un modèle | ⬜ |
+
+**Premier essai étiqueté (12/10, 1 personne, Thunder, calibration 10 s)** — détail dans [poc-raspberry.md](poc-raspberry.md) §7 :
+
+| | Bonne posture | Tête en avant | Dos penché | Avachi |
+|---|---|---|---|---|
+| Image jugée mauvaise par la bonne règle | 0 % (aucune fausse alerte) | 31 % ❌ | 86 % | 100 % |
+
+Ce qu'on en retient :
+
+- **Les angles séparent bien les postures** : sur ces données, « tête < posture normale − 8° » détecte 92 % des têtes en avant pour 9 % de fausses alertes ; « tronc > normale + 7° » détecte 87 % des dos penchés ; « tronc < normale − 18° », 100 % des avachis.
+- **La calibration de 10 s est le point faible** : la référence dépend trop de la façon dont la personne s'assoit pendant ces 10 s. Trop droite au 1ᵉʳ essai (67 % de fausses alertes), trop basse au 2ᵉ (31 % de têtes en avant détectées). Piste : référence = médiane sur les premières minutes de travail normal. Consigne dans tous les cas : se calibrer **assis comme d'habitude**, pas au garde-à-vous.
+- **`tete` est gardé, `tete_tronc` écarté** : sur les mêmes données, il sépare moins bien la tête en avant (49 % contre 92 %).
+- **Le buste entraîne la tête** : en se penchant, l'angle de la tête baisse aussi (il est mesuré par rapport à l'horizontale), et « tête en avant » s'allume. La personne est réellement mal installée, mais l'alerte n'en donne pas la bonne cause.
 
 ---
 
@@ -646,7 +660,8 @@ Le format exact des trois messages et leur transport (WebSocket, HTTPS, SSE, not
 |---|---|---|
 | **Vue de face** | angles faux, statuts qui clignotent | ✅ traité : épaules trop écartées par rapport au tronc (> 0,35) → image ignorée (§6.1, guichet 2). Seuil à confirmer par les tests |
 | **Dos rond « en C »** | la courbure de la colonne est invisible : MoveNet n'a aucun point le long du dos, seulement oreille, épaule et hanche reliées par des droites | souvent détecté **indirectement** (tête en avant, tronc penché). Piste à tester : le « tassement » (longueur épaule–hanche plus courte que celle de la calibration) |
-| **Points qui tremblent** d'une image à l'autre | verdict qui change autour du seuil | normal : le filtre dans le temps (70 % sur 1 min, 2 min) l'absorbe |
+| **Points qui tremblent** d'une image à l'autre | verdict qui change autour du seuil | MoveNet **Thunder** au lieu de Lightning (tête 2,9° d'écart-type au lieu de 4,9°, T4) ; le reste est absorbé par le filtre dans le temps (70 % sur 1 min, 2 min) |
+| **Une autre personne dans le cadre** | MoveNet ne suit qu'une personne : il peut sauter de l'une à l'autre ou mélanger leurs points | cadrer serré sur la personne ; piste : recadrer l'image autour de la personne suivie |
 
 ---
 

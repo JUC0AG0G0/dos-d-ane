@@ -254,14 +254,19 @@ for v in int8 float16; do
   rm -rf tmp_$v
 done
 chmod 644 *.tflite
+# Thunder int8 (modèle utilisé par défaut depuis le 12/10, voir §7) : même méthode
+mkdir -p tmp_t
+curl -sL -o tmp_t/a.tar.gz "https://www.kaggle.com/api/v1/models/google/movenet/tfLite/singlepose-thunder-tflite-int8/1/download"
+tar -xzf tmp_t/a.tar.gz -C tmp_t && mv tmp_t/4.tflite movenet_thunder_int8.tflite && rm -rf tmp_t
 ```
 
-| Fichier | Taille | SHA-256 (début) |
-|---|---|---|
-| `movenet_lightning_int8.tflite` | 2,9 Mo | `cd7cc22f…` |
-| `movenet_lightning_float16.tflite` | 4,8 Mo | `0fac2226…` |
+| Fichier | Taille | SHA-256 (début) | Image attendue |
+|---|---|---|---|
+| `movenet_lightning_int8.tflite` | 2,9 Mo | `cd7cc22f…` | 192×192 |
+| `movenet_lightning_float16.tflite` | 4,8 Mo | `0fac2226…` | 192×192 |
+| **`movenet_thunder_int8.tflite`** | 7,1 Mo | `b72fed22…` | 256×256 |
 
-Les deux attendent une image **192×192×3 en `uint8`** et renvoient **17 points × (y, x, score)**. On commence avec **int8**, le plus rapide.
+Tous attendent une image carrée en `uint8` et renvoient **17 points × (y, x, score)**. On a commencé avec Lightning int8, le plus rapide ; le T4 du 12/10 a fait passer à **Thunder int8**, nettement plus stable (§7).
 
 ### 3.5 Compte rendu de l'installation (7 octobre 2026)
 
@@ -297,6 +302,8 @@ Les deux attendent une image **192×192×3 en `uint8`** et renvoient **17 points
 | L'aperçu de la webcam était saccadé dans VNC | VNC renvoie toute la vidéo par le Wi-Fi | regarder sur un écran HDMI branché au Pi ; les scripts du POC n'affichent rien et ne sont pas concernés |
 | Dans `live.py`, le côté vu (gauche / droite) et les verdicts clignotaient | à chaque image, le côté le mieux vu était recalculé ; de profil, MoveNet devine le côté caché avec une confiance parfois aussi haute | côté **bloqué** (`CoteStable`) : il ne change que si l'autre côté est nettement meilleur 5 images d'affilée. Mesuré ensuite : un seul côté sur 331 images |
 | `UNKNOWN` fréquents alors que la personne était bien de profil (20 % des images) | seuil de confiance de 0,30 trop strict : oreille et épaule souvent vues entre 0,20 et 0,30 | seuil abaissé à **0,20** : 99 % d'images exploitables sur le même enregistrement, angles inchangés (tête 62° en moyenne pour les images récupérées comme pour les autres) |
+| Les points et les angles « tremblaient » sans que la personne bouge (tête de 51° à 97° en 30 s) | MoveNet Lightning place mal l'épaule et la hanche de profil (9 à 13 px de tremblement) ; l'angle de la tête se mesure sur un segment court (oreille–épaule ≈ 70 px), donc quelques pixels font plusieurs degrés. Une autre personne dans le cadre aggravait le problème (MoveNet ne suit qu'une personne et peut mélanger les deux) | test T4 (`tests_poc/t4_modeles.py`) : **Thunder** divise le tremblement de la tête par 1,7 (2,9° au lieu de 4,9°) pour 70 ms par image ; garder le cadre sans autre personne |
+| Au 1ᵉʳ essai calibré, « tête en avant » s'allumait sur 67 % des images en bonne posture | calibration faite « au garde-à-vous » (référence tête 77,5°, alors que la tête est vers 65–72° en travaillant) | consigne : calibrer assis **comme d'habitude**. Au 2ᵉ essai, 0 % de fausses alertes, mais référence trop basse : la calibration de 10 s reste fragile (à revoir, `algo-posture.md`) |
 | `ssh pi` échouait par moments (« Could not resolve hostname ») | le Wi-Fi de l'école ne transmet pas toujours les noms `.local` | passer par l'IP du Pi (§3.2) |
 | Les docs étaient sur la branche `docs`, absente de `develop` | branches créées séparément depuis `main` | branche `feat/edge-poc` créée depuis `develop`, docs copiées dans `edge/docs/` |
 | Le lien de téléchargement Kaggle semblait renvoyer une 404 | Kaggle répond 404 aux requêtes de type `HEAD` (`curl -I`) | télécharger normalement avec `curl -L` (§3.4) |
@@ -313,13 +320,14 @@ Les deux attendent une image **192×192×3 en `uint8`** et renvoient **17 points
 ├── requirements.txt      ← dépendances Python (versions figées)
 ├── .gitignore            ← exclut models/*.tflite et resultats/
 ├── .venv/                ← environnement Python (non commité)
-├── models/               ← movenet_lightning_int8.tflite, movenet_lightning_float16.tflite (non commités)
+├── models/               ← movenet_thunder_int8.tflite (par défaut), movenet_lightning_*.tflite (non commités)
 ├── README.md             ← installer, lancer, rôle de chaque fichier
 ├── posture_lib.py        ← LE CŒUR, commun à tous : caméra, MoveNet, angles, règles (puis filtre, score, profil)
 ├── poc.py                ← la vraie session (§5.5) : cadence adaptative, filtre, événements   (à écrire)
 ├── live.py               ← outil de debug : fenêtre en direct (puis enregistrement d'exemples étiquetés)
 ├── tests_poc/            ← outils de mesure, pas utilisés en session
 │   ├── t2_camera.py         test caméra
+│   ├── t4_modeles.py        Lightning contre Thunder sur les mêmes images : stabilité et vitesse
 │   ├── t1_vitesse.py        test vitesse de l'IA        (à écrire)
 │   └── evaluer.py           scores T5                    (à écrire)
 └── resultats/            ← CSV de mesures (jamais d'images, non commités)
@@ -355,7 +363,7 @@ L'image n'existe **qu'en mémoire** : on ne l'écrit jamais sur le disque.
 
 ### 5.2 Trouver les points du corps (MoveNet)
 
-MoveNet attend une image **carrée de 192×192** et renvoie **17 points** `(y, x, score)` entre 0 et 1.
+MoveNet attend une image **carrée** (192×192 pour Lightning, 256×256 pour Thunder ; `posture_lib.MoveNet` lit la taille dans le modèle) et renvoie **17 points** `(y, x, score)` entre 0 et 1.
 
 ```python
 import numpy as np
@@ -548,8 +556,10 @@ L'écran « session en cours » de l'app n'est donc pas une vidéo : la silhouet
 | Test | Date | Conditions | Mesure obtenue | Critère | Réussi ? | Remarques / plan B |
 |---|---|---|---|---|---|---|
 | T2 caméra | 08/10/2026 | Logitech C110, 640×480, 1 capture / 5 s, **44 min** (arrêté avant l'heure prévue) | **0 échec / 526 captures** ; capture médiane 52 ms, 95 % sous 66 ms, pire 70 ms (476 ms pour la 1ʳᵉ, démarrage de la webcam) ; 52,1 → 57,4 °C (max 58,4 °C) ; throttled `0x0` | 0 échec | ✅ (sur 44 min) | à refaire sur 1 h complète ; LifeCam VX-1000 écartée avant ce test (figeait le Pi) |
-| T1 vitesse | | modèle ___, threads ___ | moy ___ ms, p95 ___ ms, temp ___ °C | < 150 ms | | |
-| T3 détection | | 3 pers. × 3 éclairages | ___ % exploitables, écart-type ___° | ≥ 90 %, < 3° | | |
+| T1 vitesse | 12/10/2026 (partiel, pendant le T4) | Thunder int8 et Lightning int8, 4 threads, image réelle, 121 images | Thunder : médiane **70 ms**, 95 % sous 87 ms ; Lightning : 27 ms, 95 % sous 61 ms ; 52 → 59 °C, `0x0` | < 150 ms | ✅ | T1 complet (1/2/4 threads, 100 mesures) à faire |
+| T4 modèle | 12/10/2026 | 1 pers. immobile 1 min, de profil, les 2 modèles sur les **mêmes** images | écart-type par image — tête : Lightning **4,9°**, Thunder **2,9°** ; tronc : 3,9° / 2,3° ; épaule : 5–6 px / 3–4 px ; confiance hanche : 0,34 / 0,62 ; exploitables : 98 % / 100 % | le plus stable | ✅ **Thunder** | MediaPipe pas testé. Les deux modèles ne donnent pas le même angle (tête 54° / 60°) : seuils à régler avec le modèle définitif |
+| T3 détection | 12/10/2026 (1 pers., 1 éclairage) | Thunder, salle de cours, d'autres personnes hors cadre | **100 %** exploitables ; tête 2,9°, tronc 2,3° d'écart-type (T4) | ≥ 90 %, < 3° | ✅ pour 1 pers. | 3 pers. × 3 éclairages à faire. Avec Lightning : 89 % et tête à 9° d'écart-type, en partie à cause d'une autre personne dans le cadre (MoveNet ne suit qu'une personne) |
+| T5 essai 1 pers. | 12/10/2026 | Thunder, calibration 10 s, chaque posture 30 s étiquetée, 1 049 images | règles calibrées — bonne posture : 0 % de fausse alerte ; tête en avant **31 %** ; dos penché 86 % ; avachi **100 %**. Meilleurs seuils sur ces données : tête < bonne − 8° (92 % / 9 % de fausses), tronc > bonne + 7° (87 % / 4 %), tronc < bonne − 18° (100 % / 0 %) | ≥ 0,80 | ⚠️ | la référence de 10 s varie trop : 77,5° au 1ᵉʳ essai (trop droit → 67 % de fausses alertes), trop basse au 2ᵉ (tête en avant ratée). `tete_tronc` sépare moins bien que `tete` (49 % contre 92 %) |
 | T5 tête en avant | | ___ personnes | F1 ___ | ≥ 0,80 | | |
 | T5 dos en avant | | | F1 ___ | ≥ 0,80 | | |
 | T5 avachi | | | F1 ___ | ≥ 0,80 | | |
