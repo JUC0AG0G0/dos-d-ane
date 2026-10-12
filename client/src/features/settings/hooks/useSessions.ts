@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { authService } from '@/services';
-import type { Session } from '@/types/auth';
+import { settingsService } from '../services/settings.service';
+import type { Session } from '../types/settings.types';
 
 /** Sessions de l'utilisateur (actives et passées), rechargeables après une action. */
 export function useSessions() {
@@ -9,7 +9,7 @@ export function useSessions() {
 
   const reload = useCallback(async () => {
     try {
-      setSessions(await authService.sessions());
+      setSessions(await settingsService.sessions());
       setError(null);
     } catch {
       setError('Impossible de charger les appareils connectés.');
@@ -18,7 +18,7 @@ export function useSessions() {
 
   useEffect(() => {
     let cancelled = false;
-    authService
+    settingsService
       .sessions()
       .then((list) => !cancelled && setSessions(list))
       .catch(

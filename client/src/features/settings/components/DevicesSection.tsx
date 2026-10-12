@@ -20,12 +20,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useLogout } from '@/features/auth';
-import { authService } from '@/services';
-import type { Session, SessionDevice } from '@/types/auth';
+import { settingsService } from '../services/settings.service';
+import type { Session, SessionDevice } from '../types/settings.types';
 import { formatDateTime } from '@/utils/format';
 import { ConfirmDialog } from './ConfirmDialog';
 import { RenameDeviceDialog } from './RenameDeviceDialog';
-import { useSessions } from './useSessions';
+import { useSessions } from '../hooks/useSessions';
 
 function DeviceIcon({ type }: { type: string }) {
   const Icon = type === 'mobile' ? Smartphone : Monitor;
@@ -46,13 +46,13 @@ export function DevicesSection() {
   async function revoke(session: Session) {
     setRevoking(null);
     if (session.current) return logout();
-    await authService.revokeSession(session.id).catch(() => undefined);
+    await settingsService.revokeSession(session.id).catch(() => undefined);
     await reload();
   }
 
   async function revokeOthers() {
     setRevokingOthers(false);
-    await authService.revokeOtherSessions().catch(() => undefined);
+    await settingsService.revokeOtherSessions().catch(() => undefined);
     await reload();
   }
 

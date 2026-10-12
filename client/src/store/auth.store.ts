@@ -1,12 +1,16 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { LoginResponse, User } from '@/types/auth';
+import type { User } from '@/types/user';
 
 interface AuthState {
   accessToken: string | null;
   user: User | null;
   deviceId: string | null;
-  signIn: (session: LoginResponse) => void;
+  signIn: (session: {
+    accessToken: string;
+    user: User;
+    deviceId: string;
+  }) => void;
   setUser: (user: User) => void;
   signOut: () => void;
 }

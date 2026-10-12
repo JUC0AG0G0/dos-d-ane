@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ApiError, authService } from '@/services';
-import type { RegisterInput } from '@/types/auth';
+import { ApiError } from '@/services';
+import { authService } from '../services/auth.service';
+import type { RegisterInput } from '../types/auth.types';
 
 /** Crée le compte puis renvoie vers la connexion, email prérempli. */
 export function useRegister() {

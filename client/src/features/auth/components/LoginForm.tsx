@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { PasswordInput } from '@/components/PasswordInput';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useLogin } from './useLogin';
+import { useLogin } from '../hooks/useLogin';
 
 export function LoginForm() {
   const registeredEmail: string | undefined =

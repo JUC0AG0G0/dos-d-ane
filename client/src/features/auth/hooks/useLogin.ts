@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ApiError, authService } from '@/services';
+import { ApiError } from '@/services';
+import { authService } from '../services/auth.service';
 import { useAuthStore } from '@/store';
 
 /** Connecte l'utilisateur, garde la session dans le store puis va à l'accueil. */

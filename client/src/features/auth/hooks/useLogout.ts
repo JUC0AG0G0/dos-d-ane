@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { authService } from '@/services';
+import { authService } from '../services/auth.service';
 import { useAuthStore } from '@/store';
 
 /** Ferme la session côté serveur, vide le store et renvoie à la connexion. */

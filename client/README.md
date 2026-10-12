@@ -54,12 +54,12 @@ client/
 │   ├── components/       composants réutilisables
 │   │   ├── layouts/      cadres de page
 │   │   └── ui/           composants shadcn/ui
-│   ├── features/         une fonctionnalité par dossier
-│   ├── services/         appels à l'API
+│   ├── features/         une fonctionnalité par dossier (composants, hooks, services, types)
+│   ├── services/         client HTTP commun
 │   ├── store/            état global
 │   ├── config/           variables d'environnement et navigation
 │   ├── hooks/            hooks génériques
-│   ├── types/            types partagés
+│   ├── types/            types partagés entre fonctionnalités
 │   ├── utils/            fonctions génériques
 │   └── styles/           thème (couleurs) et styles globaux
 ├── components.json       configuration de shadcn/ui
@@ -80,7 +80,7 @@ Une page par route, déclarée dans `App.tsx`. Une page assemble des composants 
 | `RegisterPage.tsx` | `/register` | non connecté |
 | `HomePage.tsx` | `/` | connecté |
 | `SettingsPage.tsx` | `/settings/account`, `/settings/devices`, `/settings/privacy` | connecté |
-| `StatusPage.tsx` | `/status` | tout le monde |
+| `StatusPage.tsx` | `/status` (serveur, base, environnement, version) | tout le monde |
 | `NotFoundPage.tsx` | toute autre adresse | tout le monde |
 
 ### `components/`
@@ -90,31 +90,43 @@ Composants réutilisables, sans appel à l'API ni logique métier.
 - `layouts/` : le cadre autour des pages, choisi dans `App.tsx`.
   - `AuthLayout` : connexion et inscription (panneau vert à gauche, formulaire à droite).
   - `AppLayout` : pages connectées (barre latérale, fil d'Ariane, contenu en pleine largeur).
-  - `PublicLayout` : pages publiques (en-tête simple et avertissement en pied de page).
+  - `CenteredLayout` : pages statut et 404 (logo, carte centrée, avertissement santé).
 - `ui/` : composants [shadcn/ui](https://ui.shadcn.com/docs/components). Ils sont copiés dans le projet, on peut donc les modifier (par exemple, `alert.tsx` a deux variantes en plus : `success` et `warning`).
 - `AppSidebar.tsx`, `PasswordInput.tsx`, `MedicalDisclaimer.tsx`… : composants propres à l'application.
 
 ### `features/`
 
-Une fonctionnalité par dossier : ses composants, ses hooks et sa logique. Le reste de l'application n'importe que son `index.ts`.
+Une fonctionnalité par dossier, avec tout ce qui la concerne. Le reste de l'application n'importe que son `index.ts`.
+
+```
+features/auth/
+├── components/   LoginForm, RegisterForm, RequireAuth
+├── hooks/        useLogin, useRegister, useLogout, useCurrentUser
+├── services/     auth.routes.ts (routes de l'API) et auth.service.ts (une fonction par route)
+├── types/        auth.types.ts (corps et réponses de l'API)
+└── index.ts      ce que la fonctionnalité expose
+```
 
 | Dossier | Contenu |
 | --- | --- |
 | `auth/` | formulaires de connexion et d'inscription, `useLogin`, `useRegister`, `useLogout`, et `RequireAuth` qui protège les pages connectées |
-| `settings/` | onglets des paramètres : compte, appareils connectés (renommer, déconnecter), confidentialité |
-| `health/` | état du serveur et de la base (page `/status`) |
+| `settings/` | onglets des paramètres : compte, appareils connectés (sessions, renommer, déconnecter), confidentialité |
+| `health/` | état du serveur et de la base (carte de la page `/status`) |
 
 ### `services/`
 
-Tous les appels à l'API passent par ici, jamais de `fetch` ailleurs.
+Seulement les services généraux de l'application. Les services d'une fonctionnalité sont dans `features/<nom>/services/`.
 
-- `routes.ts` : la liste de toutes les routes de l'API utilisées par le client.
-- `http.ts` : le client HTTP commun. Il ajoute le jeton de session, lit le JSON, transforme les erreurs en `ApiError` (avec le message du serveur) et vide la session si le serveur répond 401.
-- `auth.service.ts`, `devices.service.ts`, `health.service.ts` : un service par module du serveur, avec une fonction par route.
+- `http.ts` : le client HTTP commun, seul endroit qui appelle `fetch`. Il préfixe l'adresse de l'API (`env.apiUrl`), ajoute le jeton de session, lit le JSON, transforme les erreurs en `ApiError` (avec le message du serveur) et vide la session si le serveur répond 401.
 
 ```ts
-import { authService } from '@/services';
-const sessions = await authService.sessions();
+// features/settings/services/settings.service.ts
+import { http } from '@/services';
+import { SETTINGS_ROUTES } from './settings.routes';
+
+export const settingsService = {
+  sessions: () => http.get<Session[]>(SETTINGS_ROUTES.sessions),
+};
 ```
 
 ### `store/`
@@ -137,7 +149,7 @@ Un état qui ne sert qu'à une fonctionnalité reste dans son dossier `features/
 
 ### `types/`, `utils/`, `hooks/`
 
-- `types/` : types partagés, dont les réponses de l'API (`User`, `Session`…), à garder alignés sur les DTO de `server/src`.
+- `types/` : types utilisés par plusieurs fonctionnalités (`User` dans `user.ts`). Les types propres à une fonctionnalité sont dans `features/<nom>/types/`. Ils restent alignés sur les DTO de `server/src`.
 - `utils/` : fonctions génériques. `cn()` combine des classes Tailwind, `format.ts` formate les dates en français.
 - `hooks/` : hooks génériques (`use-mobile.ts`, utilisé par la barre latérale). Les hooks d'une fonctionnalité restent dans `features/`.
 
@@ -148,7 +160,7 @@ Le thème de l'application. Les couleurs sont des variables CSS, avec les mêmes
 ## Comment une page appelle l'API
 
 ```
-Page → feature (hook) → service → http.ts → /api/... → relais Vite ou nginx → serveur NestJS
+Page → feature (composant, hook) → service de la feature → services/http.ts → /api/... → relais Vite ou nginx → serveur NestJS
 ```
 
 Le front appelle toujours `/api/...` sur sa propre adresse. En dev, Vite relaie ces requêtes au serveur ; en production (`task up`), c'est nginx. Le navigateur reste sur la même origine : pas de CORS à gérer.
@@ -163,9 +175,11 @@ Le front appelle toujours `/api/...` sur sa propre adresse. En dev, Vite relaie 
 
 **Appeler une nouvelle route de l'API**
 
-1. Ajouter la route dans `services/routes.ts`.
-2. Ajouter les types de la requête et de la réponse dans `types/`.
-3. Ajouter la fonction dans le service du domaine (ou créer `mon-domaine.service.ts` et l'exporter dans `services/index.ts`).
+1. Ajouter la route dans `features/<nom>/services/<nom>.routes.ts`.
+2. Ajouter les types de la requête et de la réponse dans `features/<nom>/types/`.
+3. Ajouter la fonction dans `features/<nom>/services/<nom>.service.ts`, puis l'appeler depuis un hook de la fonctionnalité.
+
+**Créer une fonctionnalité** : un dossier `features/<nom>/` avec les sous-dossiers utiles (`components/`, `hooks/`, `services/`, `types/`) et un `index.ts` qui exporte ce que les pages utilisent.
 
 **Ajouter un composant shadcn/ui**, depuis `client/` sur ton poste :
 

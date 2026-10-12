@@ -1,4 +1,4 @@
-import { Fragment, useEffect } from 'react';
+import { Fragment } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { AppSidebar } from '@/components/AppSidebar';
 import {
@@ -16,19 +16,13 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { findBreadcrumb } from '@/config/navigation';
-import { authService } from '@/services';
-import { useAuthStore } from '@/store';
+import { useCurrentUser } from '@/features/auth';
 
 export function AppLayout() {
   const { pathname } = useLocation();
   const breadcrumb = findBreadcrumb(pathname);
 
-  useEffect(() => {
-    authService
-      .me()
-      .then((user) => useAuthStore.getState().setUser(user))
-      .catch(() => undefined);
-  }, []);
+  useCurrentUser();
 
   return (
     <SidebarProvider>

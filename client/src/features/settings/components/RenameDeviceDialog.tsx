@@ -11,8 +11,9 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ApiError, devicesService } from '@/services';
-import type { SessionDevice } from '@/types/auth';
+import { ApiError } from '@/services';
+import { settingsService } from '../services/settings.service';
+import type { SessionDevice } from '../types/settings.types';
 
 interface RenameDeviceDialogProps {
   device: SessionDevice | null;
@@ -49,7 +50,7 @@ function RenameForm({
     event.preventDefault();
     setPending(true);
     try {
-      await devicesService.rename(device.id, name);
+      await settingsService.renameDevice(device.id, name);
       onRenamed();
       onClose();
     } catch (e) {

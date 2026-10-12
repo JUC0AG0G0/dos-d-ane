@@ -7,7 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { PasswordInput } from '@/components/PasswordInput';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useRegister } from './useRegister';
+import { useRegister } from '../hooks/useRegister';
 
 export function RegisterForm() {
   const [displayName, setDisplayName] = useState('');

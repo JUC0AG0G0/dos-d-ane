@@ -1,7 +1,7 @@
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { AppLayout } from '@/components/layouts/AppLayout';
 import { AuthLayout } from '@/components/layouts/AuthLayout';
-import { PublicLayout } from '@/components/layouts/PublicLayout';
+import { CenteredLayout } from '@/components/layouts/CenteredLayout';
 import { RedirectIfSignedIn, RequireAuth } from '@/features/auth';
 import { HomePage } from '@/pages/HomePage';
 import { LoginPage } from '@/pages/LoginPage';
@@ -36,7 +36,7 @@ const router = createBrowserRouter([
     ],
   },
   {
-    element: <PublicLayout />,
+    element: <CenteredLayout />,
     children: [
       { path: '/status', element: <StatusPage /> },
       { path: '*', element: <NotFoundPage /> },
