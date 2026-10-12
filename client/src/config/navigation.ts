@@ -33,6 +33,7 @@ export const NAV_SECTIONS: NavSection[] = [
           { to: '/settings/account', label: 'Compte' },
           { to: '/settings/devices', label: 'Appareils connectés' },
           { to: '/settings/privacy', label: 'Confidentialité' },
+          { to: '/settings/admin', label: 'Administration' },
         ],
       },
     ],

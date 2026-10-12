@@ -4,8 +4,6 @@ import {
   Controller,
   Get,
   NotFoundException,
-  Param,
-  ParseUUIDPipe,
   Patch,
 } from '@nestjs/common';
 import {
@@ -23,7 +21,7 @@ import { Roles } from '../auth/decorators.js';
 import { UserDto } from '../auth/dto/auth-responses.dto.js';
 import { Role } from '../entities/index.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { UpdateRoleDto } from './dto/update-role.dto.js';
+import { UpdateRolesDto } from './dto/update-roles.dto.js';
 
 const userSelect = {
   id: true,
@@ -52,42 +50,40 @@ export class UsersController {
     });
   }
 
-  @Patch(':id/role')
+  @Patch('role')
   @ApiOperation({
-    summary: "Change le rôle d'un utilisateur",
+    summary: "Change le rôle d'un ou plusieurs utilisateurs",
     description: 'Il reste toujours au moins un administrateur.',
   })
-  @ApiOkResponse({ type: UserDto })
-  @ApiBadRequestResponse({ description: 'Rôle invalide' })
+  @ApiOkResponse({ type: [UserDto] })
+  @ApiBadRequestResponse({ description: 'Rôle ou identifiants invalides' })
   @ApiNotFoundResponse({ description: 'Utilisateur introuvable' })
   @ApiConflictResponse({ description: 'Dernier administrateur' })
-  updateRole(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdateRoleDto,
-  ): Promise<UserDto> {
+  updateRoles(@Body() dto: UpdateRolesDto): Promise<UserDto[]> {
+    const ids = [...new Set(dto.ids)];
     return this.prisma.$transaction(async (tx) => {
       const admins = await tx.$queryRaw<{ id: string }[]>`
         SELECT id FROM users WHERE role = 'admin' FOR UPDATE`;
-      const user = await tx.user.findUnique({
-        where: { id },
-        select: { role: true },
-      });
-      if (!user) {
+      const count = await tx.user.count({ where: { id: { in: ids } } });
+      if (count !== ids.length) {
         throw new NotFoundException('Utilisateur introuvable');
       }
       if (
         dto.role !== Role.admin &&
-        user.role === Role.admin &&
-        admins.length <= 1
+        admins.every((admin) => ids.includes(admin.id))
       ) {
         throw new ConflictException(
           'Impossible de retirer le dernier administrateur',
         );
       }
-      return tx.user.update({
-        where: { id },
+      await tx.user.updateMany({
+        where: { id: { in: ids } },
         data: { role: dto.role },
+      });
+      return tx.user.findMany({
+        where: { id: { in: ids } },
         select: userSelect,
+        orderBy: { createdAt: 'asc' },
       });
     });
   }
