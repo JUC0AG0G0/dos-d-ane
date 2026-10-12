@@ -48,8 +48,10 @@ else
 fi
 
 [ "$QUIET" = 1 ] || echo "Projet"
-if [ -d server/node_modules ]; then ok "dépendances du serveur installées"
-else warn "dépendances du serveur absentes : lancer \`task setup\`"; fi
+for app in server client; do
+  if [ -d "$app/node_modules" ]; then ok "dépendances de $app/ installées"
+  else warn "dépendances de $app/ absentes : lancer \`task setup\`"; fi
+done
 
 case "$(git config core.hooksPath 2>/dev/null)" in
   .husky/*) ok "hooks Git (Husky) actifs" ;;

@@ -1,0 +1,49 @@
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { AppLayout } from '@/components/layouts/AppLayout';
+import { AuthLayout } from '@/components/layouts/AuthLayout';
+import { CenteredLayout } from '@/components/layouts/CenteredLayout';
+import { RedirectIfSignedIn, RequireAuth } from '@/features/auth';
+import { HomePage } from '@/pages/HomePage';
+import { LoginPage } from '@/pages/LoginPage';
+import { NotFoundPage } from '@/pages/NotFoundPage';
+import { RegisterPage } from '@/pages/RegisterPage';
+import { SettingsPage } from '@/pages/SettingsPage';
+import { StatusPage } from '@/pages/StatusPage';
+
+const router = createBrowserRouter([
+  {
+    element: <RequireAuth />,
+    children: [
+      {
+        element: <AppLayout />,
+        children: [
+          { path: '/', element: <HomePage /> },
+          { path: '/settings/:tab?', element: <SettingsPage /> },
+        ],
+      },
+    ],
+  },
+  {
+    element: <RedirectIfSignedIn />,
+    children: [
+      {
+        element: <AuthLayout />,
+        children: [
+          { path: '/login', element: <LoginPage /> },
+          { path: '/register', element: <RegisterPage /> },
+        ],
+      },
+    ],
+  },
+  {
+    element: <CenteredLayout />,
+    children: [
+      { path: '/status', element: <StatusPage /> },
+      { path: '*', element: <NotFoundPage /> },
+    ],
+  },
+]);
+
+export function App() {
+  return <RouterProvider router={router} />;
+}

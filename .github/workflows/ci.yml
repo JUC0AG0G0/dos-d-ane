@@ -1,6 +1,6 @@
 name: CI
 
-# Lint et compilation du serveur, validation de Docker.
+# Lint et compilation du serveur et du client, validation de Docker.
 # Le job « ci-ok » résume le tout pour la protection de branche.
 on:
   pull_request:
@@ -19,7 +19,7 @@ permissions:
 jobs:
   # Mêmes tâches (Taskfile.yml) que les hooks Husky en local.
   # mise-action installe Node et task aux versions de mise.toml.
-  server:
+  apps:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -44,10 +44,16 @@ jobs:
           context: server
           push: false
           cache-from: type=gha,scope=server
+      - name: Construire l'image du client
+        uses: docker/build-push-action@v6
+        with:
+          context: client
+          push: false
+          cache-from: type=gha,scope=client
 
   ci-ok:
     if: always()
-    needs: [server, docker]
+    needs: [apps, docker]
     runs-on: ubuntu-latest
     steps:
       - name: Vérifier que tous les jobs ont réussi
