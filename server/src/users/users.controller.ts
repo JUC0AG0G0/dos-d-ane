@@ -3,7 +3,6 @@ import {
   ConflictException,
   Controller,
   Get,
-  Logger,
   NotFoundException,
   Param,
   ParseUUIDPipe,
@@ -20,8 +19,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import type { AuthContext } from '../auth/auth.guard.js';
-import { CurrentAuth, Roles } from '../auth/decorators.js';
+import { Roles } from '../auth/decorators.js';
 import { Role } from '../entities/index.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AdminUserDto, UserEmailDto } from './dto/admin-user.dto.js';
@@ -53,8 +51,6 @@ const toAdminUser = ({
 @Roles(Role.admin)
 @Controller('users')
 export class UsersController {
-  private readonly logger = new Logger(UsersController.name);
-
   constructor(private readonly prisma: PrismaService) {}
 
   @Get()
@@ -71,12 +67,11 @@ export class UsersController {
   @Get(':id/email')
   @ApiOperation({
     summary: "Affiche l'email d'un utilisateur",
-    description: 'Un seul compte par requête ; chaque accès est journalisé.',
+    description: 'Un seul compte par requête.',
   })
   @ApiOkResponse({ type: UserEmailDto })
   @ApiNotFoundResponse({ description: 'Utilisateur introuvable' })
   async revealEmail(
-    @CurrentAuth() auth: AuthContext,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<UserEmailDto> {
     const user = await this.prisma.user.findUnique({
@@ -86,7 +81,7 @@ export class UsersController {
     if (!user) {
       throw new NotFoundException('Utilisateur introuvable');
     }
-    this.logger.log(`Email de ${id} affiché par l'admin ${auth.userId}`);
+    // TODO: journal d'audit des affichages d'email (admin, compte, date)
     return user;
   }
 
