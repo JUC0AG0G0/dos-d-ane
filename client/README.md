@@ -79,7 +79,8 @@ Une page par route, déclarée dans `App.tsx`. Une page assemble des composants 
 | `LoginPage.tsx` | `/login` | non connecté |
 | `RegisterPage.tsx` | `/register` | non connecté |
 | `HomePage.tsx` | `/` | connecté |
-| `SettingsPage.tsx` | `/settings/account`, `/settings/devices`, `/settings/privacy` ; `/settings/admin` | connecté ; admin pour `/settings/admin` |
+| `SettingsPage.tsx` | `/settings/account`, `/settings/devices`, `/settings/privacy` | connecté |
+| `AdminPage.tsx` | `/admin` (utilisateurs et rôles) | admin |
 | `StatusPage.tsx` | `/status` (serveur, base, environnement, version) | tout le monde |
 | `LegalNoticePage.tsx`, `PrivacyPolicyPage.tsx`, `TermsPage.tsx` | `/legal/notice`, `/legal/privacy`, `/legal/terms` (mentions légales, confidentialité, conditions d'utilisation et avertissement médical) | tout le monde |
 | `NotFoundPage.tsx` | toute autre adresse | tout le monde |
@@ -113,7 +114,7 @@ features/auth/
 | --- | --- |
 | `auth/` | formulaires de connexion et d'inscription, `useLogin`, `useRegister`, `useLogout`, et `RequireAuth` qui protège les pages connectées |
 | `settings/` | onglets des paramètres : compte, appareils connectés (sessions, renommer, déconnecter), confidentialité |
-| `admin/` | onglet Administration des paramètres (admins seulement) : liste des utilisateurs, changement de rôle d'un ou plusieurs comptes avec confirmation |
+| `admin/` | page Administration (admins seulement, lien dans la barre latérale) : liste des utilisateurs, changement de rôle d'un ou plusieurs comptes avec confirmation |
 | `health/` | état du serveur et de la base (carte de la page `/status`) |
 | `legal/` | textes légaux et `LegalLinks`, les liens affichés en pied de page, dans la barre latérale et à l'inscription. Les informations manquantes sont marquées `<ToComplete>` (surlignées à l'écran) ; la date de mise à jour est dans `legal.config.ts` |
 

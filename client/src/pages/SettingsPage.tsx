@@ -5,8 +5,6 @@ import {
   DevicesSection,
   PrivacySection,
 } from '@/features/settings';
-import { UsersSection } from '@/features/admin';
-import { useAuthStore } from '@/store';
 
 const TABS = [
   { value: 'account', label: 'Compte', Section: AccountSection },
@@ -14,16 +12,10 @@ const TABS = [
   { value: 'privacy', label: 'Confidentialité', Section: PrivacySection },
 ];
 
-const ADMIN_TABS = [
-  { value: 'admin', label: 'Administration', Section: UsersSection },
-];
-
 export function SettingsPage() {
   const { tab = 'account' } = useParams();
   const navigate = useNavigate();
-  const isAdmin = useAuthStore((state) => state.user?.role === 'admin');
-  const tabs = isAdmin ? [...TABS, ...ADMIN_TABS] : TABS;
-  if (!tabs.some(({ value }) => value === tab)) {
+  if (!TABS.some(({ value }) => value === tab)) {
     return <Navigate to="/settings/account" replace />;
   }
 
@@ -35,13 +27,13 @@ export function SettingsPage() {
         onValueChange={(value) => navigate(`/settings/${value}`)}
       >
         <TabsList>
-          {tabs.map(({ value, label }) => (
+          {TABS.map(({ value, label }) => (
             <TabsTrigger key={value} value={value}>
               {label}
             </TabsTrigger>
           ))}
         </TabsList>
-        {tabs.map(({ value, Section }) => (
+        {TABS.map(({ value, Section }) => (
           <TabsContent key={value} value={value} className="mt-4">
             <Section />
           </TabsContent>
