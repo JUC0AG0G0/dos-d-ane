@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import {
   Card,
   CardContent,
@@ -40,6 +41,15 @@ export function PrivacySection() {
         <p className="text-sm text-muted-foreground">
           Ces données ne sont jamais partagées. Tu peux voir et déconnecter tes
           sessions dans « Appareils connectés ».
+        </p>
+        <p className="text-sm">
+          <Link
+            to="/legal/privacy"
+            className="font-medium text-primary hover:underline"
+          >
+            Lire la politique de confidentialité
+          </Link>{' '}
+          : durées de conservation, bases légales et exercice de tes droits.
         </p>
       </CardContent>
     </Card>

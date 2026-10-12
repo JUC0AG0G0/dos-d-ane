@@ -1,5 +1,6 @@
 import { Info } from 'lucide-react';
 import { Link, Outlet } from 'react-router-dom';
+import { LegalLinks } from '@/features/legal';
 
 export function CenteredLayout() {
   return (
@@ -17,6 +18,7 @@ export function CenteredLayout() {
         <Info className="mt-0.5 size-4 shrink-0 text-primary" />
         Ne remplace pas l'avis d'un professionnel de santé.
       </p>
+      <LegalLinks className="justify-center" />
     </div>
   );
 }

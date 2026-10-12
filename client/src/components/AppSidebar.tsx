@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/sidebar';
 import { NAV_SECTIONS } from '@/config/navigation';
 import { useLogout } from '@/features/auth';
+import { LegalLinks } from '@/features/legal';
 import { useAuthStore } from '@/store';
 
 export function AppSidebar() {
@@ -84,6 +85,7 @@ export function AppSidebar() {
           <Info className="mt-px size-4 shrink-0 text-sidebar-primary" />
           Ne remplace pas l'avis d'un professionnel de santé.
         </p>
+        <LegalLinks className="gap-x-3 px-2 text-xs group-data-[collapsible=icon]:hidden" />
         <SidebarMenu>
           <SidebarMenuItem>
             <DropdownMenu>
