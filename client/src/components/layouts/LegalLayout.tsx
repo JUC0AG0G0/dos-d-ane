@@ -1,8 +1,6 @@
-import { TriangleAlert } from 'lucide-react';
 import { useEffect } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { MedicalDisclaimer } from '@/components/MedicalDisclaimer';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { LegalLinks } from '@/features/legal';
 
 export function LegalLayout() {
@@ -27,13 +25,6 @@ export function LegalLayout() {
         </div>
       </header>
       <main className="mx-auto grid max-w-3xl gap-8 px-6 py-10">
-        <Alert variant="warning">
-          <TriangleAlert />
-          <AlertDescription>
-            Document provisoire : les passages surlignés restent à compléter et
-            le texte doit être validé avant toute mise en service.
-          </AlertDescription>
-        </Alert>
         <Outlet />
       </main>
       <footer className="mx-auto max-w-3xl px-6 pb-10">

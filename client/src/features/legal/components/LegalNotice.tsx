@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { LegalDocument, LegalSection, ToComplete } from './LegalDocument';
+import { LegalDocument, LegalSection } from './LegalDocument';
 
 export function LegalNotice() {
   return (
@@ -16,16 +16,10 @@ export function LegalNotice() {
         </p>
         <ul>
           <li>
-            Structure responsable :{' '}
-            <ToComplete>nom et adresse postale</ToComplete>
+            Structure responsable : UHA 4.0 - Université de Haute-Alsace 6 Rue
+            des Frères Lumière, 68200 Mulhouse
           </li>
-          <li>
-            Directeur ou directrice de la publication :{' '}
-            <ToComplete>nom et fonction</ToComplete>
-          </li>
-          <li>
-            Contact : <ToComplete>adresse email du projet</ToComplete>
-          </li>
+          <li>Contact : uha40@uha.fr</li>
         </ul>
       </LegalSection>
 
@@ -35,15 +29,9 @@ export function LegalNotice() {
           de la formation, en France.
         </p>
         <ul>
-          <li>
-            Hébergeur : <ToComplete>nom ou raison sociale</ToComplete>
-          </li>
-          <li>
-            Adresse : <ToComplete>adresse postale</ToComplete>
-          </li>
-          <li>
-            Téléphone : <ToComplete>numéro de téléphone</ToComplete>
-          </li>
+          <li>Hébergeur : UHA 4.0 - Université de Haute-Alsace</li>
+          <li>Adresse : 6 Rue des Frères Lumière, 68200 Mulhouse</li>
+          <li>Téléphone : 03 89 33 64 38</li>
         </ul>
       </LegalSection>
 
@@ -70,8 +58,18 @@ export function LegalNotice() {
         <p>
           Le code source, les textes et les illustrations de Dos d'âne
           appartiennent à leurs auteurs. Toute reproduction en dehors du cadre
-          pédagogique demande leur accord. Licence du code :{' '}
-          <ToComplete>licence choisie par le groupe</ToComplete>.
+          pédagogique demande leur accord.
+        </p>
+        <p>
+          Le code source est distribué sous licence libre{' '}
+          <a
+            href="https://www.gnu.org/licenses/agpl-3.0.html"
+            target="_blank"
+            rel="noreferrer"
+          >
+            GNU AGPL v3.0
+          </a>
+          .
         </p>
         <p>
           Composants d'interface :{' '}

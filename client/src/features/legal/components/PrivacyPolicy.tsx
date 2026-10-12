@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { LegalDocument, LegalSection, ToComplete } from './LegalDocument';
+import { LegalDocument, LegalSection } from './LegalDocument';
 
 export function PrivacyPolicy() {
   return (
@@ -9,17 +9,9 @@ export function PrivacyPolicy() {
     >
       <LegalSection title="Responsable du traitement">
         <ul>
-          <li>
-            Responsable : <ToComplete>structure et représentant</ToComplete>
-          </li>
-          <li>
-            Délégué à la protection des données (DPO) :{' '}
-            <ToComplete>nom ou service et adresse email</ToComplete>
-          </li>
-          <li>
-            Contact pour vos données :{' '}
-            <ToComplete>adresse email du projet</ToComplete>
-          </li>
+          <li>Responsable : uha40</li>
+          <li>Délégué à la protection des données (DPO) : uha40@uha.fr</li>
+          <li>Contact pour vos données : uha40@uha.fr</li>
         </ul>
       </LegalSection>
 
@@ -98,18 +90,16 @@ export function PrivacyPolicy() {
       <LegalSection title="Durées de conservation">
         <ul>
           <li>
-            Compte : jusqu'à sa suppression, au plus tard{' '}
-            <ToComplete>durée après la dernière connexion</ToComplete> sans
-            connexion, et au plus tard à la fin du projet (
-            <ToComplete>date</ToComplete>).
+            Compte : jusqu'à sa suppression, au plus tard le 1er aout 2027 sans
+            connexion, et au plus tard à la fin du projet (le 1er aout 2027).
           </li>
           <li>
-            Historique des connexions (adresse IP, User-Agent) :{' '}
-            <ToComplete>durée</ToComplete> après la fin de la session.
+            Historique des connexions (adresse IP, User-Agent) : sera conservé
+            jusqu'au 1er aout 2027
           </li>
           <li>
             Données de posture : jusqu'à la suppression de l'appareil ou du
-            compte, au plus tard <ToComplete>durée</ToComplete>.
+            compte, au plus tard le 1er aout 2027.
           </li>
         </ul>
         <p>
@@ -155,9 +145,8 @@ export function PrivacyPolicy() {
         </p>
         <p>
           Dans l'application, vous pouvez déjà voir et déconnecter vos appareils
-          (Paramètres, Appareils connectés). Pour tout autre demande, écrivez à{' '}
-          <ToComplete>adresse email du projet</ToComplete>. Nous répondons dans
-          un délai d'un mois.
+          (Paramètres, Appareils connectés). Pour tout autre demande, écrivez à
+          uha40@uha.fr . Nous répondons dans un délai d'un mois.
         </p>
         <p>
           Si vous estimez que vos droits ne sont pas respectés, vous pouvez

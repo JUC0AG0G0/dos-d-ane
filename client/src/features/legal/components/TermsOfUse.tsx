@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { LegalDocument, LegalSection, ToComplete } from './LegalDocument';
+import { LegalDocument, LegalSection } from './LegalDocument';
 
 export function TermsOfUse() {
   return (
@@ -96,9 +96,7 @@ export function TermsOfUse() {
           Ces conditions peuvent évoluer ; la date de mise à jour figure en haut
           de la page. Elles sont soumises au droit français.
         </p>
-        <p>
-          Contact : <ToComplete>adresse email du projet</ToComplete>.
-        </p>
+        <p>Contact : uha40@uha.fr</p>
       </LegalSection>
     </LegalDocument>
   );
