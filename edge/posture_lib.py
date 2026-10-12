@@ -14,7 +14,9 @@ import numpy as np
 from ai_edge_litert.interpreter import Interpreter
 
 DOSSIER_EDGE = Path(__file__).resolve().parent
-MODELE_PAR_DEFAUT = DOSSIER_EDGE / "models" / "movenet_lightning_int8.tflite"
+# Thunder plutôt que Lightning : mesuré le 12/10/2026 (T4), tête 2,9° d'écart-type au lieu de 4,9°,
+# hanche bien mieux vue (confiance 0,62 au lieu de 0,34), pour 70 ms par image au lieu de 27 ms.
+MODELE_PAR_DEFAUT = DOSSIER_EDGE / "models" / "movenet_thunder_int8.tflite"
 DOSSIER_RESULTATS = DOSSIER_EDGE / "resultats"
 
 # En dessous, un point est jugé mal détecté. 0,20 et non 0,30 : de profil, l'oreille et l'épaule
@@ -64,6 +66,7 @@ class MoveNet:
         self.modele.allocate_tensors()
         self.entree = self.modele.get_input_details()[0]
         self.sortie = self.modele.get_output_details()[0]
+        self.taille = int(self.entree["shape"][1])         # 192 (Lightning) ou 256 (Thunder)
 
     def points(self, image_bgr):
         """Renvoie 17 points (x, y en pixels, confiance entre 0 et 1)."""
@@ -73,7 +76,7 @@ class MoveNet:
         haut, gauche = (cote - h) // 2, (cote - w) // 2    # la personne
         carre[haut:haut + h, gauche:gauche + w] = image_bgr
         rgb = cv2.cvtColor(carre, cv2.COLOR_BGR2RGB)
-        x = cv2.resize(rgb, (192, 192))[np.newaxis].astype(self.entree["dtype"])
+        x = cv2.resize(rgb, (self.taille, self.taille))[np.newaxis].astype(self.entree["dtype"])
         self.modele.set_tensor(self.entree["index"], x)
         self.modele.invoke()
         res = self.modele.get_tensor(self.sortie["index"])[0, 0]   # 17 × (y, x, score)
