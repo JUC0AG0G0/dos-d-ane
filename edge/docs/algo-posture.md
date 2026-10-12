@@ -37,18 +37,19 @@ La caméra peut être à gauche ou à droite : C1 choisit le côté, et le calcu
 | Tête | droite épaule → oreille, par rapport à l'horizontale | 90° = oreille au-dessus de l'épaule ; plus petit = tête en avant |
 | Tronc | droite hanche → épaule, par rapport à la verticale | 0° = droit ; > 0 = penché en avant ; < 0 = avachi en arrière |
 
-**Les 5 alertes du MVP : ce qu'on mesure, le seuil, sa source, la durée avant alerte.** Les seuils ne sont pas inventés : ils viennent de méthodes d'ergonomie publiées, et ont été vérifiés sur 4 volontaires (T5, 12/10/2026, §1). Seuils **fixes**, sans calibration.
+**Les règles du MVP : ce qu'on mesure, le seuil, sa source, la durée avant alerte.** 5 règles, **4 alertes** : tête en avant et cou penché donnent la même alerte, « Tête en avant ou baissée ». Les seuils ne sont pas inventés : ils viennent de méthodes d'ergonomie publiées, et ont été vérifiés sur 4 volontaires (T5, 12/10/2026, §1). Seuils **fixes**, sans calibration.
 
 | Alerte | Ce qu'on mesure | Seuil | Source du seuil | Durée avant alerte |
 |---|---|---|---|---|
 | Tête en avant | angle **tête** | tête < 50° (et tronc ≤ 20°, sinon c'est « dos penché ») | **angle cranio-vertébral** (Yip et al., 2008 : plus il est petit, plus la tête est en avant) | ≥ 70 % d'images mauvaises sur 60 s, **pendant 2 min** |
 | Dos penché en avant | angle **tronc** | tronc > +20° | **RULA** (McAtamney & Corlett, 1993) : tronc fléchi de 0 à 20° acceptable, au-delà à surveiller | idem |
-| Cou penché (regarder son téléphone) | angle **cou** : droite oreille → nez sous l'horizontale | cou > 45° (et tronc ≤ 20°) | mesuré le 12/10 sur **2 personnes** : nez à +51° et +58° en regardant son téléphone, contre +5 à +33° en bonne posture et +13 à +43° tête en avant. À 45° : 87 et 96 % reconnus, 0 à 1,2 % de fausses alertes. Pas de source publiée pour cet angle : valeur fixée par nos mesures | idem |
+| Cou penché (regarder son téléphone) | angle **cou** : droite oreille → nez sous l'horizontale | cou > 42° (et tronc ≤ 20°) | mesuré le 12/10 sur **2 personnes** : nez à +51° et +58° en regardant son téléphone, contre +5 à +33° en bonne posture et +13 à +43° tête en avant. À 45° : 87 et 96 % reconnus, 0 à 1,2 % de fausses alertes ; **abaissé à 42°** après un test de `poc.py` où le téléphone, tenu plus haut (nez à +41–53°), n'était vu qu'à 64 % (91 % à 42°, pour 0 à 4 % des images de bonne posture). Pas de source publiée pour cet angle : valeur fixée par nos mesures | idem |
 | Allongé dans la chaise | angle **tronc** | tronc < −30° | **REBA** (Hignett & McAtamney, 2000) : tronc en extension de plus de 20° = palier de risque supérieur. −30° et non −20° : « calé contre le dossier », une bonne posture, va jusqu'à −24° (T5) | idem |
-| Immobilité prolongée | **mouvement** : déplacement médian des points ÷ longueur du tronc | < 0,02 | ⚠️ **à sourcer** : recommandations de santé publique sur l'interruption du temps assis (pistes : ANSES, INRS, OMS). Vérifier le chiffre exact avant de le citer | **50 min** d'affilée → « Levez-vous » |
+| Assis trop longtemps (« Levez-vous ») | **temps assis sans pause** : devant la caméra sans la quitter au moins 1 min | 50 min | ⚠️ **à sourcer** : recommandations de santé publique sur l'interruption du temps assis (pistes : ANSES, INRS, OMS). Vérifier le chiffre exact avant de le citer | alerte dès 50 min → « Levez-vous 2 minutes » |
 
 - **Tête en avant et dos penché sont fiables ensemble, moins séparément** : « tête < 50° ou tronc > 20° » repère la personne penchée vers l'écran avec un F1 de 0,82 (97 % d'alertes justes). Mais les volontaires avançaient souvent la tête **et** le buste : la cause annoncée est juste **66 %** du temps pour la tête en avant, **85 %** pour le dos penché. Le conseil reste utile dans les deux cas (se reculer, se redresser).
-- **Cou penché, à part de la tête en avant** : regarder son téléphone baisse aussi l'angle de la tête (48° au lieu de 62–95°), donc « tête en avant » s'allumait. Le nez, lui, plonge sous l'oreille (+55°) ; quand la tête avance, il reste à +13–43°. Une image n'a qu'une cause vers l'avant, par ordre : dos penché, cou penché, tête en avant. Premier essai : 85 % des images « téléphone » reconnues, 0 à 2 % de fausses alertes en bonne posture chez les 4 volontaires ; mais 35 % des têtes en avant du 2ᵉ essai de P01 passent en « cou penché ».
+- **Tête en avant et cou penché : règles séparées, une seule alerte « Tête en avant ou baissée ».** Vus de profil, leurs angles se confondent : en test de `poc.py` (12/10), la tête restait à 40–48° et le nez à 38–49° dans les deux cas, et le nom changeait d'une image à l'autre autour du seuil (impression d'un programme « aléatoire »). Le conseil est le même (relever la tête, écran ou téléphone à hauteur des yeux, se reculer). Les deux règles restent séparées dans le CSV des mesures, et l'événement garde la part de chacune (`detail`, ex. `FORWARD_HEAD:60;NECK_FLEXION:40`).
+- **Pourquoi une règle du cou** : regarder son téléphone baisse aussi l'angle de la tête (48° au lieu de 62–95°), donc « tête en avant » s'allumait. Le nez, lui, plonge sous l'oreille (+55°) ; quand la tête avance, il reste à +13–43°. Une image n'a qu'une cause vers l'avant, par ordre : dos penché, cou penché, tête en avant. Premier essai : 85 % des images « téléphone » reconnues, 0 à 2 % de fausses alertes en bonne posture chez les 4 volontaires ; mais 35 % des têtes en avant du 2ᵉ essai de P01 passent en « cou penché ».
 - **Seuil de la tête : 50° gardé, 45° en réserve.** Au 2ᵉ essai de P01, la tête est restée à 48–51° pendant ~1 min de travail normal (31 % de la calibration sous 50°), sans doute en regardant vers le bas. À 45° : 8 %, pour un F1 presque inchangé (0,83 contre 0,84). On garde la valeur publiée tant que le filtre de 2 min suffit ; si `poc.py` donne trop de fausses alertes en vraie session, passer `SEUILS["tete"]` à 45°.
 - **Allongé, et non « avachi »** : un avachi léger (tronc −20°) se confond avec « calé au dossier » (F1 0,64 en T5). L'alerte ne vise que l'avachi **prononcé** : à −30°, 0,8 % de fausses alertes et 96 % d'alertes justes, mais seulement 35 % des avachis joués en T5 l'atteignaient. Vérifié sur un « allongé » joué (1 personne) : tronc −35° à −47°, 84 % des images sous −30° une fois installé ; à refaire avec d'autres volontaires (nouvelle consigne d'`enregistrer.py`).
 - **Pas de calibration pour les alertes** : la calibration a été testée (écarts à une référence personnelle) puis écartée, voir §5 Temps 2. Elle sert encore au score (§7.4).
@@ -57,7 +58,7 @@ La caméra peut être à gauche ou à droite : C1 choisit le côté, et le calcu
 
 Verdict de l'image : **BONNE**, **MAUVAISE (posture)** ou **IGNORÉE**.
 
-**⑤ Filtre dans le temps.** Une image seule ne déclenche jamais d'alerte. **Un seul bocal pour les 3 postures vers l'avant** (tête en avant, dos penché, cou penché) : une image y est MAUVAISE si l'une des trois règles s'allume, et l'alerte porte le nom de **la cause la plus fréquente** parmi les mauvaises images de la fenêtre. Allongé et immobilité ont chacun leur bocal.
+**⑤ Filtre dans le temps.** Une image seule ne déclenche jamais d'alerte. **Un seul bocal pour les 3 postures vers l'avant** (tête en avant, dos penché, cou penché) : une image y est MAUVAISE si l'une des trois règles s'allume, et l'alerte porte le nom de **la cause la plus fréquente** parmi les mauvaises images de la fenêtre. Tête en avant et cou penché comptent pour une seule cause, « Tête en avant ou baissée ». Si, pendant l'alerte, une autre cause devient la plus fréquente pendant toute une confirmation (2 min), l'alerte change de nom : fin de l'ancienne, début de la nouvelle (vu en test : dos penché, bref redressement, puis téléphone ; sans cela l'alerte restait « dos penché »). Allongé et temps assis ont chacun leur bocal.
 
 Pourquoi un bocal commun : tête, cou et dos avancent souvent ensemble, et la cause change d'une image à l'autre. Avec un bocal par posture, une tête en avant à 59 % « tête » + 41 % « cou » n'atteignait jamais 70 % : pas d'alerte, alors que la personne était mal installée 100 % du temps. Sur les postures jouées du T5, la cause la plus fréquente est juste dans **10 cas sur 12** (contre 62 % image par image pour la tête en avant) ; les 2 erreurs : tête **et** dos avancés ensemble, et une égalité sur une posture à peine faite.
 
@@ -66,11 +67,10 @@ Pourquoi un bocal commun : tête, cou et dos avancent souvent ensemble, et la ca
 | Fenêtre glissante | verdicts des 60 dernières secondes, images IGNORÉES exclues |
 | Début d'alerte | ≥ 70 % de MAUVAISES dans la fenêtre, pendant 2 min d'affilée |
 | Fin d'alerte | < 40 % (l'écart 70 / 40 évite une alerte qui clignote) |
-| Immobilité | déplacement médian des points ÷ longueur du tronc < 0,02 pendant 50 min → « Levez-vous » |
+| Assis trop longtemps | 50 min devant la caméra ; une absence d'au moins 1 min (la personne s'est levée) remet le compteur à zéro. L'idée de départ (points presque immobiles, déplacement médian < 0,02 du tronc) ne marche pas : mesuré le 12/10, les points tremblent déjà de 0,025 d'une image à l'autre en travail normal (erreurs de MoveNet, respiration, mains), donc personne n'était jamais « immobile » |
+| Absence | personne vue sur aucune des 3 dernières images (ni oreille ni épaule fiable) → cadence de 30 s |
+| Anti-rafale | après la fin d'une alerte, pas de nouvelle alerte de la **même cause** avant 10 min (un « cou penché » juste après un « dos penché » reste signalé) |
 
-**À trancher :**
-
-- La règle d'absence (personne partie du poste) reste à définir, par exemple « aucun point fiable sur 3 images d'affilée ».
 
 ---
 
@@ -84,7 +84,7 @@ Pourquoi un bocal commun : tête, cou et dos avancent souvent ensemble, et la ca
 | Caméra **de profil**, points bien vus (T3) | ✅ pour 1 personne : 100 % d'images exploitables, angles stables à < 3° |
 | Les angles bougent dans le bon sens pour chaque posture | ✅ vérifié dans `live.py` |
 | Vérifier les seuils sur des volontaires (étapes 4 et 5, T5) | ✅ **4 volontaires** : tête en avant / dos penché F1 0,82 ensemble (ci-dessous) ; « allongé » ✅ sur 1 personne |
-| `poc.py` : filtre dans le temps, cadence, immobilité, puis fausses alertes par heure | ⬜ prochaine étape |
+| `poc.py` : filtre dans le temps, cadence, temps assis, événements | ✅ écrit (12/10) ; ⏳ à tester en vraie session (fausses alertes par heure, T7) |
 | (Plus tard, optionnel) entraîner un modèle | ⬜ |
 
 **T5 : 4 volontaires (12/10, Thunder, `tests_poc/enregistrer.py`, 2 min de calibration puis chaque posture 30 s)** — détail dans [poc-raspberry.md](poc-raspberry.md) §7. Score F1 image par image, une posture contre la bonne posture :
@@ -237,6 +237,17 @@ L'idée : chaque corps est différent, donc comparer chaque personne à **sa pro
 
 **Résultat en T5 : moins bon que les seuils fixes.** On n'a pas une, mais **deux postures normales** : calé contre le dossier (tronc −12° à −18°) et assis droit (tronc vers 0°). Les 4 volontaires ont calibré calés au dossier, puis se sont redressés : se redresser devenait « dos penché » (précision 0,49 à 0,57). Pour ne plus sonner, il faudrait des écarts de 20 à 30°, et on retombe sur des seuils fixes. Une calibration ratée (personne tournée ou qui parle pendant les 2 min, P04) fausse en plus toute la session.
 
+**Version mixte, testée aussi** (6 enregistrements, tête en avant, dos penché et cou penché contre la bonne posture) :
+
+| Méthode | Précision | F1 |
+|---|---|---|
+| **Seuils fixes** : tête < 50°, tronc > 20°, cou > 45° | **0,95** | **0,86** |
+| Calibrés : réf. − 8° / + 12° / + 15° | 0,71 | 0,78 |
+| Mixtes : min(50°, réf. − 15°) / max(20°, réf. + 15°) / max(45°, réf. + 15°) | 0,96 | 0,85 |
+| Mixtes plus larges : min(50°, réf. − 25°) / max(20°, réf. + 20°) / max(45°, réf. + 20°) | 0,97 | 0,82 |
+
+La raison : la référence d'une **même personne** varie trop. P01, même chaise, même jour : tête de référence 69°, **55°** puis 77° selon ce qu'il faisait pendant les 2 minutes (regarder son téléphone ou son clavier baisse la tête). Un seuil calculé dessus bouge d'autant ; un seuil fixe n'en dépend pas.
+
 **Décidé** : l'alerte utilise les **seuils fixes**. La calibration est gardée pour le **score** (§7.4) et notée dans les CSV (touche `c` de `live.py`).
 
 ### Temps 3 : ajuster avec de vraies mesures (étapes 4 et 5)
@@ -310,7 +321,7 @@ Le seuil de **0,35** (environ 25° de rotation) est une valeur de départ, à aj
 ```text
 tête en avant ?   78° < 50° ?    NON
 dos penché ?       4° > 20° ?    NON
-cou penché ?      nez 20° > 45° ?   NON
+cou penché ?      nez 20° > 42° ?   NON
 allongé ?          4° < −30° ?   NON
 → verdict de CETTE image : BONNE
 ```
@@ -556,7 +567,7 @@ Ce sont ces couleurs qui remplissent la « Répartition des postures » (Bonne /
 **Deux règles de confort :**
 
 1. **Pas de rafale de notifications** : après une alerte « tête en avant », pas de nouvelle alerte du même type avant **10 minutes**.
-2. **Immobilité** : alerte à part, « Levez-vous 2 minutes », après **50 minutes** sans bouger.
+2. **Assis trop longtemps** : alerte à part, « Levez-vous 2 minutes », après **50 minutes** sans quitter son poste.
 
 ### 7.4 Le score de 0 à 100 (proposition à valider)
 

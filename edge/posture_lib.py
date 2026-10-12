@@ -7,6 +7,7 @@ Aucune image n'est jamais écrite : elles n'existent qu'en mémoire.
 import math
 import subprocess
 import time
+from collections import Counter, deque
 from datetime import datetime
 from pathlib import Path
 
@@ -34,8 +35,9 @@ ECART_EPAULES_MAX = 0.35   # écart des 2 épaules ÷ tronc ; au-delà, la perso
 # prononcé seulement : à −30°, 0,8 % de fausses alertes, alors qu'un avachi léger (−20°)
 # se confond avec « calé au dossier » (12 % de fausses alertes). « Cou penché » (regarder son
 # téléphone) : le nez plonge sous l'oreille (+51° et +58° chez 2 personnes le 12/10, contre +5 à +33°
-# en bonne posture et +13 à +43° tête en avant) ; à 45° : 87 et 96 % reconnus, 0 à 1,2 % de fausses alertes.
-SEUILS = {"tete": 50, "tronc": 20, "allonge": -30, "cou": 45}
+# en bonne posture et +13 à +43° tête en avant). 42° et non 45° : téléphone tenu plus haut (nez à +41–53°)
+# vu à 91 % au lieu de 64 %, pour 0 à 4 % des images de bonne posture (essais du 12/10).
+SEUILS = {"tete": 50, "tronc": 20, "allonge": -30, "cou": 42}
 
 # Calibration : médiane des angles pendant les 2 premières minutes de travail normal. Ne sert plus
 # aux alertes (voir SEUILS), seulement au score (algo-posture.md §7.4). Mesuré le 12/10/2026 :
@@ -248,6 +250,134 @@ def postures(a, seuils=SEUILS):
         "Cou penche": (cou, f"cou > {cp}"),
         "Allonge dans la chaise": (a["tronc"] < al, f"tronc < {al}"),
     }
+
+
+def personne_vue(pts):
+    """Quelqu'un est-il devant la caméra ? (une oreille ou une épaule bien vue, même si l'image est ignorée)"""
+    return float(pts[[3, 4, 5, 6], 2].max()) >= CONF_MIN
+
+
+# ---------- Filtre dans le temps (algo-posture.md ⑤) ----------
+
+FENETRE = 60             # s : verdicts gardés dans le bocal
+TAUX_ALERTE = 0.70       # début d'alerte…
+CONFIRMATION = 120       # s : … si le taux reste au-dessus pendant ce temps
+TAUX_FIN = 0.40          # fin d'alerte (l'écart 70 / 40 évite une alerte qui clignote)
+ANTI_RAFALE = 600        # s après la fin d'une alerte avant une nouvelle alerte de la même cause
+# « Levez-vous » : temps assis sans pause. La règle de la doc (points presque immobiles, < 0,02 du
+# tronc) ne peut pas marcher : mesuré le 12/10, les points tremblent de 0,025 d'une image à l'autre
+# en travail normal. Une pause = la personne quitte le champ de la caméra au moins PAUSE_MIN.
+ASSIS_MAX = 50 * 60      # s
+PAUSE_MIN = 60           # s
+
+
+class Bocal:
+    """Fenêtre glissante des verdicts d'une famille de postures (algo-posture.md ⑤, « le bocal »).
+
+    Une image bonne donne une bille sans cause, une image mauvaise une bille avec sa cause ; une
+    image ignorée ne donne pas de bille. L'alerte porte le nom de la cause la plus fréquente ; si
+    une autre cause devient la plus fréquente pendant toute une confirmation, l'alerte change de nom
+    (fin de l'ancienne, début de la nouvelle).
+    regroupement : {cause: nom d'alerte} pour donner un seul nom à des causes que la caméra confond.
+    """
+
+    def __init__(self, fenetre=FENETRE, confirmation=CONFIRMATION, anti_rafale=ANTI_RAFALE, regroupement=None):
+        self.fenetre, self.confirmation, self.anti_rafale = fenetre, confirmation, anti_rafale
+        self.regroupement = regroupement or {}
+        self.billes = deque()          # (instant, cause ou None, angles)
+        self.depuis = None             # instant où le taux a passé TAUX_ALERTE
+        self.alerte = None             # cause de l'alerte en cours
+        self.autre = None              # (cause devenue la plus fréquente pendant l'alerte, depuis quand)
+        self.fins = {}                 # cause → instant de la fin de sa dernière alerte
+
+    def elaguer(self, instant):
+        while self.billes and self.billes[0][0] <= instant - self.fenetre:
+            self.billes.popleft()
+
+    def taux(self):
+        return sum(c is not None for _, c, _ in self.billes) / len(self.billes) if self.billes else 0.0
+
+    def couleur(self):
+        return "rouge" if self.alerte else "orange" if self.taux() >= TAUX_FIN else "vert"
+
+    def mauvaise_recente(self):
+        """Au moins une image mauvaise dans la fenêtre : la cadence passe à 2 s."""
+        return any(c is not None for _, c, _ in self.billes)
+
+    def detail(self):
+        """Part de chaque cause (avant regroupement) parmi les images mauvaises, en %."""
+        causes = Counter(c for _, c, _ in self.billes if c)
+        return {c: round(100 * n / sum(causes.values())) for c, n in causes.most_common()}
+
+    def moyennes(self):
+        """Angles moyens des images mauvaises de la fenêtre (envoyés avec l'événement)."""
+        mauvaises = [a for _, c, a in self.billes if c is not None] or [a for _, _, a in self.billes]
+        return {k: round(float(np.mean([a[k] for a in mauvaises])), 1) for k in ("tete", "tronc")}
+
+    def ajouter(self, instant, cause, a):
+        """Ajoute le verdict d'une image. Renvoie la liste des événements : ("debut" / "fin", cause)."""
+        self.billes.append((instant, cause, a))
+        self.elaguer(instant)
+        taux = self.taux()
+        noms = Counter(self.regroupement.get(c, c) for _, c, _ in self.billes if c)
+        principale = noms.most_common(1)[0][0] if taux else None
+        if self.alerte is None:
+            if taux < TAUX_ALERTE:
+                self.depuis = None
+                return []
+            if self.depuis is None:
+                self.depuis = instant
+            # anti-rafale par cause : un « cou penché » juste après un « dos penché » reste signalé
+            if instant - self.depuis >= self.confirmation and self.anti_rafale_passe(principale, instant):
+                self.alerte = principale
+                return [("debut", principale)]
+            return []
+        if taux < TAUX_FIN:
+            ancienne = self.alerte
+            self.alerte = self.depuis = self.autre = None
+            self.fins[ancienne] = instant
+            return [("fin", ancienne)]
+        if principale == self.alerte:
+            self.autre = None
+        elif self.autre is None or self.autre[0] != principale:
+            self.autre = (principale, instant)
+        elif instant - self.autre[1] >= self.confirmation and self.anti_rafale_passe(principale, instant):
+            ancienne, self.alerte, self.autre = self.alerte, principale, None
+            self.fins[ancienne] = instant
+            return [("fin", ancienne), ("debut", principale)]
+        return []
+
+    def anti_rafale_passe(self, cause, instant):
+        return instant - self.fins.get(cause, -math.inf) >= self.anti_rafale
+
+
+class TempsAssis:
+    """Temps passé devant la caméra sans pause ; une pause = absent au moins PAUSE_MIN."""
+
+    def __init__(self, assis_max=ASSIS_MAX, pause_min=PAUSE_MIN):
+        self.assis_max, self.pause_min = assis_max, pause_min
+        self.debut = None              # début de la période assise en cours
+        self.derniere_vue = None
+        self.alerte = False
+
+    def duree(self, instant):
+        return instant - self.debut if self.debut is not None else 0.0
+
+    def maj(self, instant, vue):
+        """vue : quelqu'un est-il devant la caméra ? Renvoie "debut", "fin" ou None."""
+        en_pause = self.derniere_vue is not None and instant - self.derniere_vue >= self.pause_min
+        if not vue:
+            if en_pause and self.alerte:
+                self.alerte = False
+                return "fin"               # elle s'est levée : l'alerte a été suivie
+            return None
+        if self.debut is None or en_pause:
+            self.debut, self.alerte = instant, False
+        self.derniere_vue = instant
+        if not self.alerte and self.duree(instant) >= self.assis_max:
+            self.alerte = True
+            return "debut"
+        return None
 
 
 def reference(liste_angles):

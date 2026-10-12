@@ -324,7 +324,7 @@ Tous attendent une image carrée en `uint8` et renvoient **17 points × (y, x, s
 ├── models/               ← movenet_thunder_int8.tflite (par défaut), movenet_lightning_*.tflite (non commités)
 ├── README.md             ← installer, lancer, rôle de chaque fichier
 ├── posture_lib.py        ← LE CŒUR, commun à tous : caméra, MoveNet, angles, règles (puis filtre, score, profil)
-├── poc.py                ← la vraie session (§5.5) : cadence adaptative, filtre, événements   (à écrire)
+├── poc.py                ← la vraie session (§5.5) : cadence adaptative, filtre, événements
 ├── live.py               ← outil de debug : fenêtre en direct (puis enregistrement d'exemples étiquetés)
 ├── tests_poc/            ← outils de mesure, pas utilisés en session
 │   ├── t2_camera.py         test caméra
@@ -414,10 +414,11 @@ Le code est dans `posture_lib.py` (il n'est pas recopié ici, pour ne pas avoir 
 | vérifier que la personne est de profil | `ecart_epaules()`, `ECART_EPAULES_MAX` |
 | ignorer les points peu sûrs | `CONF_MIN` |
 | calculer tête, tronc et oreille–épaule–hanche | `angles()` |
-| calculer le cou (oreille → nez) et appliquer les règles (tête < 50°, tronc > 20°, cou > 45°, tronc < −30°, seuils fixes) | `angle_cou()`, `postures()`, `SEUILS` |
-| filtre dans le temps, cadence, score, mouvement | à écrire (`poc.py`) |
+| calculer le cou (oreille → nez) et appliquer les règles (tête < 50°, tronc > 20°, cou > 42°, tronc < −30°, seuils fixes) | `angle_cou()`, `postures()`, `SEUILS` |
+| filtre dans le temps (bocal), temps assis, absence | `Bocal`, `TempsAssis`, `personne_vue()` ; boucle et cadence dans `poc.py` |
+| score de 0 à 100 | pas encore : formule à revoir (algo-posture.md §7.4) |
 
-**Mode rapide pour les tests** : prévoir une fenêtre de 10 s, une durée minimale de 10 s et une immobilité de 1 min, pour ne pas attendre des minutes.
+**Mode rapide pour les tests** (`python poc.py --rapide`) : fenêtre de 10 s, confirmation de 10 s, anti-rafale de 1 min, « Levez-vous » après 1 min (pause de 15 s), pour ne pas attendre des minutes.
 
 ### 5.4 Ce qui est enregistré pendant le POC
 
@@ -431,15 +432,12 @@ En vraie session, **il n'y a pas de flux vidéo continu** : le Pi prend une imag
 Démarrer (depuis l'app)
    │
    ▼
-Calibration : 2 min de travail normal (médiane des angles) → posture de référence
-   │
-   ▼
 ┌─────────────── boucle, jusqu'à « Terminer » ───────────────┐
 │ 1. prendre UNE image                          (~55 ms)     │
-│ 2. MoveNet → 17 points                        (~21 ms)     │
+│ 2. MoveNet Thunder → 17 points                (~70 ms)     │
 │ 3. effacer l'image (elle n'a existé qu'en mémoire)         │
-│ 4. points → angles tête et tronc → posture de cette image  │
-│ 5. ajouter cette posture à l'historique des 60 dernières s │
+│ 4. points → angles tête, tronc, cou → posture de l'image   │
+│ 5. ajouter cette posture au bocal (60 dernières s)         │
 │ 6. si mauvaise ≥ 70 % pendant 2 min → ÉVÉNEMENT (alerte)   │
 │ 7. envoyer l'état à l'app (angles, posture, score)         │
 │ 8. attendre avant l'image suivante :                       │
@@ -539,7 +537,7 @@ L'écran « session en cours » de l'app n'est donc pas une vidéo : la silhouet
 
 - Script `poc.py` : calibration (2 min de travail normal) → boucle avec la cadence adaptative → règles → filtre → affichage des événements, plus un CSV des mesures et des événements.
 - Le comparer à une cadence fixe de 2 s : même délai de détection ? Combien de captures en moins ?
-- **Immobilité** : la vérifier en mode rapide (1 min sans bouger → événement).
+- **Assis trop longtemps** : le vérifier en mode rapide (1 min devant la caméra → « Levez-vous » ; 15 s hors champ → fin).
 - **Réussi si :** même détection que la cadence fixe, délai < 1 min, nettement moins de captures.
 
 ### Étape 7 — Endurance et vie privée (T1 bis, T6) · *1 journée*
@@ -570,7 +568,9 @@ L'écran « session en cours » de l'app n'est donc pas une vidéo : la silhouet
 | T5 cou penché | 12/10/2026 | 1 pers. (P01), `live.py`, 30 s à regarder son téléphone | nez à **+55°** sous l'oreille (45 à 60), tête 48° ; règle cou > 45° : **85 %** reconnu « cou penché » ; bonne posture des 4 volontaires : 0 à 2 % ; 35 % des têtes en avant du 2ᵉ essai de P01 annoncées « cou penché » | ≥ 0,80 | ⏳ | seuil provisoire : à enregistrer avec des volontaires (`enregistrer.py` le demande désormais) |
 | T5 3ᵉ essai P01 (5 postures) | 12/10/2026 | `enregistrer.py` avec téléphone et allongé ; 6 enregistrements au total | cou penché : F1 **0,97** pour P01 (nez +58° contre +28° en bonne posture), 100 % annoncé « cou penché », 1,2 % de fausses alertes ; vers l'avant (tête, dos, cou) : F1 0,92 pour P01, **0,86 sur les 6**, 0,87 un volontaire mis de côté ; cause juste 62 % (tête) / 82 % (dos) / 100 % (cou) ; allongé (tronc −28°) : 51 % ; travail normal : 0 % de fausses alertes | ≥ 0,80 | ✅ (1 pers. pour le cou) | cou penché à confirmer sur d'autres volontaires |
 | T5 cou penché, 2ᵉ personne | 12/10/2026 | 1 volontaire, `live.py` : posture normale (en bougeant un peu) puis 30 s à regarder son téléphone | cou +24° en bonne posture, **+51°** téléphone (tête à 56° : « tête en avant » ne l'aurait pas vu) ; cou > 45° : **87 %** reconnu, **0 %** de fausses alertes, 100 % annoncé « cou penché », F1 0,93 | ≥ 0,80 | ✅ | seuil de 45° gardé, vérifié sur 2 personnes |
-| T5 immobilité | | mode rapide | détectée : oui / non | oui | | |
+| `poc.py --rapide` | 12/10/2026 | P01, 3 essais de ~2 min : bonne posture, dos penché, allongé, téléphone, Ctrl+C | alertes dos penché, allongé (hanche visible, tronc −32° à −46°) et « levez-vous » déclenchées puis terminées ; 0 fausse alerte ; Pi 57–59 °C, `0x0`. Corrigé : anti-rafale par cause, changement de nom d'alerte, alertes fermées au Ctrl+C. Téléphone tenu haut (nez +41–53°) : 64 % des images à 45°, pas d'alerte | — | ✅ | seuil du cou abaissé à **42°** (91 %, 0 à 4 % en bonne posture) |
+| `poc.py --rapide`, cou à 42° | 12/10/2026 | P01, ~1 min 30 : tête en avant / téléphone, allongé, bonne posture | alertes déclenchées puis terminées, 0 fausse alerte ; mais nom « tête en avant » / « cou penché » qui change d'une image à l'autre (tête 40–48°, cou 38–49° dans les deux cas) ; allongé à −20/−37° : pas d'alerte (autour du seuil) | — | ⚠️ | tête en avant et cou penché regroupés en une alerte « Tête en avant ou baissée », part de chacun dans l'événement (`detail`) |
+| T5 assis trop longtemps | | `poc.py --rapide` | détectée : oui / non | oui | | |
 | T5 fausses alertes | | ___ h de test | ___ / h | < 1 / h | | |
 | T7 cadence | | fixe 2 s vs adaptative | ___ captures vs ___, délai ___ s | délai < 1 min | | |
 | Endurance | | 8 h | temp max ___ °C, throttled ___ | < 70 °C, `0x0` | | |

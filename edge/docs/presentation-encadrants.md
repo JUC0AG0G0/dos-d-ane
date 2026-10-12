@@ -31,14 +31,14 @@
 
 ## Slide 3 — Ce que fait le Raspberry · *1 min 30*
 
-**À afficher :** les 5 étapes du schéma (capture → points du corps → angles → règles → résultat), puis le tableau des 5 alertes du §4 de [solution-mvp.md](solution-mvp.md).
+**À afficher :** les 5 étapes du schéma (capture → points du corps → angles → règles → résultat), puis le tableau des 4 alertes du §4 de [solution-mvp.md](solution-mvp.md).
 
 **À dire :**
 - *« Le Raspberry regarde régulièrement, mais il n'enregistre rien : l'image est effacée tout de suite, et on n'envoie un résultat que si une mauvaise posture dure. »*
 - **Cadence adaptative** : une capture toutes les 10 s quand tout va bien, toutes les 2 s en cas de doute, toutes les 30 s si personne n'est là. Pas de vidéo, car une posture dure des minutes. C'est la **sobriété** demandée par le sujet.
 - L'IA (MoveNet, déjà entraînée) repère 17 points du corps. **Elle ne juge pas la posture** : c'est notre logique qui le fait, avec des angles et des règles.
 - Caméra **de profil**, car c'est la vue où l'on voit la tête avancer et le dos se pencher.
-- **5 alertes** : tête en avant, dos penché en avant, cou penché (téléphone), allongé dans la chaise, immobilité prolongée (suggestion de pause).
+- **4 alertes** : tête en avant ou baissée (écran ou téléphone), dos penché en avant, allongé dans la chaise, assis trop longtemps (suggestion de pause).
 
 ---
 
@@ -134,7 +134,7 @@
 | *Pourquoi une webcam USB et pas la caméra Raspberry (Arducam) ?* | Avec la webcam, c'est le même code sur PC et sur Pi, le câble est long (placement de profil facile) et on n'a rien à configurer. L'Arducam CSI est comparée dans le test T2 ; le programme accepte les deux. |
 | *Comment savez-vous qui est devant la caméra ?* | L'utilisateur se connecte et démarre lui-même la session. Avec un seul Raspberry, la session lui est rattachée directement. Avec plusieurs postes partagés, on ajoutera un QR code par poste. Pas de reconnaissance faciale. |
 | *Comment prouvez-vous qu'aucune image ne sort ?* | Test T6 : capture du trafic réseau pendant l'analyse. Nous pourrons la montrer en démo. |
-| *Pourquoi ces 5 alertes, pas plus ?* | Ce sont celles qu'une caméra de profil mesure de façon fiable. Testé sur 4 volontaires : l'avachi léger se confond avec « calé au dossier », d'où une alerte « allongé » réservée à l'avachi prononcé. Rien ne nous limite : chaque posture ajoutée demande un angle, un seuil justifié et des tests. Nous en ajoutons une à la fois : le cou penché (téléphone) a été ajouté après les premiers tests ; ensuite, les coudes. Les postures vues de face (épaules inclinées) viendront avec une 2ᵉ vue. |
+| *Pourquoi ces 4 alertes, pas plus ?* | Ce sont celles qu'une caméra de profil mesure de façon fiable. Testé sur 4 volontaires : l'avachi léger se confond avec « calé au dossier », d'où une alerte « allongé » réservée à l'avachi prononcé. Rien ne nous limite : chaque posture ajoutée demande un angle, un seuil justifié et des tests. Nous en ajoutons une à la fois : le cou penché (téléphone) a été ajouté après les premiers tests ; ensuite, les coudes. Les postures vues de face (épaules inclinées) viendront avec une 2ᵉ vue. |
 | *Vous prenez une photo en continu ?* | Non : une capture toutes les 2 à 30 s selon la situation. L'image est analysée puis effacée aussitôt. Rien n'est enregistré, et on n'envoie un résultat que si une mauvaise posture dure. |
 | *Les données sont-elles anonymes ?* | Elles sont **pseudonymisées** : un identifiant à la place du nom. L'admin ne voit que des statistiques globales. |
 

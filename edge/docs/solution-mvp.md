@@ -65,17 +65,16 @@ Pour savoir si une posture est mauvaise, le Raspberry doit **regarder régulièr
 
 Résultat : on capture beaucoup moins qu'avec une cadence fixe, sans détecter plus tard. C'est la **sobriété** demandée par le sujet.
 
-### Les 5 alertes du MVP
+### Les 4 alertes du MVP
 
 La caméra est placée **de profil**, car c'est la vue qui permet de voir la tête et le dos. Nous retenons les postures **qu'une caméra de profil mesure de façon fiable** :
 
 | Alerte | Ce qu'on mesure | Points utilisés |
 |---|---|---|
-| **Tête en avant** | l'angle entre l'épaule et l'oreille : plus la tête avance, plus l'angle baisse (< 50°) | oreille, épaule |
+| **Tête en avant ou baissée** (écran ou téléphone) | l'angle entre l'épaule et l'oreille (< 50°) **ou** le nez qui plonge sous l'oreille (> 42°) ; vus de profil, les deux se confondent, d'où une seule alerte | oreille, épaule, nez |
 | **Dos penché en avant** | l'inclinaison du buste vers l'avant par rapport à la verticale (> 20°) | épaule, hanche |
-| **Cou penché** (regarder son téléphone) | le nez qui plonge sous l'oreille (> 45°, vérifié sur 2 personnes) | oreille, nez |
 | **Allongé dans la chaise** | la même inclinaison, très en arrière (< −30°) | épaule, hanche |
-| **Immobilité prolongée** | les points du corps ne bougent presque pas pendant longtemps (par exemple 50 min), d'où une suggestion de pause | tous les points visibles |
+| **Assis trop longtemps** | la personne reste devant la caméra 50 min sans la quitter, d'où une suggestion de pause | tous les points visibles |
 
 Les **seuils** viennent de méthodes d'ergonomie reconnues : l'**angle cranio-vertébral** pour la tête, **RULA** (McAtamney & Corlett, 1993) pour le buste. Ils ont été **vérifiés sur 4 volontaires** (test T5 : tête en avant ou dos penché détectés avec un F1 de 0,82, 97 % d'alertes justes ; la cause exacte est juste 66 à 85 % du temps, car tête et buste avancent souvent ensemble). L'avachi **léger** se confond avec « calé contre le dossier » : seul l'avachi **prononcé** (« allongé ») est détecté. Le détail (angles, sources, résultats, limites) est dans [algo-posture.md](algo-posture.md).
 
@@ -105,7 +104,7 @@ Les **seuils** viennent de méthodes d'ergonomie reconnues : l'**angle cranio-ve
 | Dans le MVP ✅ | Plus tard 🔜 |
 |---|---|
 | 1 webcam USB de profil + 1 Raspberry Pi 4 | 2ᵉ caméra (de face) |
-| 5 alertes : tête en avant, dos penché en avant, cou penché, allongé dans la chaise, immobilité prolongée | coudes, puis postures vues de face (épaules inclinées…) |
+| 4 alertes : tête en avant ou baissée, dos penché en avant, allongé dans la chaise, assis trop longtemps | coudes, puis postures vues de face (épaules inclinées…) |
 | Cadence de capture adaptative | — |
 | Détection par règles | IA de classification entraînée sur nos données |
 | Serveur NestJS + base PostgreSQL | squelette animé en direct dans l'app |
