@@ -1,4 +1,3 @@
-/** Rappel obligatoire : l'application ne remplace pas un professionnel de santé. */
 export function MedicalDisclaimer() {
   return (
     <p className="text-sm text-muted-foreground">

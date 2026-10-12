@@ -19,12 +19,10 @@ import { findBreadcrumb } from '@/config/navigation';
 import { authService } from '@/services';
 import { useAuthStore } from '@/store';
 
-/** Pages de l'utilisateur connecté : barre latérale, en-tête, contenu. */
 export function AppLayout() {
   const { pathname } = useLocation();
   const breadcrumb = findBreadcrumb(pathname);
 
-  // Met à jour l'utilisateur (nom, rôle) ; un 401 vide la session.
   useEffect(() => {
     authService
       .me()

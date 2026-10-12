@@ -10,10 +10,8 @@ import { RegisterPage } from '@/pages/RegisterPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { StatusPage } from '@/pages/StatusPage';
 
-// Toutes les routes de l'application. Une page = un fichier de src/pages.
 const router = createBrowserRouter([
   {
-    // Connecté : barre latérale.
     element: <RequireAuth />,
     children: [
       {

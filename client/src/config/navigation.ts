@@ -9,7 +9,6 @@ interface NavItem {
   to: string;
   label: string;
   icon: LucideIcon;
-  /** Sous-pages (onglets), affichées dans le fil d'Ariane. */
   children?: SubPage[];
 }
 
@@ -18,7 +17,6 @@ interface NavSection {
   items: NavItem[];
 }
 
-// Barre latérale : sections et pages accessibles une fois connecté.
 export const NAV_SECTIONS: NavSection[] = [
   {
     label: 'Navigation',
@@ -44,7 +42,6 @@ export const NAV_SECTIONS: NavSection[] = [
 const matches = (pathname: string, to: string) =>
   pathname === to || (to !== '/' && pathname.startsWith(`${to}/`));
 
-/** Fil d'Ariane de la page affichée : page du menu, puis sous-page éventuelle. */
 export function findBreadcrumb(pathname: string): SubPage[] {
   const item = NAV_SECTIONS.flatMap((section) => section.items)
     .filter(({ to }) => matches(pathname, to))

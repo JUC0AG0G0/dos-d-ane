@@ -3,7 +3,6 @@ import { useState, type ComponentProps } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
-/** Champ mot de passe avec un bouton pour afficher ou masquer la saisie. */
 export function PasswordInput(props: Omit<ComponentProps<'input'>, 'type'>) {
   const [visible, setVisible] = useState(false);
   const Icon = visible ? EyeOff : Eye;

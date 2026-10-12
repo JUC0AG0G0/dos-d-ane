@@ -1,7 +1,6 @@
 import { Outlet } from 'react-router-dom';
 import { MedicalDisclaimer } from '@/components/MedicalDisclaimer';
 
-/** Connexion et inscription : panneau vert à gauche, formulaire à droite. */
 export function AuthLayout() {
   return (
     <div className="grid min-h-screen lg:grid-cols-2">

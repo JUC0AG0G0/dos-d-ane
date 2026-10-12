@@ -6,7 +6,6 @@ import {
   PrivacySection,
 } from '@/features/settings';
 
-// Un onglet = une URL (/settings/account…), pour pouvoir y renvoyer un lien.
 const TABS = [
   { value: 'account', label: 'Compte', Section: AccountSection },
   { value: 'devices', label: 'Appareils connectés', Section: DevicesSection },

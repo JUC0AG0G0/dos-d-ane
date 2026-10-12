@@ -1,5 +1,3 @@
-// Réponses et corps de /api/auth (server/src/auth/dto).
-
 export type Role = 'user' | 'admin';
 
 export interface User {
