@@ -92,9 +92,9 @@ export function PrivacyPolicy() {
           Pour gérer les comptes, les administrateurs voient la liste des
           utilisateurs : nom affiché, rôle, date d'inscription et adresse email
           masquée (par exemple j***@exemple.fr). Ils ne peuvent afficher
-          l'adresse complète que compte par compte, dans une limite de 10 par
-          heure, et chaque affichage est journalisé. Pour la posture, ils ne
-          voient que des statistiques anonymisées.
+          l'adresse complète que compte par compte, et chaque affichage est
+          journalisé. Pour la posture, ils ne voient que des statistiques
+          anonymisées.
         </p>
       </LegalSection>
 
@@ -145,7 +145,7 @@ export function PrivacyPolicy() {
           <li>L'accès aux données d'origine est limité aux administrateurs.</li>
           <li>
             Les adresses email sont masquées dans l'administration ; leur
-            affichage complet est limité et journalisé.
+            affichage complet se fait compte par compte et est journalisé.
           </li>
         </ul>
       </LegalSection>

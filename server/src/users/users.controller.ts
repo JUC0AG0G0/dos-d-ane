@@ -17,7 +17,6 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
-  ApiTooManyRequestsResponse,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
@@ -27,10 +26,6 @@ import { Role } from '../entities/index.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AdminUserDto, UserEmailDto } from './dto/admin-user.dto.js';
 import { UpdateRolesDto } from './dto/update-roles.dto.js';
-import {
-  EMAIL_REVEALS_PER_WINDOW,
-  EmailRevealLimiter,
-} from './email-reveal-limiter.js';
 import { maskEmail } from './mask-email.js';
 
 const userSelect = {
@@ -60,10 +55,7 @@ const toAdminUser = ({
 export class UsersController {
   private readonly logger = new Logger(UsersController.name);
 
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly revealLimiter: EmailRevealLimiter,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   @Get()
   @ApiOperation({ summary: 'Liste tous les utilisateurs (emails masqués)' })
@@ -79,11 +71,10 @@ export class UsersController {
   @Get(':id/email')
   @ApiOperation({
     summary: "Affiche l'email d'un utilisateur",
-    description: `Un seul compte par requête, ${EMAIL_REVEALS_PER_WINDOW} par heure et par administrateur, chaque accès est journalisé.`,
+    description: 'Un seul compte par requête ; chaque accès est journalisé.',
   })
   @ApiOkResponse({ type: UserEmailDto })
   @ApiNotFoundResponse({ description: 'Utilisateur introuvable' })
-  @ApiTooManyRequestsResponse({ description: 'Limite horaire atteinte' })
   async revealEmail(
     @CurrentAuth() auth: AuthContext,
     @Param('id', ParseUUIDPipe) id: string,
@@ -95,7 +86,6 @@ export class UsersController {
     if (!user) {
       throw new NotFoundException('Utilisateur introuvable');
     }
-    this.revealLimiter.consume(auth.userId);
     this.logger.log(`Email de ${id} affiché par l'admin ${auth.userId}`);
     return user;
   }
