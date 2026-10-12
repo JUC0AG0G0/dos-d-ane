@@ -1,4 +1,4 @@
-import { CircleAlert, Eye, ShieldCheck, ShieldOff } from 'lucide-react';
+import { CircleAlert, Eye, EyeOff, ShieldCheck, ShieldOff } from 'lucide-react';
 import { useState } from 'react';
 import { Alert, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -68,6 +68,14 @@ export function UsersSection() {
         err instanceof Error ? err.message : "Impossible d'afficher l'email.",
       );
     }
+  }
+
+  function hideEmail(id: string) {
+    setEmails((previous) => {
+      const next = { ...previous };
+      delete next[id];
+      return next;
+    });
   }
 
   async function applyChange({ users, role }: RoleChange) {
@@ -191,9 +199,19 @@ export function UsersSection() {
                         )}
                       </TableCell>
                       <TableCell>
-                        {emails[user.id] ?? (
-                          <span className="inline-flex items-center gap-1">
-                            {user.maskedEmail}
+                        <span className="inline-flex items-center gap-1">
+                          {emails[user.id] ?? user.maskedEmail}
+                          {emails[user.id] ? (
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={`Masquer l'email de ${user.displayName}`}
+                              title="Masquer l'email"
+                              onClick={() => hideEmail(user.id)}
+                            >
+                              <EyeOff />
+                            </Button>
+                          ) : (
                             <Button
                               variant="ghost"
                               size="icon-sm"
@@ -203,8 +221,8 @@ export function UsersSection() {
                             >
                               <Eye />
                             </Button>
-                          </span>
-                        )}
+                          )}
+                        </span>
                       </TableCell>
                       <TableCell>
                         <Badge
