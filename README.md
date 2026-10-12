@@ -90,24 +90,7 @@ Les commandes de la base sont détaillées dans [databaseReadME.md](databaseRead
 
 ## Client web
 
-React + Vite + Tailwind + [shadcn/ui](https://ui.shadcn.com) dans `client/src`, importé via `@/` (= `src/`) :
-
-| Dossier | Contenu |
-| --- | --- |
-| `pages/` | un composant par route, déclarée dans `App.tsx` |
-| `components/` | composants réutilisables, sans logique métier ; `layouts/` = cadres de page (connexion, connecté avec barre latérale, public) ; `ui/` = composants shadcn/ui |
-| `features/` | un dossier par fonctionnalité (hooks, composants) ; le reste de l'app n'importe que son `index.ts` |
-| `services/` | tous les appels à l'API : `routes.ts` liste les routes, un service par domaine (`auth.service.ts`…) |
-| `store/` | état global partagé entre pages ([zustand](https://zustand.docs.pmnd.rs)), dont la session dans `auth.store.ts` |
-| `config/` | `env.ts`, seul fichier qui lit les variables d'environnement (`VITE_API_URL`, adresse de l'API) ; `navigation.ts`, entrées de la barre latérale |
-| `hooks/` | hooks génériques (ceux d'une fonctionnalité restent dans `features/`) |
-| `utils/` | fonctions génériques (`cn` pour combiner des classes Tailwind) |
-| `types/` | types partagés, dont les réponses de l'API |
-| `styles/global.css` | thème : couleurs (`--primary`…) et arrondis, mêmes noms que les variables du Figma |
-
-Pages : `/login` et `/register` ; `/` et `/settings` (compte, appareils connectés, confidentialité) demandent d'être connecté ; `/status` montre l'état du serveur et de la base.
-
-Avec `VITE_API_URL=/api` (défaut), le front appelle sa propre origine : Vite (dev) ou nginx (`task up`) relaie au serveur, sans CORS.
+React + Vite + Tailwind + shadcn/ui dans `client/`. Son fonctionnement, ses dossiers et comment y développer sont expliqués dans [client/README.md](client/README.md).
 
 ## Configuration
 
