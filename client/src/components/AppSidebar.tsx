@@ -57,22 +57,27 @@ export function AppSidebar() {
             <SidebarGroupLabel>{section.label}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {section.items.map(({ to, label, icon: Icon }) => (
-                  <SidebarMenuItem key={to}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={
-                        to === '/' ? pathname === to : pathname.startsWith(to)
-                      }
-                      tooltip={label}
-                    >
-                      <NavLink to={to}>
-                        <Icon />
-                        <span>{label}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
+                {section.items
+                  .filter(
+                    ({ roles }) =>
+                      !roles || (user && roles.includes(user.role)),
+                  )
+                  .map(({ to, label, icon: Icon }) => (
+                    <SidebarMenuItem key={to}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={
+                          to === '/' ? pathname === to : pathname.startsWith(to)
+                        }
+                        tooltip={label}
+                      >
+                        <NavLink to={to}>
+                          <Icon />
+                          <span>{label}</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

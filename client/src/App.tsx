@@ -3,6 +3,7 @@ import {
   Navigate,
   RouterProvider,
 } from 'react-router-dom';
+import { AdminPage } from '@/pages/AdminPage';
 import { AppLayout } from '@/components/layouts/AppLayout';
 import { AuthLayout } from '@/components/layouts/AuthLayout';
 import { CenteredLayout } from '@/components/layouts/CenteredLayout';
@@ -27,6 +28,7 @@ const router = createBrowserRouter([
         children: [
           { path: '/', element: <HomePage /> },
           { path: '/settings/:tab?', element: <SettingsPage /> },
+          { path: '/admin', element: <AdminPage /> },
         ],
       },
     ],

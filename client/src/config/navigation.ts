@@ -1,4 +1,5 @@
-import { House, Settings, type LucideIcon } from 'lucide-react';
+import { House, Settings, ShieldCheck, type LucideIcon } from 'lucide-react';
+import type { Role } from '@/types/user';
 
 interface SubPage {
   to: string;
@@ -9,6 +10,7 @@ interface NavItem {
   to: string;
   label: string;
   icon: LucideIcon;
+  roles?: Role[];
   children?: SubPage[];
 }
 
@@ -34,6 +36,12 @@ export const NAV_SECTIONS: NavSection[] = [
           { to: '/settings/devices', label: 'Appareils connectés' },
           { to: '/settings/privacy', label: 'Confidentialité' },
         ],
+      },
+      {
+        to: '/admin',
+        label: 'Administration',
+        icon: ShieldCheck,
+        roles: ['admin'],
       },
     ],
   },
