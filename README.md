@@ -79,7 +79,7 @@ Le rechargement à chaud est toujours actif : chaque modification de `client/src
 | `task clean` | arrête tout et **supprime** les données (demande confirmation) |
 | `task check` | lint + compilation (lancé aussi avant chaque commit et push) |
 | `task db:generate` | crée une migration depuis `server/prisma/schema.prisma`, sans l'appliquer |
-| `task db:migrate` | applique les migrations pas encore appliquées |
+| `task db:migrate` | applique les migrations pas encore appliquées, puis crée le compte admin de `.env.dev` |
 | `task db:dump` | exporte la base dans `dumps/<date>.sql` (ignoré par Git, à ne pas partager) |
 | `task db:restore` | annule la dernière migration, revient à une migration ou charge un dump |
 | `task` | liste toutes les commandes |

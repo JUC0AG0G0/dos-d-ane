@@ -27,6 +27,8 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       JWT_SECRET: ${JWT_SECRET}
       SESSION_TTL_MINUTES: ${SESSION_TTL_MINUTES:-60}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
     ports:
       - "${PORT:-3000}:3000"
     depends_on:
