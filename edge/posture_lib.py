@@ -7,6 +7,7 @@ Aucune image n'est jamais écrite : elles n'existent qu'en mémoire.
 import math
 import subprocess
 import time
+from datetime import datetime
 from pathlib import Path
 
 import cv2
@@ -24,6 +25,22 @@ DOSSIER_RESULTATS = DOSSIER_EDGE / "resultats"
 # 20 % des images alors que leurs angles étaient les mêmes que les autres (99 % exploitables à 0,20).
 CONF_MIN = 0.2
 ECART_EPAULES_MAX = 0.35   # écart des 2 épaules ÷ tronc ; au-delà, la personne n'est pas de profil
+
+# Seuils fixes, sans calibration. T5 du 12/10/2026, 4 volontaires : « tête < 50° ou tronc > 20° »
+# repère la personne penchée vers l'écran (F1 0,82, 97 % d'alertes justes) ; la cause annoncée
+# (dos penché si tronc > 20°, sinon tête en avant) est juste 66 à 85 % du temps, car tête et buste
+# avancent souvent ensemble. Calibration écartée : chacun calibrait calé au dossier puis se
+# redressait, et des écarts serrés à cette référence sonnaient à tort. « Allongé » = avachi
+# prononcé seulement : à −30°, 0,8 % de fausses alertes, alors qu'un avachi léger (−20°)
+# se confond avec « calé au dossier » (12 % de fausses alertes). « Cou penché » (regarder son
+# téléphone) : le nez plonge sous l'oreille (+51° et +58° chez 2 personnes le 12/10, contre +5 à +33°
+# en bonne posture et +13 à +43° tête en avant) ; à 45° : 87 et 96 % reconnus, 0 à 1,2 % de fausses alertes.
+SEUILS = {"tete": 50, "tronc": 20, "allonge": -30, "cou": 45}
+
+# Calibration : médiane des angles pendant les 2 premières minutes de travail normal. Ne sert plus
+# aux alertes (voir SEUILS), seulement au score (algo-posture.md §7.4). Mesuré le 12/10/2026 :
+# 10 s « tenez-vous droit » donnaient une référence jouée, trop haute ou trop basse.
+DUREE_CALIBRATION = 120
 
 # Numéros MoveNet des points utiles, par côté : oreille, épaule, hanche
 COTES = {"gauche": (3, 5, 11), "droite": (4, 6, 12)}
@@ -171,6 +188,17 @@ def ecart_epaules(pts, cote=None):
     return abs(float(pts[5, 0] - pts[6, 0])) / longueur_tronc
 
 
+def angle_cou(pts, cote):
+    """Angle de la droite oreille → nez sous l'horizontale (None si le nez est mal vu).
+
+    Grandit quand on regarde vers le bas (téléphone) ; bouge peu quand la tête avance.
+    """
+    o = COTES[cote][0]
+    if min(pts[0, 2], pts[o, 2]) < CONF_MIN:
+        return None
+    return math.degrees(math.atan2(pts[0, 1] - pts[o, 1], abs(pts[0, 0] - pts[o, 0])))
+
+
 def angles(pts, cote=None):
     """Angles de la tête et du tronc (§5.3). None si points peu fiables.
 
@@ -201,27 +229,59 @@ def angles(pts, cote=None):
     # du même angle en sens inverse, la somme reste la même.
     tete_tronc = 90 + tete + tronc
     longueur_tronc = float(np.linalg.norm(epaule - hanche))
-    return {"cote": cote, "tete": tete, "tronc": tronc, "tete_tronc": tete_tronc,
+    return {"cote": cote, "tete": tete, "tronc": tronc, "tete_tronc": tete_tronc, "cou": angle_cou(pts, cote),
             "longueur_tronc": longueur_tronc, "ecart_epaules": ecart}
 
 
-def postures(a, ref=None):
-    """Règles du §5.4. Renvoie {posture: (mauvaise ?, règle appliquée)}.
+def postures(a, seuils=SEUILS):
+    """Règle d'alerte (algo-posture.md). Renvoie {posture: (mauvaise ?, règle appliquée)}.
 
-    ref : posture de référence {"tete": …, "tronc": …} issue de la calibration, ou None.
+    seuils : evaluer.py en essaie d'autres.
     """
-    if ref is None:
-        return {
-            "Tete en avant": (a["tete"] < 50, "tete < 50"),
-            "Dos penche en avant": (a["tronc"] > 20, "tronc > 20"),
-            "Avachi en arriere": (a["tronc"] < -25, "tronc < -25"),
-        }
-    rt, rc = ref["tete"], ref["tronc"]
+    t, c, al, cp = seuils["tete"], seuils["tronc"], seuils["allonge"], seuils["cou"]
+    # Une seule cause vers l'avant, par ordre : dos penché, puis cou penché, puis tête en avant
+    # (regarder son téléphone baisse aussi l'angle de la tête).
+    cou = a.get("cou") is not None and a["cou"] > cp and a["tronc"] <= c
     return {
-        "Tete en avant": (a["tete"] < rt - 8, f"tete < {rt - 8:.0f}"),
-        "Dos penche en avant": (a["tronc"] > rc + 12, f"tronc > {rc + 12:.0f}"),
-        "Avachi en arriere": (a["tronc"] < rc - 12, f"tronc < {rc - 12:.0f}"),
+        "Tete en avant": (a["tete"] < t and a["tronc"] <= c and not cou, f"tete < {t}"),
+        "Dos penche": (a["tronc"] > c, f"tronc > {c}"),
+        "Cou penche": (cou, f"cou > {cp}"),
+        "Allonge dans la chaise": (a["tronc"] < al, f"tronc < {al}"),
     }
+
+
+def reference(liste_angles):
+    """Posture de référence = médiane des angles relevés pendant la calibration (None si aucun)."""
+    if not liste_angles:
+        return None
+    return {"tete": float(np.median([a["tete"] for a in liste_angles])),
+            "tronc": float(np.median([a["tronc"] for a in liste_angles]))}
+
+
+# ---------- Enregistrement des mesures (jamais d'image) ----------
+
+COLONNES_CSV = (["heure", "etiquette", "cote", "conf_oreille", "conf_epaule", "conf_hanche", "tete", "tronc",
+                 "tete_tronc", "cou", "ecart_epaules", "longueur_tronc", "calibre", "ref_tete", "ref_tronc",
+                 "regle_tete_avant", "regle_dos_penche", "regle_cou", "regle_allonge", "point_complete"]
+                + [f"{c}{i}" for i in range(17) for c in ("x", "y", "c")])
+
+
+def ligne_csv(etiquette, pts, cote, a, ref, complete=None):
+    """Une ligne de chiffres par image (colonnes COLONNES_CSV) ; angles vides si l'image est ignorée.
+
+    pts : points bruts de MoveNet (confiances réelles) ; complete : point repris de l'image d'avant.
+    """
+    o, e, h = COTES[cote]
+    regles = [int(m) for m, _ in postures(a).values()] if a else ["", "", "", ""]
+    valeurs = ([a[k] for k in ("tete", "tronc", "tete_tronc")] + [a["cou"] if a["cou"] is not None else ""]
+               if a else ["", "", "", ""]) \
+        + [a["ecart_epaules"] if a and a["ecart_epaules"] is not None else "", a["longueur_tronc"] if a else ""]
+    return ([datetime.now().isoformat(timespec="milliseconds"), etiquette, cote,
+             f"{pts[o, 2]:.3f}", f"{pts[e, 2]:.3f}", f"{pts[h, 2]:.3f}"]
+            + [f"{v:.2f}" if isinstance(v, float) else v for v in valeurs]
+            + [int(ref is not None)] + ([f"{ref['tete']:.2f}", f"{ref['tronc']:.2f}"] if ref else ["", ""])
+            + regles + [complete or ""]
+            + [f"{v:.3f}" for v in pts.reshape(-1)])
 
 
 # ---------- État du Pi ----------

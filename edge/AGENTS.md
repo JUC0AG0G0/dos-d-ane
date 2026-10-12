@@ -17,11 +17,11 @@ Documentation de référence : `docs/poc-raspberry.md` (plan, installation, briq
 | `posture_lib.py` | **le cœur, commun à tous** : `ouvrir_camera()`, `capturer()`, `MoveNet`, `angles()`, `postures()`, `temperature_pi()` |
 | `poc.py` | la vraie session (à écrire, §5.5) |
 | `live.py` | outil de debug avec fenêtre (pas utilisé en session) |
-| `tests_poc/` | outils de mesure : `t2_camera.py`, `t4_modeles.py` (puis `t1_vitesse.py`, `evaluer.py`) |
+| `tests_poc/` | outils de mesure : `t2_camera.py`, `t4_modeles.py`, `enregistrer.py` (volontaires), `evaluer.py` (F1) ; puis `t1_vitesse.py` |
 
 - Toute logique réutilisable va dans `posture_lib.py` ; les scripts l'**importent**, ils ne recopient pas de code.
 - Les tests se lancent depuis `edge/` : `python -m tests_poc.t2_camera --court`.
-- Les seuils (50°, 20°, −25°, écart des épaules 0,35, 70 %, 40 %, 2 min…) sont des **valeurs de départ** à ajuster par les tests ; ils seront à terme envoyés par le serveur.
+- Règles d'alerte, seuils fixes `SEUILS` vérifiés sur 4 volontaires (T5) : tête en avant (tête < 50°), dos penché (tronc > 20°), cou penché (nez > 45° sous l'oreille, 2 personnes), allongé dans la chaise (tronc < −30°). Les autres seuils (écart des épaules 0,35, 70 %, 40 %, 2 min…) sont des **valeurs de départ** à ajuster par les tests ; tous seront à terme envoyés par le serveur.
 
 ## Conventions de code
 

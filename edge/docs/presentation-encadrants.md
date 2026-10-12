@@ -31,14 +31,14 @@
 
 ## Slide 3 — Ce que fait le Raspberry · *1 min 30*
 
-**À afficher :** les 5 étapes du schéma (capture → points du corps → angles → règles → résultat), puis le tableau des 4 postures du §4 de [solution-mvp.md](solution-mvp.md).
+**À afficher :** les 5 étapes du schéma (capture → points du corps → angles → règles → résultat), puis le tableau des 5 alertes du §4 de [solution-mvp.md](solution-mvp.md).
 
 **À dire :**
 - *« Le Raspberry regarde régulièrement, mais il n'enregistre rien : l'image est effacée tout de suite, et on n'envoie un résultat que si une mauvaise posture dure. »*
 - **Cadence adaptative** : une capture toutes les 10 s quand tout va bien, toutes les 2 s en cas de doute, toutes les 30 s si personne n'est là. Pas de vidéo, car une posture dure des minutes. C'est la **sobriété** demandée par le sujet.
 - L'IA (MoveNet, déjà entraînée) repère 17 points du corps. **Elle ne juge pas la posture** : c'est notre logique qui le fait, avec des angles et des règles.
 - Caméra **de profil**, car c'est la vue où l'on voit la tête avancer et le dos se pencher.
-- **4 postures** : tête en avant, dos penché en avant, avachi en arrière, immobilité prolongée (suggestion de pause).
+- **5 alertes** : tête en avant, dos penché en avant, cou penché (téléphone), allongé dans la chaise, immobilité prolongée (suggestion de pause).
 
 ---
 
@@ -80,7 +80,7 @@
 - Exemples :
   - *T1* : l'IA tourne-t-elle sur le Pi 4 en moins de 150 ms par photo ?
   - *T3* : voit-elle bien une personne assise de profil ?
-  - *T5* : nos règles reconnaissent-elles chacune des 4 postures, avec au moins 80 % de bonnes détections ?
+  - *T5* : nos règles reconnaissent-elles les mauvaises postures, avec un F1 d'au moins 0,80 ? ✅ 0,82 sur 4 volontaires pour tête en avant / dos penché ; l'avachi léger n'est pas détectable, seul l'avachi prononcé (« allongé ») l'est.
   - *T7* : la cadence adaptative détecte-t-elle aussi bien qu'une cadence fixe, avec beaucoup moins de captures ?
 - Si un test échoue, nous avons un **plan B** : MediaPipe, Arducam CSI à la place de la webcam USB, captures moins fréquentes.
 - Les résultats, y compris les échecs, iront dans le rapport : c'est notre partie « blocages et solutions ».
@@ -129,12 +129,12 @@
 |---|---|
 | *Où est l'IA, si vous utilisez une IA déjà entraînée ?* | MoveNet fournit les points du corps. Notre travail d'IA porte sur : le **benchmark** MoveNet / MediaPipe sur notre cas réel, la **validation** des règles (précision, fausses alertes) et, ensuite, un **classifieur entraîné** sur nos propres données annotées pour remplacer les règles. |
 | *Pourquoi pas envoyer les images au serveur, comme sur le schéma du sujet ?* | Le sujet lui-même demande de favoriser les traitements sans transfert et de ne pas stocker la donnée brute. Le Raspberry suffit pour le calcul : l'envoi d'images n'apporte rien et crée un risque. |
-| *Vos seuils, d'où viennent-ils ?* | De méthodes d'ergonomie publiées : angle cranio-vertébral (tête), RULA 1993 (dos penché), REBA 2000 (avachi). Puis personnalisés par une posture de référence propre à chaque personne, et ajustés par nos tests T5. Tableau complet dans [algo-posture.md](algo-posture.md). |
+| *Vos seuils, d'où viennent-ils ?* | De méthodes d'ergonomie publiées : angle cranio-vertébral (tête < 50°), RULA 1993 (tronc > 20°), REBA 2000 (allongé, tronc < −30°). Vérifiés sur 4 volontaires (T5 : F1 0,82, 97 % d'alertes justes). Une référence propre à chaque personne a été testée : moins bonne, car chacun alterne entre « calé au dossier » et « assis droit ». Tableau complet dans [algo-posture.md](algo-posture.md). |
 | *Et si le Raspberry est trop lent ?* | Test T1 en premier. Plans B : photos moins fréquentes, autre moteur IA, ou un mini-PC à la place. L'architecture ne change pas. |
 | *Pourquoi une webcam USB et pas la caméra Raspberry (Arducam) ?* | Avec la webcam, c'est le même code sur PC et sur Pi, le câble est long (placement de profil facile) et on n'a rien à configurer. L'Arducam CSI est comparée dans le test T2 ; le programme accepte les deux. |
 | *Comment savez-vous qui est devant la caméra ?* | L'utilisateur se connecte et démarre lui-même la session. Avec un seul Raspberry, la session lui est rattachée directement. Avec plusieurs postes partagés, on ajoutera un QR code par poste. Pas de reconnaissance faciale. |
 | *Comment prouvez-vous qu'aucune image ne sort ?* | Test T6 : capture du trafic réseau pendant l'analyse. Nous pourrons la montrer en démo. |
-| *Pourquoi 4 postures, pas plus ?* | Ce sont celles qu'une caméra de profil mesure de façon fiable. Rien ne nous limite : chaque posture ajoutée demande un angle, un seuil justifié et des tests. Nous en ajouterons une à la fois une fois les premières validées (cou penché vers le bas, puis coudes). Les postures vues de face (épaules inclinées) viendront avec une 2ᵉ vue. |
+| *Pourquoi ces 5 alertes, pas plus ?* | Ce sont celles qu'une caméra de profil mesure de façon fiable. Testé sur 4 volontaires : l'avachi léger se confond avec « calé au dossier », d'où une alerte « allongé » réservée à l'avachi prononcé. Rien ne nous limite : chaque posture ajoutée demande un angle, un seuil justifié et des tests. Nous en ajoutons une à la fois : le cou penché (téléphone) a été ajouté après les premiers tests ; ensuite, les coudes. Les postures vues de face (épaules inclinées) viendront avec une 2ᵉ vue. |
 | *Vous prenez une photo en continu ?* | Non : une capture toutes les 2 à 30 s selon la situation. L'image est analysée puis effacée aussitôt. Rien n'est enregistré, et on n'envoie un résultat que si une mauvaise posture dure. |
 | *Les données sont-elles anonymes ?* | Elles sont **pseudonymisées** : un identifiant à la place du nom. L'admin ne voit que des statistiques globales. |
 

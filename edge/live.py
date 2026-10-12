@@ -8,10 +8,12 @@ Touches (dans la fenêtre, ou tapées dans le terminal puis Entrée, utile sans 
     q = quitter
     f = changer d'affichage : tout flouté (par défaut) → normal → fond noir → tout flouté…
     p = fond noir directement (squelette seul, sans l'image)
-    c = calibration : rester assis droit 10 s, la posture devient la référence
-    r = revenir aux règles sans calibration
-    0 à 4 = enregistrer chaque image dans resultats/live_<date>.csv avec une étiquette :
-            0 bonne posture, 1 tête en avant, 2 dos penché, 3 avachi, 4 dos en « C »
+    c = calibration : travailler normalement 2 min, la médiane des angles devient la référence
+        (notée dans le CSV, pour le score ; la règle d'alerte n'en dépend pas)
+    r = oublier la référence
+    0 à 5 = enregistrer chaque image dans resultats/live_<date>.csv avec une étiquette :
+            0 bonne posture, 1 tête en avant, 2 dos penché, 3 allongé dans la chaise, 4 dos en « C »,
+            5 cou penché (regarder son téléphone)
     9 = arrêter l'enregistrement
 Le CSV ne contient que des chiffres (angles, points), jamais d'image, et reste sur le Pi.
 Lancer depuis edge/ avec .venv activé :  python live.py
@@ -29,15 +31,16 @@ from datetime import datetime
 import cv2
 import numpy as np
 
-from posture_lib import (COTES, CONF_MIN, DOSSIER_RESULTATS, ECART_EPAULES_MAX, SQUELETTE, Completeur,
-                         CoteStable, MoveNet, angles, capturer, ecart_epaules, ouvrir_camera, postures)
+from posture_lib import (COLONNES_CSV, COTES, CONF_MIN, DOSSIER_RESULTATS, DUREE_CALIBRATION, ECART_EPAULES_MAX,
+                         SQUELETTE, Completeur, CoteStable, MoveNet, angles, capturer, ecart_epaules, ligne_csv,
+                         ouvrir_camera, postures, reference)
 
-ETIQUETTES = {"0": "GOOD", "1": "FORWARD_HEAD", "2": "TRUNK_FORWARD", "3": "TRUNK_BACKWARD", "4": "C_SHAPE"}
+ETIQUETTES = {"0": "GOOD", "1": "FORWARD_HEAD", "2": "TRUNK_FORWARD", "3": "TRUNK_BACKWARD", "4": "C_SHAPE",
+              "5": "NECK_FLEXION"}
 NOMS_ETIQUETTES = {"GOOD": "bonne posture", "FORWARD_HEAD": "tete en avant", "TRUNK_FORWARD": "dos penche",
-                   "TRUNK_BACKWARD": "avachi", "C_SHAPE": "dos en C"}
+                   "TRUNK_BACKWARD": "allonge", "C_SHAPE": "dos en C", "NECK_FLEXION": "cou penche"}
 
 IMAGES_PAR_S = 5      # limite pour la chauffe
-DUREE_CALIBRATION = 10
 
 BLANC, VERT, ROUGE, ORANGE, GRIS = (255, 255, 255), (0, 200, 0), (0, 0, 255), (0, 165, 255), (160, 160, 160)
 
@@ -101,11 +104,7 @@ class Enregistreur:
             chemin = DOSSIER_RESULTATS / f"live_{datetime.now():%Y-%m-%d_%H%M%S}.csv"
             self.fichier = open(chemin, "w", newline="")
             self.ecrivain = csv.writer(self.fichier)
-            self.ecrivain.writerow(
-                ["heure", "etiquette", "cote", "conf_oreille", "conf_epaule", "conf_hanche", "tete", "tronc",
-                 "tete_tronc", "ecart_epaules", "longueur_tronc", "calibre", "regle_tete_avant",
-                 "regle_dos_penche", "regle_avachi", "point_complete"]
-                + [f"{c}{i}" for i in range(17) for c in ("x", "y", "c")])
+            self.ecrivain.writerow(COLONNES_CSV)
             print(f"Enregistrement dans {chemin}")
         self.etiquette = etiquette
         print(f"● Enregistrement : {NOMS_ETIQUETTES[etiquette]}")
@@ -115,24 +114,11 @@ class Enregistreur:
             print(f"Enregistrement arrêté ({self.lignes} lignes au total)")
         self.etiquette = None
 
-    def ligne(self, pts, cote, a, reference, complete=None):
-        """Une ligne par image ; angles vides si l'image est ignorée (utile pour compter au T3).
-
-        pts : points bruts de MoveNet (confiances réelles) ; complete : point repris de l'image d'avant.
-        """
+    def ligne(self, pts, cote, a, ref, complete=None):
+        """Une ligne par image si un enregistrement est en cours (voir posture_lib.ligne_csv)."""
         if not self.etiquette:
             return
-        o, e, h = COTES[cote]
-        regles = [int(m) for m, _ in postures(a, reference).values()] if a else ["", "", ""]
-        valeurs = ([a[k] for k in ("tete", "tronc", "tete_tronc")] if a else ["", "", ""]) \
-            + [a["ecart_epaules"] if a and a["ecart_epaules"] is not None else "",
-               a["longueur_tronc"] if a else ""]
-        self.ecrivain.writerow(
-            [datetime.now().isoformat(timespec="milliseconds"), self.etiquette, cote,
-             f"{pts[o, 2]:.3f}", f"{pts[e, 2]:.3f}", f"{pts[h, 2]:.3f}"]
-            + [f"{v:.2f}" if isinstance(v, float) else v for v in valeurs]
-            + [int(reference is not None)] + regles + [complete or ""]
-            + [f"{v:.3f}" for v in pts.reshape(-1)])
+        self.ecrivain.writerow(ligne_csv(self.etiquette, pts, cote, a, ref, complete))
         self.fichier.flush()
         self.lignes += 1
 
@@ -154,15 +140,16 @@ def main():
     commandes = queue.Queue()
     threading.Thread(target=lire_terminal, args=(commandes,), daemon=True).start()
     print("Commandes : c = calibration, f = affichage (flou / normal / noir), p = fond noir, "
-          "r = sans calibration, q = quitter (puis Entrée)")
-    print("Enregistrement : 0 bonne, 1 tête en avant, 2 dos penché, 3 avachi, 4 dos en C, 9 arrêter")
+          "r = oublier la référence, q = quitter (puis Entrée)")
+    print("Enregistrement : 0 bonne, 1 tête en avant, 2 dos penché, 3 allongé, 4 dos en C, 5 cou penché, "
+          "9 arrêter")
     dernier_affichage = 0.0
     cote_stable = CoteStable()
     completeur = Completeur()
     enregistreur = Enregistreur()
 
     mode = "flou"
-    reference = None          # posture de référence (calibration)
+    ref = None                # posture de référence (calibration)
     calibration = None        # liste des angles pendant la calibration, None sinon
     fin_calibration = 0.0
 
@@ -181,7 +168,7 @@ def main():
         a = angles(pts_c, cote)
         ecart = ecart_epaules(pts_c, cote)
         de_face = ecart is not None and ecart > ECART_EPAULES_MAX
-        enregistreur.ligne(pts, cote, a, reference, complete)
+        enregistreur.ligne(pts, cote, a, ref, complete)
 
         affichage = image_affichee(image, mode)
         dessiner(affichage, pts_c, a["cote"] if a else None)
@@ -189,7 +176,7 @@ def main():
             texte(affichage, f"* ENREGISTREMENT : {NOMS_ETIQUETTES[enregistreur.etiquette]} "
                              f"({enregistreur.lignes} lignes)", 7, ROUGE, 0.6)
         profil = "epaule cachee" if ecart is None else f"ecart epaules {ecart:.2f}"
-        texte(affichage, f"IA {ms_ia:.0f} ms | {'calibre' if reference else 'sans calibration'} | {profil} "
+        texte(affichage, f"IA {ms_ia:.0f} ms | {'calibre' if ref else 'sans calibration'} | {profil} "
                          f"| affichage {mode}", 0)
 
         # Diagnostic : confiance des 3 points du côté bloqué, et ceux sous le seuil
@@ -204,10 +191,11 @@ def main():
         elif a is None:
             texte(affichage, f"UNKNOWN : mal vu ({', '.join(mal_vus)}) - cote {cote}", 1, GRIS)
         else:
+            cou = "-" if a["cou"] is None else f"{a['cou']:.0f}"
             texte(affichage, f"Cote {a['cote']} | Tete {a['tete']:.0f} | Tronc {a['tronc']:+.0f} | "
-                             f"Oreille-epaule-hanche {a['tete_tronc']:.0f} (deg)"
+                             f"Cou {cou} (deg)"
                              + (f" | {complete} completee" if complete else ""), 1, BLANC, 0.55)
-            regles = postures(a, reference)
+            regles = postures(a)
             for i, (nom, (mauvaise, regle)) in enumerate(regles.items()):
                 texte(affichage, f"{nom} : {'OUI' if mauvaise else 'non'}  ({regle})", 2 + i, ROUGE if mauvaise else VERT)
 
@@ -220,32 +208,30 @@ def main():
                 print(f"{debut}  UNKNOWN mal vu : {', '.join(mal_vus)}   conf {conf_txt}")
             else:
                 mauvaises = [nom for nom, (m, _) in regles.items() if m] or ["bonne posture"]
+                cou = "  -" if a["cou"] is None else f"{a['cou']:3.0f}"
                 print(f"{debut}  tête {a['tete']:4.0f}°  tronc {a['tronc']:+4.0f}°  "
-                      f"oreille-épaule-hanche {a['tete_tronc']:4.0f}°  écart {txt_ecart}  → {', '.join(mauvaises)}"
+                      f"cou {cou}°  écart {txt_ecart}  → {', '.join(mauvaises)}"
                       + (f"   ({complete} complétée)" if complete else ""))
 
         if calibration is not None:
             reste = fin_calibration - time.monotonic()
             if a:
-                calibration.append((a["tete"], a["tronc"]))
+                calibration.append(a)
             if reste > 0:
-                texte(affichage, f"CALIBRATION : restez assis droit... {reste:.0f} s", 6, ORANGE, 0.7)
-            elif calibration:
-                reference = {"tete": float(np.median([t for t, _ in calibration])),
-                             "tronc": float(np.median([c for _, c in calibration]))}
-                print(f"Référence : tête {reference['tete']:.1f}°, tronc {reference['tronc']:+.1f}° "
-                      f"({len(calibration)} images)")
-                calibration = None
+                texte(affichage, f"CALIBRATION : travaillez normalement... {reste:.0f} s", 6, ORANGE, 0.7)
             else:
-                print("Calibration ratée : personne mal vue pendant 10 s")
+                ref = reference(calibration)
+                if ref:
+                    print(f"Référence : tête {ref['tete']:.1f}°, tronc {ref['tronc']:+.1f}° "
+                          f"({len(calibration)} images)")
+                else:
+                    print(f"Calibration ratée : personne mal vue pendant {DUREE_CALIBRATION} s")
                 calibration = None
 
         cv2.imshow("Dos d'ane - debug", affichage)
         touche = cv2.waitKey(1) & 0xFF
         if touche == 255 and not commandes.empty():          # aucune touche : commande du terminal ?
             touche = ord(commandes.get())
-        if touche == ord("c"):
-            print("Calibration : restez assis droit 10 s…")
         if touche == ord("q"):
             break
         if touche == ord("p"):
@@ -253,9 +239,10 @@ def main():
         if touche == ord("f"):
             mode = MODES[(MODES.index(mode) + 1) % len(MODES)]
         if touche == ord("c"):
+            print(f"Calibration : travaillez normalement {DUREE_CALIBRATION // 60} min…")
             calibration, fin_calibration = [], time.monotonic() + DUREE_CALIBRATION
         if touche == ord("r"):
-            reference = None
+            ref = None
         if chr(touche) in ETIQUETTES:
             enregistreur.demarrer(ETIQUETTES[chr(touche)])
         if touche == ord("9"):

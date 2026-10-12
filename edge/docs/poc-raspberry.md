@@ -303,7 +303,8 @@ Tous attendent une image carrée en `uint8` et renvoient **17 points × (y, x, s
 | Dans `live.py`, le côté vu (gauche / droite) et les verdicts clignotaient | à chaque image, le côté le mieux vu était recalculé ; de profil, MoveNet devine le côté caché avec une confiance parfois aussi haute | côté **bloqué** (`CoteStable`) : il ne change que si l'autre côté est nettement meilleur 5 images d'affilée. Mesuré ensuite : un seul côté sur 331 images |
 | `UNKNOWN` fréquents alors que la personne était bien de profil (20 % des images) | seuil de confiance de 0,30 trop strict : oreille et épaule souvent vues entre 0,20 et 0,30 | seuil abaissé à **0,20** : 99 % d'images exploitables sur le même enregistrement, angles inchangés (tête 62° en moyenne pour les images récupérées comme pour les autres) |
 | Les points et les angles « tremblaient » sans que la personne bouge (tête de 51° à 97° en 30 s) | MoveNet Lightning place mal l'épaule et la hanche de profil (9 à 13 px de tremblement) ; l'angle de la tête se mesure sur un segment court (oreille–épaule ≈ 70 px), donc quelques pixels font plusieurs degrés. Une autre personne dans le cadre aggravait le problème (MoveNet ne suit qu'une personne et peut mélanger les deux) | test T4 (`tests_poc/t4_modeles.py`) : **Thunder** divise le tremblement de la tête par 1,7 (2,9° au lieu de 4,9°) pour 70 ms par image ; garder le cadre sans autre personne |
-| Au 1ᵉʳ essai calibré, « tête en avant » s'allumait sur 67 % des images en bonne posture | calibration faite « au garde-à-vous » (référence tête 77,5°, alors que la tête est vers 65–72° en travaillant) | consigne : calibrer assis **comme d'habitude**. Au 2ᵉ essai, 0 % de fausses alertes, mais référence trop basse : la calibration de 10 s reste fragile (à revoir, `algo-posture.md`) |
+| Au 1ᵉʳ essai calibré, « tête en avant » s'allumait sur 67 % des images en bonne posture | calibration faite « au garde-à-vous » (référence tête 77,5°, alors que la tête est vers 65–72° en travaillant) | consigne : calibrer assis **comme d'habitude**. Au 2ᵉ essai, 0 % de fausses alertes, mais référence trop basse : la calibration de 10 s reste fragile → remplacée par la **médiane sur 2 min de travail normal** (`DUREE_CALIBRATION`) |
+| Avec un dossier incliné, « appuyé au dossier » et « avachi » se confondent | les 3 points (oreille, épaule, hanche) ne voient pas la courbure du dos. Mesuré le 12/10 : 7° d'écart de tronc seulement (−11° contre −18°), hanche immobile (332 contre 333 px), longueur du tronc −7 % mais trop variable | « avachi » redéfini comme « tronc nettement plus en arrière que la posture habituelle » (calibration faite dans la posture habituelle) ; limite écrite dans `algo-posture.md` §8 |
 | `ssh pi` échouait par moments (« Could not resolve hostname ») | le Wi-Fi de l'école ne transmet pas toujours les noms `.local` | passer par l'IP du Pi (§3.2) |
 | Les docs étaient sur la branche `docs`, absente de `develop` | branches créées séparément depuis `main` | branche `feat/edge-poc` créée depuis `develop`, docs copiées dans `edge/docs/` |
 | Le lien de téléchargement Kaggle semblait renvoyer une 404 | Kaggle répond 404 aux requêtes de type `HEAD` (`curl -I`) | télécharger normalement avec `curl -L` (§3.4) |
@@ -329,7 +330,8 @@ Tous attendent une image carrée en `uint8` et renvoient **17 points × (y, x, s
 │   ├── t2_camera.py         test caméra
 │   ├── t4_modeles.py        Lightning contre Thunder sur les mêmes images : stabilité et vitesse
 │   ├── t1_vitesse.py        test vitesse de l'IA        (à écrire)
-│   └── evaluer.py           scores T5                    (à écrire)
+│   ├── enregistrer.py       enregistrement guidé d'un volontaire (étape 4)
+│   └── evaluer.py           scores T5 : F1 par posture
 └── resultats/            ← CSV de mesures (jamais d'images, non commités)
 ```
 
@@ -412,7 +414,7 @@ Le code est dans `posture_lib.py` (il n'est pas recopié ici, pour ne pas avoir 
 | vérifier que la personne est de profil | `ecart_epaules()`, `ECART_EPAULES_MAX` |
 | ignorer les points peu sûrs | `CONF_MIN` |
 | calculer tête, tronc et oreille–épaule–hanche | `angles()` |
-| appliquer les règles (avec ou sans calibration) | `postures()` |
+| calculer le cou (oreille → nez) et appliquer les règles (tête < 50°, tronc > 20°, cou > 45°, tronc < −30°, seuils fixes) | `angle_cou()`, `postures()`, `SEUILS` |
 | filtre dans le temps, cadence, score, mouvement | à écrire (`poc.py`) |
 
 **Mode rapide pour les tests** : prévoir une fenêtre de 10 s, une durée minimale de 10 s et une immobilité de 1 min, pour ne pas attendre des minutes.
@@ -429,7 +431,7 @@ En vraie session, **il n'y a pas de flux vidéo continu** : le Pi prend une imag
 Démarrer (depuis l'app)
    │
    ▼
-Calibration : 10 s assis droit → posture de référence
+Calibration : 2 min de travail normal (médiane des angles) → posture de référence
    │
    ▼
 ┌─────────────── boucle, jusqu'à « Terminer » ───────────────┐
@@ -507,36 +509,35 @@ L'écran « session en cours » de l'app n'est donc pas une vidéo : la silhouet
 
 ### Étape 4 — Enregistrer des exemples étiquetés · *1 journée*
 
-- Dans `live.py`, une touche du clavier fixe le **label en cours**. Chaque capture est écrite dans un CSV avec ce label :
+- Script `tests_poc/enregistrer.py` ✅ : **enregistrement guidé**, sans rien taper. L'opérateur lance `python -m tests_poc.enregistrer P02` et lit les consignes à voix haute (pendant « tête en avant », le volontaire ne voit pas l'écran). Le script enchaîne (≈ 5 min 45) :
 
-| Touche | Label |
-|---|---|
-| `0` | GOOD (bonne posture) |
-| `1` | FORWARD_HEAD (tête en avant) |
-| `2` | TRUNK_FORWARD (dos penché en avant) |
-| `3` | TRUNK_BACKWARD (avachi en arrière) |
-| `4` | C_SHAPE (dos en « C », pour tester si on peut le détecter) |
-| `9` | arrêter l'enregistrement |
-| `q` | quitter |
+| Étape | Durée | Consigne | Étiquette |
+|---|---|---|---|
+| 1 | 2 min | installé comme d'habitude, au fond de la chaise, travailler normalement | CALIBRATION |
+| 2, 4, 6, 8 | 30 s | tête en avant / buste penché / allongé dans la chaise (« avachi » jusqu'à P04) / regarder son téléphone (depuis le 12/10 après-midi), **ordre tiré au hasard** | FORWARD_HEAD, TRUNK_FORWARD, TRUNK_BACKWARD, NECK_FLEXION |
+| 3, 5 | 15 s | revenir à la posture normale | GOOD |
+| 7 | 30 s | revenir à la normale, puis boire une gorgée | GOOD |
 
-- Protocole par personne : 10 s droit (référence), puis chaque posture tenue 30 s, dans un ordre mélangé. On ajoute des gestes normaux (boire, attraper un objet) étiquetés GOOD.
-- Au moins **5 personnes** volontaires et d'accord, si possible de morphologies variées.
-- **Livrable :** `resultats/live_<date>.csv` (chiffres seulement : label, angles, confiances, 17 points ; jamais d'image). ✅ Enregistrement déjà codé dans `live.py`.
+- Chaque étape est annoncée 5 s avant (« Dans 5 s : … »), et ses 5 premières secondes sont étiquetées TRANSITION (la personne bouge) : elles ne comptent pas.
+- Au moins **5 personnes** volontaires et d'accord, si possible de morphologies variées, chacune à son poste.
+- **Livrable :** `resultats/P02_<date>.csv` (chiffres seulement : étiquette, angles, référence, confiances, 17 points ; jamais d'image).
+- Pour un essai libre, `live.py` garde l'enregistrement au clavier (`0` bonne posture, `1` tête en avant, `2` dos penché, `3` allongé, `4` dos en « C », `5` cou penché, `9` arrêter).
 - **Volontaires :** consentement écrit, un code par personne (`P01`…), CSV laissés sur le Pi, hors de Git. Ces CSV forment aussi le **dataset** du projet (audit §16).
 
 ### Étape 5 — T5 : règles et vérification dans le temps · *1 à 2 jours*
 
-- Script `evaluer.py` : rejoue les règles ([algo-posture.md](algo-posture.md)) sur les exemples étiquetés.
-  - **Par capture**, et pour chaque posture : précision, rappel, F1, matrice de confusion.
-  - **Distribution des angles** par label (moyenne, écart-type) : c'est ce qui permet d'ajuster les seuils.
-  - Comparaison **avec et sans calibration**.
-  - **Par événement**, avec le filtre dans le temps en mode rapide (§5.3) : nombre de fausses alertes.
-- **Réussi si :** F1 ≥ 0,80 pour chaque posture, et < 1 fausse alerte par heure.
+- Script `tests_poc/evaluer.py` ✅ : `python -m tests_poc.evaluer` rejoue la règle ([algo-posture.md](algo-posture.md)) sur tous les `resultats/P??_*.csv`.
+  - **Distribution des angles** par label (moyenne, écart-type).
+  - **Tête en avant ou dos penché** contre la bonne posture : précision, rappel, F1 avec les **seuils actuels**, au total et **par volontaire**, avec les **meilleurs seuils** (optimiste) et en **mettant un volontaire de côté** (seuils choisis sur les autres, testés sur lui).
+  - **Cause annoncée** : part des images où l'alerte nomme la bonne posture (tête en avant ou dos penché).
+  - **Allongé** : précision, rappel, F1 et part de fausses alertes en bonne posture.
+  - (Plus tard, avec `poc.py`) **par événement**, avec le filtre dans le temps : nombre de fausses alertes.
+- **Réussi si :** F1 ≥ 0,80 pour chaque alerte, et < 1 fausse alerte par heure.
 - **Si échec :** ajuster les seuils à partir des distributions ; si une posture reste mauvaise, la retirer du MVP et l'expliquer.
 
 ### Étape 6 — Chaîne complète et T7 : cadence adaptative · *1 jour*
 
-- Script `poc.py` : calibration 10 s → boucle avec la cadence adaptative → règles → filtre → affichage des événements, plus un CSV des mesures et des événements.
+- Script `poc.py` : calibration (2 min de travail normal) → boucle avec la cadence adaptative → règles → filtre → affichage des événements, plus un CSV des mesures et des événements.
 - Le comparer à une cadence fixe de 2 s : même délai de détection ? Combien de captures en moins ?
 - **Immobilité** : la vérifier en mode rapide (1 min sans bouger → événement).
 - **Réussi si :** même détection que la cadence fixe, délai < 1 min, nettement moins de captures.
@@ -560,9 +561,15 @@ L'écran « session en cours » de l'app n'est donc pas une vidéo : la silhouet
 | T4 modèle | 12/10/2026 | 1 pers. immobile 1 min, de profil, les 2 modèles sur les **mêmes** images | écart-type par image — tête : Lightning **4,9°**, Thunder **2,9°** ; tronc : 3,9° / 2,3° ; épaule : 5–6 px / 3–4 px ; confiance hanche : 0,34 / 0,62 ; exploitables : 98 % / 100 % | le plus stable | ✅ **Thunder** | MediaPipe pas testé. Les deux modèles ne donnent pas le même angle (tête 54° / 60°) : seuils à régler avec le modèle définitif |
 | T3 détection | 12/10/2026 (1 pers., 1 éclairage) | Thunder, salle de cours, d'autres personnes hors cadre | **100 %** exploitables ; tête 2,9°, tronc 2,3° d'écart-type (T4) | ≥ 90 %, < 3° | ✅ pour 1 pers. | 3 pers. × 3 éclairages à faire. Avec Lightning : 89 % et tête à 9° d'écart-type, en partie à cause d'une autre personne dans le cadre (MoveNet ne suit qu'une personne) |
 | T5 essai 1 pers. | 12/10/2026 | Thunder, calibration 10 s, chaque posture 30 s étiquetée, 1 049 images | règles calibrées — bonne posture : 0 % de fausse alerte ; tête en avant **31 %** ; dos penché 86 % ; avachi **100 %**. Meilleurs seuils sur ces données : tête < bonne − 8° (92 % / 9 % de fausses), tronc > bonne + 7° (87 % / 4 %), tronc < bonne − 18° (100 % / 0 %) | ≥ 0,80 | ⚠️ | la référence de 10 s varie trop : 77,5° au 1ᵉʳ essai (trop droit → 67 % de fausses alertes), trop basse au 2ᵉ (tête en avant ratée). `tete_tronc` sépare moins bien que `tete` (49 % contre 92 %) |
-| T5 tête en avant | | ___ personnes | F1 ___ | ≥ 0,80 | | |
-| T5 dos en avant | | | F1 ___ | ≥ 0,80 | | |
-| T5 avachi | | | F1 ___ | ≥ 0,80 | | |
+| T5 tête en avant ou dos penché | 12/10/2026 | **4 personnes** (P01–P04), Thunder, `enregistrer.py` : 2 min de calibration, chaque posture 30 s, ordre au hasard ; 93–99 % d'images exploitables | règle **tête < 50° ou tronc > 20°** (seuils de départ, non réglés sur ces données) : **F1 0,82**, précision 0,97, rappel 0,71 ; par personne 0,90 / 0,97 / 0,67 / 0,68 | ≥ 0,80 | ✅ | règle retenue ; cause annoncée juste 66 % (tête) / 85 % (dos). Rappel faible chez P03 (tête en avant faite calée au dossier : angle de la tête inchangé) et P04 (calibration perturbée, tête en avant tardive). Meilleurs seuils (45°, 10°) : 0,83, pas mieux |
+| T5 tête en avant seule | 12/10/2026 | idem | calibrée réf. − 8° : F1 0,58 ; un volontaire mis de côté : 0,67 ; angle oreille–épaule–hanche : 0,73 ; les deux angles : 0,74 | ≥ 0,80 | ❌ | évaluée avec le dos penché (les volontaires avancent tête et buste ensemble) ; cause annoncée d'après le tronc. Calibration écartée : chacun calibre calé au dossier puis se redresse → fausses alertes « dos penché » (précision 0,49–0,57) |
+| T5 dos penché seul | 12/10/2026 | idem | un volontaire mis de côté : F1 0,88 ; fixe tronc > 20° : 0,89 (précision 1,00) | ≥ 0,80 | ✅ | |
+| T5 avachi | 12/10/2026 | idem | un volontaire mis de côté : F1 0,64 ; fixe tronc < −25° : 0,67 ; **tronc < −30° : précision 0,96, 0,8 % de fausses alertes, rappel 0,35** | ≥ 0,80 | ⚠️ | avachi léger : chevauche « calé au dossier ». Devient **« allongé dans la chaise » (tronc < −30°)**, fiable quand il sonne |
+| T5 allongé | 12/10/2026 | 1 pers. (P01), `live.py`, 20 s de bonne posture puis 30 s vraiment allongé | tronc allongé −35° à −47° (contre −12° à −18° calé au dossier) ; une fois installé, **84 %** des images vues sous −30° ; 0 fausse alerte en bonne posture hors transitions ; 76 % d'images exploitables allongé (hanche ou oreille moins bien vues) | ≥ 0,80 | ✅ pour 1 pers. | à refaire sur d'autres volontaires avec la nouvelle consigne d'`enregistrer.py` |
+| T5 2ᵉ essai P01 | 12/10/2026 | `enregistrer.py` avec la consigne « allongez-vous » ; 5 enregistrements au total | tête en avant ou dos penché : F1 **0,90** pour P01, **0,84** sur les 5, **0,82 un volontaire mis de côté** ✅ ; cause juste 77 % (tête) / 79 % (dos). Allongé moins loin (tronc −20° à −23°, hanche cachée par le bureau) : 5 % détecté, 0 fausse alerte. Pendant la calibration, tête à 48–51° pendant ~1 min → « tête en avant » sur 31 % du travail normal | ≥ 0,80 | ✅ / ⚠️ | allongé vu seulement si la hanche reste visible. Tête à 45° : 8 % au lieu de 31 % (F1 0,83) ; **gardé à 50°**, à revoir si `poc.py` donne trop de fausses alertes |
+| T5 cou penché | 12/10/2026 | 1 pers. (P01), `live.py`, 30 s à regarder son téléphone | nez à **+55°** sous l'oreille (45 à 60), tête 48° ; règle cou > 45° : **85 %** reconnu « cou penché » ; bonne posture des 4 volontaires : 0 à 2 % ; 35 % des têtes en avant du 2ᵉ essai de P01 annoncées « cou penché » | ≥ 0,80 | ⏳ | seuil provisoire : à enregistrer avec des volontaires (`enregistrer.py` le demande désormais) |
+| T5 3ᵉ essai P01 (5 postures) | 12/10/2026 | `enregistrer.py` avec téléphone et allongé ; 6 enregistrements au total | cou penché : F1 **0,97** pour P01 (nez +58° contre +28° en bonne posture), 100 % annoncé « cou penché », 1,2 % de fausses alertes ; vers l'avant (tête, dos, cou) : F1 0,92 pour P01, **0,86 sur les 6**, 0,87 un volontaire mis de côté ; cause juste 62 % (tête) / 82 % (dos) / 100 % (cou) ; allongé (tronc −28°) : 51 % ; travail normal : 0 % de fausses alertes | ≥ 0,80 | ✅ (1 pers. pour le cou) | cou penché à confirmer sur d'autres volontaires |
+| T5 cou penché, 2ᵉ personne | 12/10/2026 | 1 volontaire, `live.py` : posture normale (en bougeant un peu) puis 30 s à regarder son téléphone | cou +24° en bonne posture, **+51°** téléphone (tête à 56° : « tête en avant » ne l'aurait pas vu) ; cou > 45° : **87 %** reconnu, **0 %** de fausses alertes, 100 % annoncé « cou penché », F1 0,93 | ≥ 0,80 | ✅ | seuil de 45° gardé, vérifié sur 2 personnes |
 | T5 immobilité | | mode rapide | détectée : oui / non | oui | | |
 | T5 fausses alertes | | ___ h de test | ___ / h | < 1 / h | | |
 | T7 cadence | | fixe 2 s vs adaptative | ___ captures vs ___, délai ___ s | délai < 1 min | | |

@@ -65,18 +65,19 @@ Pour savoir si une posture est mauvaise, le Raspberry doit **regarder régulièr
 
 Résultat : on capture beaucoup moins qu'avec une cadence fixe, sans détecter plus tard. C'est la **sobriété** demandée par le sujet.
 
-### Les 4 postures du MVP
+### Les 5 alertes du MVP
 
 La caméra est placée **de profil**, car c'est la vue qui permet de voir la tête et le dos. Nous retenons les postures **qu'une caméra de profil mesure de façon fiable** :
 
-| Posture | Ce qu'on mesure | Points utilisés |
+| Alerte | Ce qu'on mesure | Points utilisés |
 |---|---|---|
-| **Tête en avant** | l'angle entre l'épaule et l'oreille : plus la tête avance, plus l'angle change | oreille, épaule |
-| **Dos penché en avant** | l'inclinaison du buste vers l'avant par rapport à la verticale | épaule, hanche |
-| **Avachi, penché en arrière** | la même inclinaison du buste, mais vers l'arrière | épaule, hanche |
+| **Tête en avant** | l'angle entre l'épaule et l'oreille : plus la tête avance, plus l'angle baisse (< 50°) | oreille, épaule |
+| **Dos penché en avant** | l'inclinaison du buste vers l'avant par rapport à la verticale (> 20°) | épaule, hanche |
+| **Cou penché** (regarder son téléphone) | le nez qui plonge sous l'oreille (> 45°, vérifié sur 2 personnes) | oreille, nez |
+| **Allongé dans la chaise** | la même inclinaison, très en arrière (< −30°) | épaule, hanche |
 | **Immobilité prolongée** | les points du corps ne bougent presque pas pendant longtemps (par exemple 50 min), d'où une suggestion de pause | tous les points visibles |
 
-Les **seuils de départ** viennent de méthodes d'ergonomie reconnues : l'**angle cranio-vertébral** pour la tête, **RULA** (McAtamney & Corlett, 1993) pour le dos penché, **REBA** (2000) pour l'avachi. Ils sont **personnalisés** par une calibration de 10 s, puis **ajustés par nos tests**. Le tableau complet (angle, seuil, source, durée avant alerte) est dans [algo-posture.md](algo-posture.md).
+Les **seuils** viennent de méthodes d'ergonomie reconnues : l'**angle cranio-vertébral** pour la tête, **RULA** (McAtamney & Corlett, 1993) pour le buste. Ils ont été **vérifiés sur 4 volontaires** (test T5 : tête en avant ou dos penché détectés avec un F1 de 0,82, 97 % d'alertes justes ; la cause exacte est juste 66 à 85 % du temps, car tête et buste avancent souvent ensemble). L'avachi **léger** se confond avec « calé contre le dossier » : seul l'avachi **prononcé** (« allongé ») est détecté. Le détail (angles, sources, résultats, limites) est dans [algo-posture.md](algo-posture.md).
 
 **Pourquoi pas plus ?** Ce n'est pas une limite du sujet. Chaque posture ajoutée demande un angle, un seuil justifié et des tests. Certaines postures ne se voient pas de profil : épaules inclinées ou penché sur le côté (il faut une vue de face), jambes croisées (cachées par le bureau). Nous en ajouterons **une à la fois, une fois les précédentes validées** : d'abord le cou penché vers le bas (regarder son téléphone), puis la position des coudes. Ajouter une posture revient à ajouter une règle.
 
@@ -84,7 +85,7 @@ Les **seuils de départ** viennent de méthodes d'ergonomie reconnues : l'**angl
 
 - **Point mal détecté** (contre-jour, oreille cachée) : la photo est **ignorée**.
 - **Mouvement bref** (boire, ramasser un stylo) : **pas d'alerte**. Il faut une mauvaise posture sur la majorité des photos pendant au moins 2 minutes.
-- **Morphologie différente** d'une personne à l'autre : au début de la session, on enregistre la **posture de référence** de la personne (10 s assis droit).
+- **Morphologie différente** d'une personne à l'autre : au début de la session, on mesure la **posture de référence** de la personne (médiane de ses angles pendant les 2 premières minutes de travail normal).
 
 ---
 
@@ -104,7 +105,7 @@ Les **seuils de départ** viennent de méthodes d'ergonomie reconnues : l'**angl
 | Dans le MVP ✅ | Plus tard 🔜 |
 |---|---|
 | 1 webcam USB de profil + 1 Raspberry Pi 4 | 2ᵉ caméra (de face) |
-| 4 postures : tête en avant, dos penché en avant, avachi en arrière, immobilité prolongée | cou penché vers le bas, coudes, puis postures vues de face (épaules inclinées…) |
+| 5 alertes : tête en avant, dos penché en avant, cou penché, allongé dans la chaise, immobilité prolongée | coudes, puis postures vues de face (épaules inclinées…) |
 | Cadence de capture adaptative | — |
 | Détection par règles | IA de classification entraînée sur nos données |
 | Serveur NestJS + base PostgreSQL | squelette animé en direct dans l'app |
@@ -126,7 +127,7 @@ Les **seuils de départ** viennent de méthodes d'ergonomie reconnues : l'**angl
 | **Caméra de profil** | c'est la seule vue où l'on voit la tête avancer et le dos se pencher | vue de face : ne voit pas ces postures |
 | **Webcam USB** | branchée, elle marche ; **même code sur le PC et sur le Pi** ; câble long, facile à placer de profil | Arducam CSI (nappe courte, code différent) : **testée en alternative (T2)**. Le programme accepte les deux. |
 | **Peu de captures, cadence adaptative** | une posture dure des minutes : inutile de filmer en continu. On capture plus souvent seulement en cas de doute (sobriété, demandée par le sujet). | flux vidéo : plus de calcul, plus de chaleur, aucun gain |
-| **4 postures mesurables de profil** | mieux vaut peu de postures bien détectées que beaucoup mal détectées ; on en ajoute une fois les premières validées | viser toutes les postures dès le départ : impossible à valider |
+| **Peu d'alertes, mesurables de profil** | mieux vaut peu de postures bien détectées que beaucoup mal détectées ; on en ajoute une fois les premières validées | viser toutes les postures dès le départ : impossible à valider |
 | **NestJS + PostgreSQL** | un seul serveur pour le mobile, le web et le Raspberry | — |
 | **WebSocket (Pi) + SSE (app) + HTTPS** | temps réel sans interroger le serveur en boucle ; le Pi ouvre lui-même la connexion (passe les pare-feu) ; ce qui est stocké passe en HTTPS avec renvoi si le réseau coupe | interroger le serveur toutes les secondes (polling) : lent et coûteux ; WebSocket aussi côté app : possible si l'équipe préfère une seule techno |
 
@@ -142,7 +143,7 @@ Chaque choix est une **hypothèse** : on la teste avant de construire dessus. Si
 | **T2** | Quelle caméra sur le Pi : webcam USB ou Arducam CSI ? | 1 capture toutes les 5 s pendant 1 h avec chacune ; vérifier aussi la référence de l'Arducam (une Arducam ToF ne convient pas) | 0 échec ; points du corps aussi bien détectés | garder la caméra qui fonctionne |
 | **T3** | MoveNet voit-il bien une personne assise de profil ? | 3 personnes, 3 éclairages, sur PC | oreille, épaule et hanche trouvées sur ≥ 90 % des photos | MediaPipe |
 | **T4** | MoveNet ou MediaPipe ? | mêmes photos avec les deux IA | tableau comparatif → choix justifié | — |
-| **T5** | Nos règles reconnaissent-elles les 4 postures ? | sessions « jouées » : chaque posture tenue 30 s, avec des gestes normaux au milieu ; immobilité simulée sur une durée raccourcie | ≥ 80 % de bonnes détections **par posture**, < 1 fausse alerte par heure | ajuster les seuils, référence personnelle ; retirer du MVP une posture qui échoue |
+| **T5** | Nos règles reconnaissent-elles les mauvaises postures ? | sessions « jouées » : chaque posture tenue 30 s, avec des gestes normaux au milieu ; immobilité simulée sur une durée raccourcie | ≥ 80 % de bonnes détections **par posture**, < 1 fausse alerte par heure | ajuster les seuils, référence personnelle ; retirer du MVP une posture qui échoue |
 | **T6** | Aucune image ne sort-elle vraiment ? | capture du trafic réseau pendant 1 h | 0 image détectée | corriger avant la démo |
 | **T7** | La cadence adaptative suffit-elle ? | rejouer T5 avec une cadence fixe (2 s) puis adaptative | même taux de détection, délai < 1 min, nettement moins de captures | ajuster les cadences |
 
