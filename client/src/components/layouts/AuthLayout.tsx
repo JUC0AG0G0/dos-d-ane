@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom';
 import illustration from '@/assets/tung_sahur_italian_brainrot_the_series_png_by_amigurumis1a_dkbnx7t-fullview.png';
 import { MedicalDisclaimer } from '@/components/MedicalDisclaimer';
+import { LegalLinks } from '@/features/legal';
 
 export function AuthLayout() {
   return (
@@ -36,6 +37,7 @@ export function AuthLayout() {
         <div className="max-w-sm lg:hidden">
           <MedicalDisclaimer />
         </div>
+        <LegalLinks className="justify-center" />
       </main>
     </div>
   );

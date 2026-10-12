@@ -117,3 +117,8 @@ Toutes les routes exigent d'être connecté, sauf celles marquées `@Public()`. 
 ## Branches
 
 `main` et `develop` ne reçoivent que des pull requests. Une branche par tâche, créée depuis `develop`.
+
+
+## Licence
+
+Ce projet est sous licence **GNU AGPL v3.0**. Voir le fichier [LICENSE](LICENSE) pour plus de détails.

@@ -79,8 +79,25 @@ export function RegisterForm() {
           className="mt-0.5"
         />
         <Label htmlFor="consent" className="leading-snug font-normal">
-          J'accepte que mes données soient traitées pour le fonctionnement de
-          Dos d'âne (RGPD).
+          <span>
+            J'accepte les{' '}
+            <Link
+              to="/legal/terms"
+              target="_blank"
+              className="font-medium text-primary hover:underline"
+            >
+              conditions d'utilisation
+            </Link>{' '}
+            et j'ai lu la{' '}
+            <Link
+              to="/legal/privacy"
+              target="_blank"
+              className="font-medium text-primary hover:underline"
+            >
+              politique de confidentialité
+            </Link>
+            .
+          </span>
         </Label>
       </div>
       <Button type="submit" className="w-full" disabled={pending || !consent}>

@@ -81,6 +81,7 @@ Une page par route, déclarée dans `App.tsx`. Une page assemble des composants 
 | `HomePage.tsx` | `/` | connecté |
 | `SettingsPage.tsx` | `/settings/account`, `/settings/devices`, `/settings/privacy` | connecté |
 | `StatusPage.tsx` | `/status` (serveur, base, environnement, version) | tout le monde |
+| `LegalNoticePage.tsx`, `PrivacyPolicyPage.tsx`, `TermsPage.tsx` | `/legal/notice`, `/legal/privacy`, `/legal/terms` (mentions légales, confidentialité, conditions d'utilisation et avertissement médical) | tout le monde |
 | `NotFoundPage.tsx` | toute autre adresse | tout le monde |
 
 ### `components/`
@@ -91,6 +92,7 @@ Composants réutilisables, sans appel à l'API ni logique métier.
   - `AuthLayout` : connexion et inscription (panneau vert à gauche, formulaire à droite).
   - `AppLayout` : pages connectées (barre latérale, fil d'Ariane, contenu en pleine largeur).
   - `CenteredLayout` : pages statut et 404 (logo, carte centrée, avertissement santé).
+  - `LegalLayout` : pages légales (en-tête avec les liens légaux, texte en colonne, bandeau « document provisoire »).
 - `ui/` : composants [shadcn/ui](https://ui.shadcn.com/docs/components). Ils sont copiés dans le projet, on peut donc les modifier (par exemple, `alert.tsx` a deux variantes en plus : `success` et `warning`).
 - `AppSidebar.tsx`, `PasswordInput.tsx`, `MedicalDisclaimer.tsx`… : composants propres à l'application.
 
@@ -112,6 +114,7 @@ features/auth/
 | `auth/` | formulaires de connexion et d'inscription, `useLogin`, `useRegister`, `useLogout`, et `RequireAuth` qui protège les pages connectées |
 | `settings/` | onglets des paramètres : compte, appareils connectés (sessions, renommer, déconnecter), confidentialité |
 | `health/` | état du serveur et de la base (carte de la page `/status`) |
+| `legal/` | textes légaux et `LegalLinks`, les liens affichés en pied de page, dans la barre latérale et à l'inscription. Les informations manquantes sont marquées `<ToComplete>` (surlignées à l'écran) ; la date de mise à jour est dans `legal.config.ts` |
 
 ### `services/`
 
