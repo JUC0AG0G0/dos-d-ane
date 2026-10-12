@@ -79,7 +79,7 @@ Le rechargement à chaud est toujours actif : chaque modification de `client/src
 | `task clean` | arrête tout et **supprime** les données (demande confirmation) |
 | `task check` | lint + compilation (lancé aussi avant chaque commit et push) |
 | `task db:generate` | crée une migration depuis `server/prisma/schema.prisma`, sans l'appliquer |
-| `task db:migrate` | applique les migrations pas encore appliquées, puis crée le compte admin de `.env.dev` |
+| `task db:migrate` | applique les migrations pas encore appliquées |
 | `task db:dump` | exporte la base dans `dumps/<date>.sql` (ignoré par Git, à ne pas partager) |
 | `task db:restore` | annule la dernière migration, revient à une migration ou charge un dump |
 | `task` | liste toutes les commandes |
@@ -112,7 +112,7 @@ Coller le résultat après `JWT_SECRET=` dans `.env.dev`, puis relancer `task de
 
 Une session expire après `SESSION_TTL_MINUTES` (60 par défaut) sans requête : chaque requête la repousse, et la nouvelle échéance est renvoyée dans l'en-tête `X-Session-Expires-At`. À la connexion, le nom et le modèle de l'appareil sont déduits du `User-Agent` et l'adresse IP est enregistrée ; `PATCH /api/devices/{id}` renomme un appareil.
 
-Toutes les routes exigent d'être connecté, sauf celles marquées `@Public()`. Pour réserver une route à un rôle : `@Roles(Role.admin)`. Le rôle `admin` ne s'attribue qu'en base (`UPDATE users SET role = 'admin' WHERE email = '...'`).
+Toutes les routes exigent d'être connecté, sauf celles marquées `@Public()`. Pour réserver une route à un rôle : `@Roles(Role.admin)`. Le compte `admin` : en dev, c'est le premier compte inscrit ; en production (`APP_ENV=production`), il est créé au démarrage depuis `ADMIN_EMAIL` et `ADMIN_PASSWORD`, obligatoires et jamais commités. Sinon, il s'attribue en base (`UPDATE users SET role = 'admin' WHERE email = '...'`).
 
 ## Branches
 

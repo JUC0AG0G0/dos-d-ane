@@ -36,6 +36,21 @@ export function validateEnv(
     );
   }
 
+  // En production, le compte admin est créé au démarrage depuis ces valeurs.
+  if (appEnv === 'production') {
+    if (typeof config.ADMIN_EMAIL !== 'string' || !config.ADMIN_EMAIL.trim()) {
+      errors.push('ADMIN_EMAIL manquante');
+    }
+    if (
+      typeof config.ADMIN_PASSWORD !== 'string' ||
+      config.ADMIN_PASSWORD.length < 8
+    ) {
+      errors.push(
+        'ADMIN_PASSWORD manquante ou trop courte (8 caractères minimum)',
+      );
+    }
+  }
+
   if (errors.length > 0) {
     throw new Error(`Configuration invalide : ${errors.join('; ')}`);
   }

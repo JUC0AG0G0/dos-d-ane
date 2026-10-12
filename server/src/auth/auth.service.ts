@@ -7,7 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '../generated/prisma/client.js';
-import { CaptureStatus, DeviceType } from '../entities/index.js';
+import { CaptureStatus, DeviceType, Role } from '../entities/index.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { AuthContext } from './auth.guard.js';
 import type { DeviceInputDto } from './dto/device-input.dto.js';
@@ -54,6 +54,8 @@ export class AuthService {
   /** Durée d'inactivité après laquelle une session expire. */
   private readonly sessionTtlMs: number;
 
+  private readonly production: boolean;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
@@ -61,11 +63,14 @@ export class AuthService {
   ) {
     this.sessionTtlMs =
       config.getOrThrow<number>('SESSION_TTL_MINUTES') * 60 * 1000;
+    this.production = config.get<string>('APP_ENV') === 'production';
   }
 
   /**
-   * Crée le compte, avec le rôle user par défaut. Ne connecte pas : le client
-   * appelle ensuite login.
+   * Crée le compte, avec le rôle user. Hors production, le tout premier
+   * compte est admin (en production, l'admin vient de ADMIN_EMAIL et
+   * ADMIN_PASSWORD, voir AdminAccount). Ne connecte pas : le client appelle
+   * ensuite login.
    */
   async register(dto: RegisterDto): Promise<UserDto> {
     const email = normalizeEmail(dto.email);
@@ -77,6 +82,7 @@ export class AuthService {
           email,
           displayName,
           passwordHash: await hashPassword(dto.password),
+          role: (await this.isFirstDevUser()) ? Role.admin : Role.user,
         },
         select: userSelect,
       });
@@ -91,6 +97,10 @@ export class AuthService {
       }
       throw error;
     }
+  }
+
+  private async isFirstDevUser() {
+    return !this.production && (await this.prisma.user.count()) === 0;
   }
 
   /** Refuse un email ou un nom affiché déjà pris (casse ignorée pour le nom). */

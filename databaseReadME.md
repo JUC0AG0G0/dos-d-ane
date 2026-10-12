@@ -7,8 +7,7 @@ PostgreSQL 18 et [Prisma 7](https://www.prisma.io/docs). Le schéma est dans `se
 | Commande | Rôle |
 | --- | --- |
 | `task db:generate -- nom` | crée une migration depuis les changements du schéma, **sans l'appliquer** |
-| `task db:migrate` | applique les migrations pas encore appliquées, et seulement celles-là, puis la seed |
-| `task db:seed` | crée les données initiales (compte admin) |
+| `task db:migrate` | applique les migrations pas encore appliquées, et seulement celles-là |
 | `task db:restore` | annule la dernière migration appliquée |
 | `task db:restore -- migration` | revient à cette migration : elle reste appliquée, les suivantes sont annulées |
 | `task db:restore -- dump` | remplace la base par le dump le plus récent de `dumps/` |
@@ -25,12 +24,6 @@ PostgreSQL 18 et [Prisma 7](https://www.prisma.io/docs). Le schéma est dans `se
 4. Commiter le schéma et la migration ensemble.
 
 Après un `git pull` qui apporte des migrations, `task db:migrate` suffit.
-
-## Données initiales (seed)
-
-`server/src/seed.ts` crée le compte administrateur défini par `ADMIN_EMAIL` et `ADMIN_PASSWORD` dans `.env.dev` (email `dosd@ne.fr` par défaut, mot de passe à renseigner). Elle est lancée par `task db:migrate`, donc dès la création de la base, et peut être relancée sans risque : un compte qui existe déjà n'est pas recréé et son mot de passe n'est pas changé.
-
-Sans `ADMIN_PASSWORD`, aucun compte admin n'est créé. Après l'avoir renseigné sur une base existante : `task db:seed`.
 
 ## Revenir en arrière
 

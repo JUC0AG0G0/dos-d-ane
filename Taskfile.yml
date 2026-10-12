@@ -105,12 +105,8 @@ tasks:
     cmd: "{{.COMPOSE}} exec server npm run db:generate -- {{if .CLI_ARGS}}--name {{.CLI_ARGS}}{{end}}"
 
   db:migrate:
-    desc: Applique à la base les migrations pas encore appliquées puis la seed (stack lancée)
+    desc: Applique à la base les migrations pas encore appliquées (stack lancée)
     cmd: "{{.COMPOSE}} exec server npm run db:migrate"
-
-  db:seed:
-    desc: Crée les données initiales, dont le compte admin de .env.dev (stack lancée)
-    cmd: "{{.COMPOSE}} exec server npm run db:seed"
 
   db:dump:
     desc: Exporte la base dans dumps/<date>.sql (stack lancée ; dossier ignoré par Git)
