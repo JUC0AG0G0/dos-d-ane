@@ -18,8 +18,9 @@ PostgreSQL 18 et [Prisma 7](https://www.prisma.io/docs). Le schéma est dans `se
 
 ## Modifier le schéma
 
-Shema visible sur [dbdiagram.io](dbdiagram.io) en intégrant le contenu du fichier [./databaseSchema.dbml](./databaseSchema.dbml)
-
+Shema visible sur [dbdiagram.io](dbdiagram.io) en intégrant le contenu du fichier [./databaseSchema.dbml](./databaseSchema.dbml).
+<br>
+Le schémas peut également être visible via l'interface des IDE JetBrains en se connectant à la base puis en faisant clic droit dessus puis séléctionné Diagram.
 1. Modifier `server/prisma/schema.prisma`.
 2. `task db:generate -- ajoute_telephone` : le fichier `server/prisma/migrations/<date>_ajoute_telephone/migration.sql` est créé. Le relire, et le compléter si besoin (une contrainte `CHECK`, par exemple, que Prisma ne sait pas écrire).
 3. `task db:migrate` : la migration est appliquée.
