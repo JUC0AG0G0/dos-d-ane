@@ -70,7 +70,9 @@ jobs:
       - name: Valider les fichiers compose
         run: |
           docker compose --env-file .env.dev.example -f compose.yaml -f compose.dev.yaml config -q
-          SERVER_TAG=ci CLIENT_TAG=ci docker compose --env-file .env.dev.example -f compose.yaml -f compose.prod.yaml config -q
+          # Production : chaque variable de .env.prod.example reçoit une valeur factice.
+          sed -E 's/^([A-Z0-9_]+)=$/\1=ci/' .env.prod.example > .env.prod
+          SERVER_TAG=ci CLIENT_TAG=ci docker compose --env-file .env.prod -f compose.yaml -f compose.prod.yaml config -q
 
   # Construit (sans publier) les images dont le Dockerfile ou nginx.conf a
   # changé. Le cache est partagé avec la préprod, qui ira donc vite.
