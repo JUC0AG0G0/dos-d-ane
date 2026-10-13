@@ -7,12 +7,14 @@
  * Chaque somme est pondérée par le temps : une mesure tenue 1 s compte 4 fois
  * plus qu'une mesure tenue 0,25 s. Le score d'une période est donc la moyenne
  * dans le temps du score instantané, lui-même calculé à partir des angles
- * (public/posture.js, noteMesure).
+ * (src/page/posture.ts, noteMesure).
  *
- * Fichier sans dépendance React Native : testé par scripts/test-statistiques.mjs.
+ * Fichier sans dépendance React Native : testé par scripts/statistiques.test.ts.
  */
 
-export type Niveau = 'vert' | 'orange' | 'rouge' | 'gris';
+import type { Niveau, SensTronc } from '../page/posture';
+
+export type { Niveau };
 export type Periode = 'jour' | 'semaine' | 'mois';
 
 export type Tranche = {
@@ -51,7 +53,7 @@ export type Echantillon = {
   duree: number;
   score: number;
   cou: { angle: number | null; niveau: Niveau };
-  tronc: { angle: number | null; niveau: Niveau; sens?: 'avant' | 'arriere' | null };
+  tronc: { angle: number | null; niveau: Niveau; sens?: SensTronc };
 };
 
 const HEURE = 3600 * 1000;

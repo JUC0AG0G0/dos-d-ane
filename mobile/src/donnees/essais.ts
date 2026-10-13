@@ -4,12 +4,13 @@
  * angles mesurés (jamais d'image) pour vérifier que les couleurs de l'app
  * correspondent à la posture demandée, et ajuster les seuils au besoin.
  *
- * Fichier sans dépendance React Native : testé par scripts/test-essais.mjs.
+ * Fichier sans dépendance React Native : testé par scripts/essais.test.ts.
  */
 
-export type Niveau = 'vert' | 'orange' | 'rouge' | 'gris';
+import type { Niveau, SensTronc } from '../page/posture';
+
+export type { Niveau, SensTronc };
 export type PostureTest = 'droit' | 'teteAvant' | 'pencheAvant' | 'avachi';
-export type SensTronc = 'avant' | 'arriere' | null;
 
 const enAlerte = (n: Niveau) => n === 'orange' || n === 'rouge';
 

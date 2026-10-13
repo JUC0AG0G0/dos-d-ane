@@ -29,7 +29,7 @@ export const couleurs = {
 
 /**
  * Couleur d'une mesure selon son niveau. Mêmes orange et rouge que les traits
- * dessinés sur la vidéo (public/posture.js), pour que les deux concordent.
+ * dessinés sur la vidéo (src/page/posture.ts), pour que les deux concordent.
  */
 export const couleursNiveau = {
   vert: couleurs.vert,

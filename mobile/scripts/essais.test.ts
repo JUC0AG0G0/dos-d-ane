@@ -2,7 +2,7 @@
  * Tests de src/donnees/essais.ts : codes des participants, réussite par
  * posture, moyennes et export CSV du test des postures.
  *
- *   node --test scripts/
+ *   npm test
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -14,9 +14,21 @@ import {
   resumerEnregistrement,
   resumerParPosture,
   reussiteGlobale,
+  type EchantillonTest,
+  type EnregistrementTest,
+  type Essais,
+  type Participant,
+  type PostureTest,
 } from '../src/donnees/essais.ts';
+import type { Niveau, SensTronc } from '../src/page/posture.ts';
 
-const ech = (couAngle, couNiveau, troncAngle, troncNiveau, mesurable = true) => ({
+const ech = (
+  couAngle: number | null,
+  couNiveau: Niveau,
+  troncAngle: number | null,
+  troncNiveau: Niveau,
+  mesurable = true,
+): EchantillonTest => ({
   t: 0,
   mesurable,
   cote: 'gauche',
@@ -25,16 +37,17 @@ const ech = (couAngle, couNiveau, troncAngle, troncNiveau, mesurable = true) => 
   tronc: { angle: troncAngle, niveau: troncNiveau },
 });
 
-const enr = (participant, posture, echantillons) => ({
-  participant,
-  posture,
-  debut: 0,
-  echantillons,
-});
+const enr = (
+  participant: string,
+  posture: PostureTest,
+  echantillons: EchantillonTest[],
+): EnregistrementTest => ({ participant, posture, debut: 0, echantillons });
+
+const participant = (code: string): Participant => ({ code, consentement: true, date: 0 });
 
 test('codes P01, P02… en réutilisant le premier libre', () => {
   assert.equal(prochainCode([]), 'P01');
-  assert.equal(prochainCode([{ code: 'P01' }, { code: 'P03' }]), 'P02');
+  assert.equal(prochainCode([participant('P01'), participant('P03')]), 'P02');
 });
 
 test('« bien droit » réussi seulement si cou ET tronc sont verts', () => {
@@ -48,7 +61,7 @@ test('« bien droit » réussi seulement si cou ET tronc sont verts', () => {
   assert.equal(r.mesures, 3);
   assert.equal(r.mesurables, 2);
   assert.equal(r.reussite, 0.5);
-  assert.equal(r.cou.moyenne, 55.5);
+  assert.equal(r.cou?.moyenne, 55.5);
 });
 
 test('« tête en avant » réussi si le cou est orange ou rouge', () => {
@@ -59,11 +72,11 @@ test('« tête en avant » réussi si le cou est orange ou rouge', () => {
       ech(55, 'vert', 5, 'vert'),
     ]),
   );
-  assert.equal(Math.round(r.reussite * 100), 67);
+  assert.equal(Math.round((r.reussite ?? 0) * 100), 67);
 });
 
 test('moyenne par posture : chaque participant pèse autant', () => {
-  const essais = {
+  const essais: Essais = {
     participants: [],
     enregistrements: [
       enr('P01', 'droit', [
@@ -75,16 +88,17 @@ test('moyenne par posture : chaque participant pèse autant', () => {
     ],
   };
   const droit = resumerParPosture(essais).find((r) => r.posture === 'droit');
+  assert.ok(droit);
   assert.equal(droit.participants, 2);
   assert.equal(droit.couMoyen, 55); // (50 + 60) / 2, pas (50×3 + 60) / 4
-  assert.equal(droit.cou.min, 50);
-  assert.equal(droit.cou.max, 60);
+  assert.equal(droit.cou?.min, 50);
+  assert.equal(droit.cou?.max, 60);
   assert.equal(droit.reussite, 0.5); // P01 : 0 %, P02 : 100 %
   assert.equal(reussiteGlobale(essais), 0.5);
 });
 
 test('CSV : séparateur « ; », virgule décimale, ligne de moyenne', () => {
-  const essais = {
+  const essais: Essais = {
     participants: [],
     enregistrements: [enr('P01', 'droit', [ech(55.25, 'vert', 6.5, 'vert')])],
   };
@@ -97,7 +111,7 @@ test('CSV : séparateur « ; », virgule décimale, ligne de moyenne', () => {
 });
 
 test('penché / avachi : un sens de tronc contraire est une erreur, inconnu est toléré', () => {
-  const avecSens = (sens) => ({
+  const avecSens = (sens: SensTronc): EchantillonTest => ({
     ...ech(60, 'vert', 28, 'rouge'),
     tronc: { angle: 28, niveau: 'rouge', sens },
   });

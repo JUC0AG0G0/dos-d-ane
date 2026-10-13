@@ -2,7 +2,7 @@
  * Tests de src/camera/mesure.ts : message de la carte de statut, score
  * instantané et chronomètre de l'écran « Session en cours ».
  *
- *   node --test scripts/
+ *   npm test
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -12,15 +12,25 @@ import {
   lireMesure,
   messagePosture,
   scoreInstantane,
+  type Mesure,
 } from '../src/camera/mesure.ts';
+import type { Niveau, SensTronc } from '../src/page/posture.ts';
 
-const mesure = (cou, tronc, score = null, sens = null) => ({
+const mesure = (
+  cou: Niveau,
+  tronc: Niveau,
+  score: number | null = null,
+  sens: SensTronc = null,
+): Mesure => ({
+  type: 'mesure',
   personne: true,
   cote: 'gauche',
   score,
   cou: { angle: 50, niveau: cou },
   tronc: { angle: 12, niveau: tronc, sens },
 });
+
+const personne: Mesure = { type: 'mesure', personne: false };
 
 test('lireMesure ne garde que les messages de type mesure', () => {
   assert.deepEqual(lireMesure('{"type":"mesure","personne":false}'), {
@@ -48,14 +58,14 @@ test('le cou passe avant le tronc dans le message', () => {
 
 test('rien de mesurable : pas d’alerte', () => {
   assert.equal(messagePosture(null).alerte, false);
-  assert.equal(messagePosture({ personne: false }).alerte, false);
+  assert.equal(messagePosture(personne).alerte, false);
   assert.equal(messagePosture(mesure('gris', 'gris')).titre, 'Position non mesurable');
 });
 
-test('score instantané : celui de posture.js, arrondi', () => {
+test('score instantané : celui de posture.ts, arrondi', () => {
   assert.equal(scoreInstantane(mesure('vert', 'orange', 87.6)), 88);
   assert.equal(scoreInstantane(mesure('gris', 'gris', null)), null);
-  assert.equal(scoreInstantane({ personne: false }), null);
+  assert.equal(scoreInstantane(personne), null);
   assert.equal(scoreInstantane(null), null);
 });
 

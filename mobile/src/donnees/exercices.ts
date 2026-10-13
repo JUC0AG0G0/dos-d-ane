@@ -2,7 +2,7 @@
  * Catalogue d'exercices et choix des conseils selon les postures détectées.
  * Conseils généraux de posture : ils ne remplacent pas un professionnel de santé.
  *
- * Fichier sans dépendance React Native : testé par scripts/test-statistiques.mjs.
+ * Fichier sans dépendance React Native : testé par scripts/statistiques.test.ts.
  */
 import type { Situation } from './statistiques';
 

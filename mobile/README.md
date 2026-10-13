@@ -100,10 +100,18 @@ iOS 16.4 minimum (contrainte d'Expo Go).
 ## Commandes
 
 ```bash
-npm test            # tests des angles et du code couleur (16 tests, sans téléphone)
-npm run typecheck   # tsc --noEmit
-npm run build:page  # régénère src/pageInline.ts depuis public/ (mode « HTML embarqué »)
+npm test             # 56 tests (angles, seuils, score, statistiques, test des postures), sans téléphone
+npm run typecheck    # TypeScript : l'app, puis les scripts et tests (scripts/tsconfig.json)
+npx expo lint        # lint
+npm run build:page   # compile la page d'analyse : src/page/*.ts -> public/pose.js et src/pageInline.ts
+npm run check:page   # échoue si public/pose.js ou src/pageInline.ts ne sont pas à jour
 ```
+
+**Tout est en TypeScript.** La page d'analyse chargée par la WebView (`src/page/pose.ts` et
+`posture.ts`) est compilée par **esbuild** en un seul fichier `public/pose.js`, que le téléphone
+charge tel quel. **Après toute modification de `src/page/`, lancer `npm run build:page`** : sinon
+la WebView garde l'ancienne version. `public/pose.js` et `src/pageInline.ts` sont **générés** : ne
+pas les éditer à la main (ils sont marqués comme tels dans `.gitattributes`).
 
 ## Les deux modes de l'app
 
@@ -128,7 +136,7 @@ ngrok http 8099                                    # terminal 2 (compte ngrok re
 ## Mesures et code couleur
 
 Téléphone **posé de profil**, écran vers soi (caméra frontale). Tous les seuils sont dans un seul
-objet `CONFIG`, en haut de [`public/posture.js`](public/posture.js), chaque ligne avec sa source.
+objet `CONFIG`, en haut de [`src/page/posture.ts`](src/page/posture.ts), chaque ligne avec sa source.
 
 | Mesure | Définition | Vert | Orange | Rouge |
 | --- | --- | --- | --- | --- |
@@ -139,11 +147,11 @@ objet `CONFIG`, en haut de [`public/posture.js`](public/posture.js), chaque lign
 avec l'angle en degrés : la couleur n'est jamais le seul signal.
 
 Sur les bornes, la zone verte est **stricte** : 50° pile → orange, 10° pile → orange. C'est une
-convention, testée dans [`scripts/test-posture.mjs`](scripts/test-posture.mjs).
+convention, testée dans [`scripts/posture.test.ts`](scripts/posture.test.ts).
 
 ### Score (0–100)
 
-Chaque angle reçoit une **note continue** (`noteMesure` dans `posture.js`) : 100 en zone verte,
+Chaque angle reçoit une **note continue** (`noteMesure` dans `src/page/posture.ts`) : 100 en zone verte,
 de 100 à 60 en zone orange, de 60 à 0 en zone rouge jusqu'à un angle « zéro » (cou 30°, tronc 40°,
 **valeurs provisoires**). Le score instantané est la moyenne des notes du cou et du tronc.
 
@@ -219,12 +227,14 @@ src/app/exercice/[id].tsx    fiche d'un exercice (pourquoi, étapes)
 src/donnees/                 statistiques (jour/semaine/mois), exercices, stockage sur le téléphone
 src/theme.ts                 couleurs, polices, rayons et marges de la maquette
 src/composants/              composants partagés (cadre d'écran, icônes)
+src/page/posture.ts          angles, seuils, score, sens du tronc (partagé page ↔ app ↔ tests)
+src/page/pose.ts             caméra, MoveNet, dessin du canvas, envoi des mesures à l'app
+src/page/messages.ts         forme des messages page -> app (types partagés)
 public/pose.html             la page servie par le dev server
-public/posture.js            angles + seuils + couleurs (partagé page ↔ tests)
-public/pose.js               caméra, MoveNet, dessin du canvas, FPS
+public/pose.js               GÉNÉRÉ (npm run build:page) — src/page/ compilé pour Safari
 src/pageInline.ts            GÉNÉRÉ — page inlinée pour le mode « HTML embarqué »
-scripts/build-inline-page.mjs
-scripts/test-posture.mjs
+scripts/build-page.ts        compilation de la page (esbuild)
+scripts/*.test.ts            tests (node --test, TypeScript exécuté directement par Node)
 ```
 
 Le test garde ses deux modes internes (accueil du test et WebView) avec un `useState` ; le reste de

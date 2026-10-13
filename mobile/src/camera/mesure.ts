@@ -1,21 +1,15 @@
 /**
- * Mesures envoyées par public/pose.js (mode session) et leur traduction en
+ * Mesures envoyées par la page d'analyse (src/page/pose.ts, mode session) et leur traduction en
  * message et en score pour l'écran « Session en cours ».
  */
 
-export type Niveau = 'vert' | 'orange' | 'rouge' | 'gris';
+import type { MessageMesure } from '../page/messages';
+import type { Niveau } from '../page/posture';
 
-export type Mesure =
-  | { personne: false }
-  | {
-      personne: true;
-      cote: 'gauche' | 'droite';
-      /** Score 0–100 calculé à partir des angles (posture.js, scorePosture). */
-      score: number | null;
-      cou: { angle: number | null; niveau: Niveau };
-      /** sens : avant (penché vers l'écran), arriere (avachi), null si inconnu. */
-      tronc: { angle: number | null; niveau: Niveau; sens?: 'avant' | 'arriere' | null };
-    };
+export type { Niveau };
+
+/** Mesure reçue de la page (forme définie une seule fois dans src/page/messages.ts). */
+export type Mesure = MessageMesure;
 
 /** Lit un message de la WebView ; null si ce n'est pas une mesure. */
 export function lireMesure(donnees: string): Mesure | null {

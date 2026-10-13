@@ -2,11 +2,13 @@
  * Tests de src/donnees/statistiques.ts et exercices.ts : moyenne dans le temps,
  * périodes, répartition, libellés et choix des conseils.
  *
- *   node --test scripts/
+ *   npm test
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { genererDemo } from '../src/donnees/demo.ts';
+import { conseilDuJour, exercicesRecommandes } from '../src/donnees/exercices.ts';
 import {
   ajouterEchantillon,
   bornes,
@@ -15,21 +17,23 @@ import {
   resumer,
   situation,
   texteDuree,
+  type Echantillon,
+  type Historique,
+  type Tranche,
 } from '../src/donnees/statistiques.ts';
-import { conseilDuJour, exercicesRecommandes } from '../src/donnees/exercices.ts';
-import { genererDemo } from '../src/donnees/demo.ts';
+import type { Niveau, SensTronc } from '../src/page/posture.ts';
 
 /** Mercredi 7 octobre 2026, à l'heure locale. */
-const le = (j, h = 10, m = 0) => new Date(2026, 9, j, h, m);
+const le = (j: number, h = 10, m = 0) => new Date(2026, 9, j, h, m);
 
 const echantillon = (
-  instant,
-  duree,
-  score,
-  couNiveau = 'vert',
-  troncNiveau = 'vert',
-  sens = null,
-) => ({
+  instant: Date,
+  duree: number,
+  score: number,
+  couNiveau: Niveau = 'vert',
+  troncNiveau: Niveau = 'vert',
+  sens: SensTronc = null,
+): Echantillon => ({
   instant: instant.getTime(),
   duree,
   score,
@@ -37,8 +41,8 @@ const echantillon = (
   tronc: { angle: 8, niveau: troncNiveau, sens },
 });
 
-function tranchesDe(...echantillons) {
-  const m = new Map();
+function tranchesDe(...echantillons: Echantillon[]): Tranche[] {
+  const m = new Map<number, Tranche>();
   for (const e of echantillons) ajouterEchantillon(m, e);
   return [...m.values()];
 }
@@ -75,9 +79,9 @@ test('barres du jour : de 9h à 17h au moins, la plus récente mise en avant', (
   const t = tranchesDe(echantillon(le(7, 9), 60, 70), echantillon(le(7, 14), 60, 90));
   const { barres } = resumer(t, 'jour', le(7));
   assert.equal(barres[0].libelle, '9h');
-  assert.equal(barres.at(-1).libelle, '17h');
-  assert.equal(barres.find((b) => b.misEnAvant).libelle, '14h');
-  assert.equal(barres.find((b) => b.libelle === '10h').score, null);
+  assert.equal(barres.at(-1)?.libelle, '17h');
+  assert.equal(barres.find((b) => b.misEnAvant)?.libelle, '14h');
+  assert.equal(barres.find((b) => b.libelle === '10h')?.score, null);
 });
 
 test('semaine du lundi au dimanche, mois en semaines S1…S5', () => {
@@ -119,7 +123,7 @@ test('temps suivi', () => {
 });
 
 test('conseils : la tête en avant fréquente fait passer les exercices du cou en premier', () => {
-  const historique = {
+  const historique: Historique = {
     tranches: tranchesDe(
       echantillon(le(7, 10), 60, 50, 'rouge', 'vert'),
       echantillon(le(7, 11), 20, 90, 'vert', 'vert'),
@@ -150,11 +154,11 @@ test('démo : jours de semaine seulement, aucune heure future', () => {
     assert.ok(t.debut + 3600 * 1000 <= maintenant.getTime());
   }
   const r = resumer(h.tranches, 'mois', maintenant);
-  assert.ok(r.score > 40 && r.score < 100);
+  assert.ok(r.score !== null && r.score > 40 && r.score < 100);
 });
 
 test('conseils : le dos avachi fait passer ses exercices en premier', () => {
-  const historique = {
+  const historique: Historique = {
     tranches: tranchesDe(
       echantillon(le(7, 10), 60, 50, 'vert', 'rouge', 'arriere'),
       echantillon(le(7, 11), 20, 50, 'vert', 'rouge', 'avant'),

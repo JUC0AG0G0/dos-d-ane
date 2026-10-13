@@ -1,28 +1,24 @@
 /*
- * Tests de public/posture.js : angles, valeurs limites, points manquants.
- * Ne touche ni à la caméra ni au modèle : c'est le seul morceau vérifiable
- * sans téléphone.
+ * Tests de src/page/posture.ts : angles, valeurs limites, points manquants,
+ * lissage, note, verrouillage du côté, sens du tronc. Ne touche ni à la caméra
+ * ni au modèle : c'est le cœur de l'analyse, vérifiable sans téléphone.
  *
- *   node --test scripts/
- * ou  npm test
+ *   npm test
  */
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { test } from 'node:test';
 
-const require = createRequire(import.meta.url);
-const racine = join(dirname(fileURLToPath(import.meta.url)), '..');
-const Posture = require(join(racine, 'public/posture.js'));
+import * as Posture from '../src/page/posture.ts';
+import type { Point } from '../src/page/posture.ts';
 
 const { CONFIG, classer, angleCou, angleTronc, analyser, choisirCote } = Posture;
 
 /** Fabrique un point MoveNet. */
-const pt = (name, x, y, score = 0.9) => ({ name, x, y, score });
+const pt = (name: string, x: number, y: number, score = 0.9): Point => ({ name, x, y, score });
 
 /** À 1e-9 près, pour comparer des degrés. */
-const presque = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} ≠ ${b}`);
+const presque = (a: number | null | undefined, b: number) =>
+  assert.ok(typeof a === 'number' && Math.abs(a - b) < 1e-9, `${a} ≠ ${b}`);
 
 // ---------------------------------------------------------------------------
 test('angleCou : 90° quand l’oreille est pile au-dessus de l’épaule', () => {
@@ -49,7 +45,7 @@ test('angleTronc : 45° sur une diagonale, et identique des deux côtés', () =>
 
 // ---------------------------------------------------------------------------
 // Valeurs limites : la zone verte est STRICTE, une valeur pile sur la borne
-// tombe en orange. C'est la convention documentée dans posture.js.
+// tombe en orange. C'est la convention documentée dans posture.ts.
 // ---------------------------------------------------------------------------
 test('cou (plus grand = mieux) : bornes 50 et 45', () => {
   assert.equal(classer(60, CONFIG.cou), 'vert');
@@ -91,7 +87,7 @@ test('choisirCote : retient le côté le mieux vu', () => {
   ];
   assert.equal(choisirCote(Posture.indexerPoints(kps)).cote, 'gauche');
 
-  const inverse = kps.map((k) => ({ ...k, score: k.name.startsWith('left') ? 0.1 : 0.8 }));
+  const inverse = kps.map((k) => ({ ...k, score: k.name?.startsWith('left') ? 0.1 : 0.8 }));
   assert.equal(choisirCote(Posture.indexerPoints(inverse)).cote, 'droite');
 });
 
@@ -271,9 +267,13 @@ test('scorePosture : moyenne des notes mesurées, null si aucune', () => {
 // ---------------------------------------------------------------------------
 // Verrouillage du côté : pas de bascule sur un écart bref ou faible.
 // ---------------------------------------------------------------------------
-const cote = (score) => [
-  pt('right_ear', 0, 0, score.droite), pt('right_shoulder', 0, 0, score.droite), pt('right_hip', 0, 0, score.droite),
-  pt('left_ear', 0, 0, score.gauche), pt('left_shoulder', 0, 0, score.gauche), pt('left_hip', 0, 0, score.gauche),
+const cote = (score: { droite: number; gauche: number }) => [
+  pt('right_ear', 0, 0, score.droite),
+  pt('right_shoulder', 0, 0, score.droite),
+  pt('right_hip', 0, 0, score.droite),
+  pt('left_ear', 0, 0, score.gauche),
+  pt('left_shoulder', 0, 0, score.gauche),
+  pt('left_hip', 0, 0, score.gauche),
 ];
 
 test('suiveur de côté : ignore une bascule de quelques images', () => {
@@ -289,7 +289,7 @@ test('suiveur de côté : ignore une bascule de quelques images', () => {
 test('suiveur de côté : change si l’autre côté est nettement mieux vu assez longtemps', () => {
   const suiveur = Posture.creerSuiveurCote(10, 0.1);
   suiveur.choisir(cote({ droite: 0.9, gauche: 0.4 }));
-  let c;
+  let c: string | undefined;
   for (let i = 0; i < 10; i++) c = suiveur.choisir(cote({ droite: 0.5, gauche: 0.8 }));
   assert.equal(c, 'gauche');
 });
@@ -317,7 +317,10 @@ test('sensTronc : épaule devant la hanche = penché en avant, derrière = avach
   const nezG = pt('nose', 80, 90);
   assert.equal(sensTronc(pt('right_shoulder', 60, 150), hanche, nezG, oreille), 'avant');
   // Nez peu fiable : sens inconnu.
-  assert.equal(sensTronc(pt('right_shoulder', 140, 150), hanche, pt('nose', 120, 90, 0.1), oreille), null);
+  assert.equal(
+    sensTronc(pt('right_shoulder', 140, 150), hanche, pt('nose', 120, 90, 0.1), oreille),
+    null,
+  );
 });
 
 test('analyser renvoie le sens du tronc', () => {
@@ -330,5 +333,5 @@ test('analyser renvoie le sens du tronc', () => {
   const a = analyser(kp);
   assert.equal(a.cote, 'droite');
   assert.equal(a.tronc.sens, 'arriere');
-  assert.ok(a.tronc.angle > 0);
+  assert.ok((a.tronc.angle ?? 0) > 0);
 });
