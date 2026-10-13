@@ -1,0 +1,81 @@
+name: CI
+
+# Lint et compilation du serveur et du client, stack de production lancée
+# dans Docker, secrets de production (vers main).
+# Le job « ci-ok » résume le tout pour la protection de branche.
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Mêmes tâches (Taskfile.yml) que les hooks Husky en local.
+  # mise-action installe Node et task aux versions de mise.toml.
+  apps:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: jdx/mise-action@v3
+      - name: Installer
+        run: task setup
+      - name: Lint
+        run: task lint
+      - name: Compilation
+        run: task build
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Valider les fichiers compose
+        run: docker compose --env-file .env.dev.example -f compose.yaml -f compose.dev.yaml config -q
+      # Stack de production complète (images, migrations, API, nginx) avec des
+      # valeurs de test, jamais utilisées ailleurs.
+      - name: Lancer la stack de production
+        run: |
+          cat > .env.prod <<'EOF'
+          POSTGRES_USER=ci
+          POSTGRES_PASSWORD=ci-password
+          POSTGRES_DB=ci
+          JWT_SECRET=ci-jwt-secret-ci-jwt-secret-ci-jwt-secret
+          ADMIN_EMAIL=admin@ci.test
+          ADMIN_PASSWORD=ci-admin-password
+          EOF
+          docker compose --env-file .env.prod -f compose.yaml -f compose.prod.yaml up -d --build --wait --wait-timeout 300
+      - name: Vérifier l'API à travers nginx
+        run: curl -fsS http://localhost/api/health | tee /dev/stderr | jq -e '.status == "ok" and .env == "production"'
+      - name: Logs
+        if: failure()
+        run: docker compose --env-file .env.prod -f compose.yaml -f compose.prod.yaml logs
+
+  # Avant main : tous les secrets de .env.prod.example doivent exister.
+  prod-secrets:
+    if: github.base_ref == 'main' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Vérifier les secrets de production
+        env:
+          SECRETS: ${{ toJSON(secrets) }}
+        run: sh scripts/prod-secrets.sh check
+
+  ci-ok:
+    if: always()
+    needs: [apps, docker, prod-secrets]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Vérifier que tous les jobs ont réussi
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            echo "Au moins un job a échoué."
+            exit 1
+          fi

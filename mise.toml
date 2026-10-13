@@ -1,0 +1,17 @@
+# Versions des outils du projet, gérées par mise (https://mise.jdx.dev).
+# Les commandes sont dans Taskfile.yml.
+min_version = "2026.1.0"
+
+[tools]
+node = "26"
+python = "3.11"
+task = "3"
+
+[settings]
+# Nécessaire pour les hooks ci-dessous.
+experimental = true
+
+[hooks]
+# À chaque entrée dans le dossier (même dans un sous-dossier) : installe les
+# outils manquants, lance `task setup` puis affiche le bilan.
+enter = "sh \"$MISE_PROJECT_ROOT/scripts/enter.sh\""
