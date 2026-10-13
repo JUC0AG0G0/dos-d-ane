@@ -196,6 +196,34 @@ journalctl -b -1 -n 50      # après un redémarrage : la fin du démarrage pré
 
 **Où modifier le code ?** Le dépôt existe en trois copies : le Pi, GitHub et le PC. Le code du POC se modifie, se lance et se commite **sur le Pi** (VS Code `SSH: pi`), puis se pousse sur GitHub. Sur le PC, un `git pull` suffit pour rester à jour. Si on modifie quelque chose sur le PC (la doc par exemple), on fait l'inverse : commit et push sur le PC, puis `git pull` sur le Pi.
 
+**Donner accès au Pi à un membre de l'équipe**
+
+Il faut être sur le **même réseau que le Pi** (Wi-Fi de l'école) : depuis chez soi, le Pi n'est pas joignable. Tout le monde utilise le compte `uha40` du Pi, **chacun avec sa propre clé SSH** : on peut ainsi retirer l'accès d'une personne sans toucher aux autres. Ne pas partager le mot de passe de `uha40`, qui donne tous les droits (`sudo`).
+
+1. **Le nouveau membre**, sur son PC, crée une clé et envoie le fichier **`.pub`** (la partie publique, sans risque) au responsable du Pi. Il garde l'autre fichier pour lui.
+   ```bash
+   ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_pi -N ""
+   ```
+2. **Le responsable du Pi** ajoute cette clé sur le Pi :
+   ```bash
+   ssh pi 'cat >> ~/.ssh/authorized_keys' < id_ed25519_pi_<prenom>.pub
+   ```
+3. **Le nouveau membre** ajoute le raccourci dans `~/.ssh/config` sur son PC, puis teste avec `ssh pi` (répondre « yes » la première fois) :
+   ```text
+   Host pi
+       HostName dosdane-pi.local
+       User uha40
+       IdentityFile ~/.ssh/id_ed25519_pi
+   ```
+
+Retirer un accès : supprimer la ligne de la personne dans `~/.ssh/authorized_keys` sur le Pi (chaque ligne finit par le nom de son PC).
+
+| Piège | Que faire |
+|---|---|
+| **Les commits faits sur le Pi portent le nom du responsable du Pi** : le git du Pi est configuré à son nom et pousse avec sa clé GitHub | coder et commiter **sur son propre PC** (les tests tournent sans webcam, [README](../README.md)), puis `git pull` sur le Pi pour lancer. Si un commit sur le Pi est indispensable : `git commit --author="Prénom Nom <email>"` |
+| **Une seule personne à la fois sur la webcam** : si deux programmes l'ouvrent, l'un échoue | vérifier avant de lancer : `ssh pi 'pgrep -af "[p]oc[.]py\|[l]ive[.]py"'` (rien ne s'affiche = libre), et prévenir l'équipe |
+| Le nom `dosdane-pi.local` ne répond pas | passer par l'IP, comme ci-dessus : `ssh -o HostName=<ip> pi` |
+
 ### 3.3 Dépôt Git et environnement Python
 
 Le code du POC est dans le dépôt de l'équipe, dossier **`edge/`**, branche **`feat/edge-poc`** (créée depuis `develop`).
