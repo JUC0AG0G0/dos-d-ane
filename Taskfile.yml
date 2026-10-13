@@ -2,6 +2,7 @@
 #   task setup            # dépendances, hooks Git, .env (automatique avec mise)
 #   task check            # lint + compilation (lancé par Husky avant push)
 #   task dev              # stack Docker de dev
+#   task test:edge        # tests de l'algorithme de posture (edge/, Python)
 version: "3"
 
 vars:
@@ -114,6 +115,24 @@ tasks:
     cmds:
       - npm run --silent build
       - node dist/api-docs.js {{.CLI_ARGS}}
+
+  # --- Edge (Raspberry Pi, Python) -----------------------------------------
+  # Pas dans setup ni check : seuls ceux qui travaillent sur edge/ ont besoin de Python.
+
+  install:edge:
+    desc: Crée edge/.venv avec l'algorithme et pytest (sans webcam ni modèle)
+    dir: edge
+    cmds:
+      - python3 -m venv .venv
+      - .venv/bin/pip install --quiet -e ".[dev]"
+    sources: [pyproject.toml]
+    generates: [.venv/bin/pytest]
+
+  test:edge:
+    desc: Tests unitaires de l'algorithme de posture (edge/tests)
+    deps: [install:edge]
+    dir: edge
+    cmd: .venv/bin/python -m pytest -q
 
   # --- Base de données (Prisma) -------------------------------------------
 

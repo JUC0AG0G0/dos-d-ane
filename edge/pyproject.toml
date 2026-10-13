@@ -1,0 +1,27 @@
+# POC edge de Dos d'âne : analyse de posture sur le Raspberry Pi (docs/algo-posture.md).
+# Versions figées : la même partout (Pi, PC, CI). Python 3.13, comme le Pi (Raspberry Pi OS, Debian 13).
+#   Pi        : pip install -e ".[pi,dev]"   (webcam + MoveNet + tests)
+#   PC ou CI  : pip install -e ".[dev]"      (algorithme + tests, sans webcam ni modèle)
+#   Tests     : python -m pytest             (depuis edge/)
+
+[build-system]
+requires = ["setuptools>=70"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dos-dane-edge"
+version = "0.1.0"
+description = "Analyse de posture sur Raspberry Pi : webcam de profil, MoveNet, angles, règles, alertes"
+requires-python = ">=3.13"
+# Le cœur (posture/ sauf camera.py et movenet.py) ne demande que NumPy.
+dependencies = ["numpy==2.5.3"]
+
+[project.optional-dependencies]
+pi = ["opencv-python==5.0.0.93", "ai-edge-litert==2.3.0"]
+dev = ["pytest==9.1.1"]
+
+[tool.setuptools]
+packages = ["posture"]          # outils/, tests/, poc.py et live.py se lancent depuis edge/
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

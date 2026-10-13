@@ -4,7 +4,7 @@ min_version = "2026.1.0"
 
 [tools]
 node = "26"
-python = "3.11"
+python = "3.13"   # edge/ (Raspberry Pi) : même version que le Pi
 task = "3"
 
 [settings]

@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // Versions et images des apps, pour les workflows GitHub (voir deployReadME.md).
-// Les apps sont décrites dans .github/apps.json. Une image est étiquetée
-// tree-<empreinte git du dossier de l'app> : même contenu, même image.
+// Les apps sont décrites dans .github/apps.json : dossier, commande de
+// vérification (CI des PR), images Docker éventuelles et première version.
+// Une image est étiquetée tree-<empreinte git du dossier de l'app> : même
+// contenu, même image. Une app sans image a quand même ses versions et releases.
 //   node scripts/release.mjs changed <base>  apps modifiées depuis <base> (CI des PR)
 //   node scripts/release.mjs builds          images à construire sur develop (préprod)
 //   node scripts/release.mjs pr              plan de versions d'une PR vers main
@@ -11,7 +13,7 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync } from 'node:fs';
 
 const config = JSON.parse(readFileSync('.github/apps.json', 'utf8'));
-const apps = Object.entries(config.apps).map(([name, app]) => ({ name, ...app }));
+const apps = Object.entries(config.apps).map(([name, app]) => ({ name, images: {}, ...app }));
 const env = process.env;
 
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8' }).trim();
@@ -53,7 +55,6 @@ function imageExists(ref) {
 // --- Versions -------------------------------------------------------------
 
 const BUMPS = ['major', 'minor', 'patch'];
-const FIRST_VERSION = '1.0.0';
 
 function lastRelease(app) {
   const pattern = new RegExp(`^${app.name}-v(\\d+)\\.(\\d+)\\.(\\d+)$`);
@@ -85,7 +86,7 @@ function releasePlan(body) {
         kind: last ? kind : 'first',
         previous: last?.version ?? null,
         previousTag: last?.tag ?? null,
-        version: last ? bump(last.version, kind) : FIRST_VERSION,
+        version: last ? bump(last.version, kind) : (app.firstVersion ?? '1.0.0'),
       };
     })
     .filter(Boolean);
@@ -179,7 +180,7 @@ async function preprodConclusion(sha) {
 
 function missingImages(plan) {
   return plan.flatMap((r) =>
-    Object.keys(config.apps[r.app].images)
+    Object.keys(config.apps[r.app].images ?? {})
       .map((image) => imageRef(image, `tree-${r.tree}`))
       .filter((ref) => !imageExists(ref)),
   );
@@ -203,13 +204,14 @@ if (command === 'changed') {
   const files = git('diff', '--name-only', `${arg}...HEAD`).split('\n').filter(Boolean);
   const touched = (app) => files.some((f) => f.startsWith(`${app.path}/`));
   const changed = apps.filter(touched).map((a) => a.name);
+  const checks = apps.filter((a) => touched(a) && a.check).map((a) => ({ app: a.name, check: a.check }));
   const dockerFiles = /^(compose[^/]*\.yaml|\.env\.prod\.example|[^/]+\/(Dockerfile|\.dockerignore|nginx\.conf))$/;
   const docker = apps
     .filter((a) => files.some((f) => f.startsWith(`${a.path}/`) && dockerFiles.test(f)))
     .flatMap((a) =>
       Object.entries(a.images).map(([image, target]) => ({ app: a.name, image, target, context: a.path })),
     );
-  output('apps', changed);
+  output('checks', checks);
   output('docker', docker);
   output('compose', String(files.some((f) => /^(compose[^/]*\.yaml|\.env\.prod\.example)$/.test(f))));
   output(
@@ -221,7 +223,7 @@ if (command === 'changed') {
   // Images absentes de la registry pour le contenu actuel de chaque app.
   const builds = [];
   const tags = {};
-  for (const app of apps) {
+  for (const app of apps.filter((a) => Object.keys(a.images).length)) {
     const tree = treeOf(app);
     tags[`${app.name.toUpperCase()}_TAG`] = `tree-${tree}`;
     for (const [image, target] of Object.entries(app.images)) {

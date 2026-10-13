@@ -2,6 +2,13 @@
 # OS / Editors
 # =========================
 .DS_Store
+.venv/
+.venv310/
+__pycache__/
+models/*.task
+models/*.download
+build/
+dist/
 Thumbs.db
 Desktop.ini
 *.swp
@@ -210,7 +217,7 @@ cython_debug/
 .ipynb_checkpoints/
 *.ipynb_checkpoints
 
-# Django / Flask (au cas où)
+# Django / Flask (au cas oÃ¹)
 *.pyc
 local_settings.py
 instance/
@@ -247,9 +254,14 @@ docker-compose.override.yml
 *.pid.lock
 *.zip
 *.tar.gz
-# Exports de la base (task db:dump) : peuvent contenir des données personnelles
+
+# Downloaded posture benchmark assets and local browser profile
+/output/posture-benchmark/dataset/
+/output/posture-benchmark/.electron-profile/
+/output/posture-benchmark-full/
+# Exports de la base (task db:dump) : peuvent contenir des donnÃ©es personnelles
 dumps/
 # Task (cache des checksums de Taskfile)
 .task/
-# Client Prisma généré (prisma generate)
+# Client Prisma gÃ©nÃ©rÃ© (prisma generate)
 server/src/generated/

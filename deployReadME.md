@@ -9,7 +9,9 @@
 | PR `develop` → `main` | `release.yml` | aucun build : versions à publier (cases à cocher dans la description), préprod verte pour ce commit, images présentes, secrets complets |
 | push sur `main` | `release.yml` | les images reçoivent leur version, tag git et release GitHub par app, puis le runner du serveur télécharge les images et redémarre la stack |
 
-Images : `ghcr.io/juc0ag0g0/dos-d-ane-server`, `-server-migrate` et `-client` (onglet **Packages** du dépôt). Les apps sont listées dans [.github/apps.json](.github/apps.json), la logique est dans [scripts/release.mjs](scripts/release.mjs).
+Images : `ghcr.io/juc0ag0g0/dos-d-ane-server`, `-server-migrate` et `-client` (onglet **Packages** du dépôt). Les apps sont listées dans [.github/apps.json](.github/apps.json) (dossier, commande de vérification, images, première version), la logique est dans [scripts/release.mjs](scripts/release.mjs).
+
+`edge` (programme du Raspberry Pi) et `desktop` (app Electron) n'ont pas d'image : ils sont vérifiés sur les PR et reçoivent leurs versions, tags et releases de la même façon (`edge-v0.1.0`, `desktop-v0.3.0`), mais ne sont pas déployés sur le serveur. Pour joindre plus tard un installeur ou une archive à leur release, l'ajouter dans le job `publish` de `release.yml`. Une nouvelle app (mobile…) s'ajoute dans `apps.json`.
 
 Le serveur étant sur un réseau privé, c'est le runner qui va chercher le travail chez GitHub (connexion sortante en HTTPS) : aucun port n'est à ouvrir vers l'extérieur.
 

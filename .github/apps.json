@@ -3,11 +3,23 @@
   "apps": {
     "server": {
       "path": "server",
+      "check": "task check:app APP=server",
       "images": { "server": "runtime", "server-migrate": "migrate" }
     },
     "client": {
       "path": "client",
+      "check": "task check:app APP=client",
       "images": { "client": "runtime" }
+    },
+    "edge": {
+      "path": "edge",
+      "check": "task test:edge",
+      "firstVersion": "0.1.0"
+    },
+    "desktop": {
+      "path": "desktop",
+      "check": "npm --prefix desktop run check",
+      "firstVersion": "0.3.0"
     }
   }
 }
