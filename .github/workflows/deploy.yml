@@ -1,0 +1,58 @@
+name: Déploiement
+
+# Déploie main sur le serveur en SSH (guide : deployReadME.md), après une CI verte
+# sur main. Relance manuelle possible depuis l'onglet Actions, sur main.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'))
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.VERSION }}
+      - name: Vérifier les secrets et écrire .env.prod
+        env:
+          SECRETS: ${{ toJSON(secrets) }}
+        run: sh scripts/prod-secrets.sh write .env.prod
+      - name: Configurer SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf 'Host prod\n  HostName %s\n  Port %s\n  User %s\n  IdentityFile ~/.ssh/deploy\n  StrictHostKeyChecking yes\n' \
+            "$DEPLOY_HOST" "$DEPLOY_PORT" "$DEPLOY_USER" > ~/.ssh/config
+      - name: Envoyer le code et .env.prod
+        run: |
+          ssh prod 'rm -rf dos-d-ane/next && mkdir -p dos-d-ane/next'
+          git archive --format=tar HEAD | ssh prod 'tar -x -C dos-d-ane/next'
+          ssh prod 'umask 077 && cat > dos-d-ane/next/.env.prod' < .env.prod
+      - name: Construire et démarrer
+        run: ssh prod "sh dos-d-ane/next/scripts/deploy.sh $VERSION"
+      - name: Nettoyer
+        if: always()
+        run: rm -f .env.prod ~/.ssh/deploy
