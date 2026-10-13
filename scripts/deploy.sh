@@ -1,6 +1,6 @@
 #!/bin/sh
-# Lancé sur le serveur par le runner GitHub Actions (.github/workflows/deploy.yml), depuis
-# <dossier>/next qui contient le code et .env.prod. Construit les images
+# Lancé sur le serveur par le runner GitHub Actions (job deploy de la CI),
+# depuis <dossier>/next qui contient le code et .env.prod. Construit les images
 # d'abord : si la compilation échoue, la version en ligne n'est pas touchée.
 #   sh next/scripts/deploy.sh <version>
 set -eu

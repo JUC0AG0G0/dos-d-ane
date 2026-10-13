@@ -1,8 +1,8 @@
 name: CI
 
 # Lint et compilation du serveur et du client, stack de production lancée
-# dans Docker, secrets de production (vers main).
-# Le job « ci-ok » résume le tout pour la protection de branche.
+# dans Docker, secrets de production (vers main), puis déploiement sur main.
+# Le job « ci-ok » résume les vérifications pour la protection de branche.
 on:
   pull_request:
     branches: [main, develop]
@@ -12,7 +12,8 @@ on:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Sur main, un déploiement en cours n'est jamais interrompu.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
@@ -79,3 +80,27 @@ jobs:
             echo "Au moins un job a échoué."
             exit 1
           fi
+
+  # Après une CI verte sur main (push ou relance manuelle), sur le runner
+  # auto-hébergé installé sur le serveur (guide : deployReadME.md).
+  deploy:
+    needs: ci-ok
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: [self-hosted, dos-d-ane-prod]
+    concurrency:
+      group: deploy
+      cancel-in-progress: false
+    env:
+      TARGET: /opt/dos-d-ane
+    steps:
+      - uses: actions/checkout@v5
+      - name: Préparer la nouvelle version
+        run: |
+          rm -rf "$TARGET/next" && mkdir -p "$TARGET/next"
+          git archive --format=tar HEAD | tar -x -C "$TARGET/next"
+      - name: Vérifier les secrets et écrire .env.prod
+        env:
+          SECRETS: ${{ toJSON(secrets) }}
+        run: sh scripts/prod-secrets.sh write "$TARGET/next/.env.prod"
+      - name: Construire et démarrer
+        run: sh "$TARGET/next/scripts/deploy.sh" "$GITHUB_SHA"
