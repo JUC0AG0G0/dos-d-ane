@@ -1,19 +1,22 @@
 # Surcharge de production (déploiement sur le serveur, voir deployReadME.md).
+# Les images viennent de la registry (construites sur develop), rien n'est
+# compilé ici : SERVER_TAG et CLIENT_TAG valent une version (1.2.0) en prod,
+# ou tree-<empreinte> pour le test de préprod. Ils sont fournis par la CI.
 # Seul le client (nginx) est publié : il sert le front et relaie /api au
 # serveur. L'API et la base restent dans le réseau Docker, pgAdmin n'existe pas.
-# Chaque ${VAR} sans valeur par défaut doit être un secret GitHub et figurer
-# dans .env.prod.example (vérifié par la CI).
+# Chaque autre ${VAR} sans valeur par défaut doit être un secret GitHub et
+# figurer dans .env.prod.example (vérifié par la CI).
 x-database-url: &database-url postgresql://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@db:5432/${POSTGRES_DB:?}
 
 services:
   client:
+    image: ${REGISTRY:-ghcr.io/juc0ag0g0/dos-d-ane}-client:${CLIENT_TAG:?}
+    build: !reset null
     ports: !override
       - "${CLIENT_PORT:-80}:80"
 
   migrate:
-    build:
-      context: ./server
-      target: migrate
+    image: ${REGISTRY:-ghcr.io/juc0ag0g0/dos-d-ane}-server-migrate:${SERVER_TAG:?}
     environment:
       DATABASE_URL: *database-url
     depends_on:
@@ -21,11 +24,11 @@ services:
         condition: service_healthy
 
   server:
-    build:
-      args:
-        APP_VERSION: ${APP_VERSION:-prod}
+    image: ${REGISTRY:-ghcr.io/juc0ag0g0/dos-d-ane}-server:${SERVER_TAG:?}
+    build: !reset null
     environment:
       APP_ENV: production
+      APP_VERSION: ${SERVER_TAG:?}
       CORS_ORIGINS: ""
       SWAGGER_ENABLED: "false"
       DATABASE_URL: *database-url

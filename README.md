@@ -78,6 +78,8 @@ Le rechargement à chaud est toujours actif : chaque modification de `client/src
 | `task down` | arrête tout ; les données sont gardées pour le prochain `task dev` |
 | `task clean` | arrête tout et **supprime** les données (demande confirmation) |
 | `task check` | lint + compilation (lancé aussi avant chaque commit et push) |
+| `task api:docs` | régénère `server/ROUTES.md` et `server/openapi.json` (automatique au commit d'un contrôleur ou d'un DTO) |
+| `task test:edge` | tests de l'algorithme de posture du Raspberry Pi (`edge/`, Python, sans webcam) |
 | `task db:generate` | crée une migration depuis `server/prisma/schema.prisma`, sans l'appliquer |
 | `task db:migrate` | applique les migrations pas encore appliquées |
 | `task db:dump` | exporte la base dans `dumps/<date>.sql` (ignoré par Git, à ne pas partager) |
@@ -88,9 +90,15 @@ Le rechargement à chaud est toujours actif : chaque modification de `client/src
 
 Les commandes de la base sont détaillées dans [databaseReadME.md](databaseReadME.md).
 
+Toutes les routes de l'API, avec le rôle requis, sont listées dans [server/ROUTES.md](server/ROUTES.md). Le schéma complet est dans `server/openapi.json`, importable dans Postman ou Bruno.
+
 ## Client web
 
 React + Vite + Tailwind + shadcn/ui dans `client/`. Son fonctionnement, ses dossiers et comment y développer sont expliqués dans [client/README.md](client/README.md).
+
+## Raspberry Pi (edge)
+
+Python 3.13 dans `edge/` : une webcam de profil, MoveNet (17 points du corps), des angles et des règles détectent les mauvaises postures **sur le Pi**, sans qu'aucune image n'en sorte. Installation, organisation et commandes : [edge/README.md](edge/README.md) ; fonctionnement de l'algorithme : [edge/docs/algo-posture.md](edge/docs/algo-posture.md). La liaison avec le serveur (sessions démarrées depuis l'app) reste à faire.
 
 ## Configuration
 
@@ -116,7 +124,7 @@ Toutes les routes exigent d'être connecté, sauf celles marquées `@Public()`. 
 
 ## Production
 
-Chaque merge sur `main` déploie l'application sur le serveur, via un runner GitHub Actions installé dessus, après une CI verte. Seul nginx est exposé (front et `/api`), la base et pgAdmin non. Mise en place du serveur et du runner, secrets GitHub et protection de `main` : [deployReadME.md](deployReadME.md).
+`develop` est la préprod : chaque merge y construit les images des apps modifiées, les publie sur GHCR et les teste. Une PR `develop` → `main` choisit la version de chaque app modifiée (cases à cocher dans sa description) ; au merge, les images déjà testées reçoivent leur version (`server-v1.3.0`) et sont déployées sur le serveur, sans recompilation. Seul nginx est exposé (front et `/api`), la base et pgAdmin non. Détails, mise en place du serveur, secrets et retour arrière : [deployReadME.md](deployReadME.md).
 
 ## Branches
 
@@ -126,3 +134,9 @@ Chaque merge sur `main` déploie l'application sur le serveur, via un runner Git
 ## Licence
 
 Ce projet est sous licence **GNU AGPL v3.0**. Voir le fichier [LICENSE](LICENSE) pour plus de détails.
+
+## Application PC
+
+Application React + Electron : [desktop/README.md](desktop/README.md).
+
+Prototype Python Windows : [README-python.md](README-python.md).

@@ -1,0 +1,127 @@
+name: Préprod
+
+# Chaque push sur develop : construit et publie sur GHCR les images des apps
+# dont le contenu a changé (étiquette tree-<empreinte du dossier>), puis lance
+# la stack de production à partir de ces images et vérifie l'API.
+# Une PR vers main n'est acceptée que si ce workflow est vert pour son commit.
+on:
+  push:
+    branches: [develop, claude/ci-cd-registry-versions-wa51co]
+  workflow_dispatch:
+
+concurrency:
+  group: preprod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      builds: ${{ steps.plan.outputs.builds }}
+      tags: ${{ steps.plan.outputs.tags }}
+      smoke: ${{ steps.plan.outputs.smoke }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: plan
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        run: node scripts/release.mjs builds
+
+  build:
+    needs: plan
+    if: needs.plan.outputs.builds != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.builds) }}
+    name: build (${{ matrix.image }})
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: "{{defaultContext}}:${{ matrix.context }}"
+          target: ${{ matrix.target }}
+          push: true
+          tags: ${{ matrix.ref }}
+          # Une seule image par étiquette, sans attestation : plus simple à
+          # ré-étiqueter et à nettoyer.
+          provenance: false
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  # Stack de production complète (images de la registry, migrations, API,
+  # nginx) avec des valeurs de test, jamais utilisées ailleurs.
+  smoke:
+    needs: [plan, build]
+    if: always() && needs.plan.result == 'success' && needs.build.result != 'failure' && needs.build.result != 'cancelled' && needs.plan.outputs.smoke == 'true'
+    runs-on: ubuntu-latest
+    env:
+      COMPOSE: docker compose --env-file .env.prod -f compose.yaml -f compose.prod.yaml
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Lancer la stack de production
+        env:
+          TAGS: ${{ needs.plan.outputs.tags }}
+        run: |
+          cat > .env.prod <<'EOF'
+          POSTGRES_USER=ci
+          POSTGRES_PASSWORD=ci-password
+          POSTGRES_DB=ci
+          JWT_SECRET=ci-jwt-secret-ci-jwt-secret-ci-jwt-secret
+          ADMIN_EMAIL=admin@ci.test
+          ADMIN_PASSWORD=ci-admin-password
+          EOF
+          echo "$TAGS" | jq -r 'to_entries[] | "\(.key)=\(.value)"' >> .env.prod
+          $COMPOSE up -d --wait --wait-timeout 300
+      - name: Vérifier l'API à travers nginx
+        run: curl -fsS http://localhost/api/health | tee /dev/stderr | jq -e '.status == "ok" and .env == "production"'
+      - name: Logs
+        if: failure()
+        run: $COMPOSE logs
+
+  # Garde les 20 dernières images de préprod par paquet ; celles qui portent
+  # une version (1.2.0) ne sont jamais supprimées.
+  cleanup:
+    needs: smoke
+    if: always() && needs.smoke.result != 'cancelled'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+      - name: Supprimer les anciennes images de préprod
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          prefix=$(jq -r '.registry | sub("^ghcr.io/[^/]+/"; "")' .github/apps.json)
+          for image in $(jq -r '.apps[].images // {} | keys[]' .github/apps.json); do
+            pkg="$prefix-$image"
+            gh api --paginate "/users/$OWNER/packages/container/$pkg/versions" \
+              --jq '.[] | select(all(.metadata.container.tags[]; startswith("tree-"))) | .id' |
+              tail -n +21 |
+              while read -r id; do
+                gh api -X DELETE "/users/$OWNER/packages/container/$pkg/versions/$id" && echo "$pkg : version $id supprimée"
+              done
+          done

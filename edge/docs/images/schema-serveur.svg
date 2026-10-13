@@ -1,0 +1,171 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1100" viewBox="0 0 1800 1100" font-family="Inter, 'DejaVu Sans', Arial, sans-serif" font-size="20" fill="#1a1a1a">
+  <defs>
+    <marker id="ws" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1f6fb5"/></marker>
+    <marker id="post" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c76a00"/></marker>
+    <marker id="sse" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#7b3fa0"/></marker>
+    <marker id="rest" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#555"/></marker>
+  </defs>
+  <rect width="1800" height="1100" fill="#ffffff"/>
+  <text x="900" y="42" text-anchor="middle" font-size="28" font-weight="700">Après le POC : relier le Raspberry au serveur</text>
+
+  <!-- ========== Zone privée : Raspberry ========== -->
+  <rect x="20" y="80" width="490" height="540" rx="16" fill="#f1f9f1" stroke="#3a7d44" stroke-width="2.5" stroke-dasharray="10 7"/>
+  <rect x="40" y="100" width="450" height="440" rx="10" fill="#ffffff" stroke="#1a1a1a" stroke-width="4"/>
+  <text x="265" y="140" text-anchor="middle" font-size="25" font-weight="700">🍓 Raspberry Pi 4</text>
+  <g font-size="18">
+    <rect x="60" y="160" width="410" height="44" rx="8" fill="#eef7ee" stroke="#9cc9a3"/>
+    <text x="76" y="189"><tspan font-weight="700">1.</tspan> Capture → MoveNet → image effacée</text>
+    <rect x="60" y="212" width="410" height="44" rx="8" fill="#eef7ee" stroke="#9cc9a3"/>
+    <text x="76" y="241"><tspan font-weight="700">2.</tspan> Angles → règles → bocaux</text>
+    <rect x="60" y="264" width="410" height="44" rx="8" fill="#eef7ee" stroke="#9cc9a3"/>
+    <text x="76" y="293"><tspan font-weight="700">3.</tspan> État, alertes, résumés 5 min</text>
+    <text x="265" y="330" text-anchor="middle" font-size="15" fill="#555">poc.py (déjà fait)</text>
+  </g>
+  <rect x="60" y="345" width="410" height="180" rx="8" fill="#fff8e8" stroke="#d9b45a" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="76" y="374" font-size="18" font-weight="700">⏳ connexion.py (à écrire)</text>
+  <g font-size="17">
+    <text x="76" y="404">• WebSocket, se reconnecte toute seule</text>
+    <text x="76" y="432">• envoi HTTPS POST</text>
+    <text x="76" y="460">• 🗄️ SQLite : si le réseau coupe,</text>
+    <text x="96" y="484">garde les messages et les renvoie</text>
+    <text x="76" y="512">• seuils reçus gardés en mémoire</text>
+  </g>
+  <text x="265" y="572" text-anchor="middle" font-size="18" font-weight="700" fill="#2d6636">🔒 Ne sort jamais du Pi :</text>
+  <text x="265" y="598" text-anchor="middle" font-size="18" font-weight="700" fill="#2d6636">les images ni les 17 points du corps</text>
+
+  <!-- ========== Flèches Pi ↔ serveur ========== -->
+  <text x="665" y="150" text-anchor="middle" font-size="19" font-weight="700" fill="#1f6fb5">WebSocket</text>
+  <text x="665" y="172" text-anchor="middle" font-size="15" fill="#1f6fb5">ouverte par le Pi, sert dans les 2 sens</text>
+  <path d="M818,215 L514,215" stroke="#1f6fb5" stroke-width="3.5" fill="none" marker-end="url(#ws)"/>
+  <text x="665" y="205" text-anchor="middle" font-size="17">Démarrer / arrêter + seuils</text>
+  <path d="M514,280 L818,280" stroke="#1f6fb5" stroke-width="3.5" fill="none" marker-end="url(#ws)"/>
+  <text x="665" y="270" text-anchor="middle" font-size="16">État en direct (toutes les 2–10 s)</text>
+  <text x="665" y="304" text-anchor="middle" font-size="15" fill="#555">relayé, ❌ non stocké</text>
+
+  <text x="665" y="368" text-anchor="middle" font-size="19" font-weight="700" fill="#c76a00">HTTPS POST</text>
+  <text x="665" y="390" text-anchor="middle" font-size="15" fill="#c76a00">un id par message → pas de doublon</text>
+  <path d="M514,430 L818,430" stroke="#c76a00" stroke-width="3.5" fill="none" marker-end="url(#post)"/>
+  <text x="665" y="420" text-anchor="middle" font-size="16">Événements : début / fin d'alerte</text>
+  <path d="M514,495 L818,495" stroke="#c76a00" stroke-width="3.5" fill="none" marker-end="url(#post)"/>
+  <text x="665" y="485" text-anchor="middle" font-size="17">Résumés : toutes les 5 min</text>
+  <text x="665" y="519" text-anchor="middle" font-size="15" fill="#555">✅ stockés en base</text>
+
+  <!-- ========== Serveur ========== -->
+  <rect x="822" y="100" width="380" height="520" rx="10" fill="#ffffff" stroke="#1a1a1a" stroke-width="4"/>
+  <text x="1012" y="140" text-anchor="middle" font-size="25" font-weight="700">🖥️ Serveur NestJS</text>
+  <g font-size="17">
+    <rect x="842" y="160" width="340" height="38" rx="7" fill="#eef7ee" stroke="#9cc9a3"/>
+    <text x="856" y="185">✅ Connexion utilisateurs (JWT)</text>
+    <rect x="842" y="206" width="340" height="38" rx="7" fill="#fff8e8" stroke="#d9b45a"/>
+    <text x="856" y="231">⏳ Clé d'appareil pour le Pi</text>
+    <rect x="842" y="252" width="340" height="38" rx="7" fill="#fff8e8" stroke="#d9b45a"/>
+    <text x="856" y="277">⏳ Sessions : démarrer / terminer</text>
+    <rect x="842" y="298" width="340" height="38" rx="7" fill="#fff8e8" stroke="#d9b45a"/>
+    <text x="856" y="323">⏳ Passerelle WebSocket (Pi)</text>
+    <rect x="842" y="344" width="340" height="38" rx="7" fill="#fff8e8" stroke="#d9b45a"/>
+    <text x="856" y="369">⏳ Réception événements, résumés</text>
+    <rect x="842" y="390" width="340" height="38" rx="7" fill="#fff8e8" stroke="#d9b45a"/>
+    <text x="856" y="415">⏳ SSE vers l'app (en direct)</text>
+  </g>
+  <path d="M1012,436 L1012,470" stroke="#555" stroke-width="2.5" fill="none" marker-end="url(#rest)"/>
+  <ellipse cx="1012" cy="488" rx="120" ry="14" fill="#e8eef8" stroke="#4a6fa5" stroke-width="2"/>
+  <path d="M892,488 L892,568 A120,14 0 0 0 1132,568 L1132,488" fill="#e8eef8" stroke="#4a6fa5" stroke-width="2"/>
+  <text x="1012" y="530" text-anchor="middle" font-size="19" font-weight="700">PostgreSQL</text>
+  <text x="1012" y="554" text-anchor="middle" font-size="15" fill="#444">événements, résumés</text>
+  <text x="1012" y="604" text-anchor="middle" font-size="15" fill="#555">✅ = déjà sur develop · ⏳ = à faire</text>
+
+  <!-- ========== Flèches serveur ↔ apps ========== -->
+  <path d="M1206,190 L1436,190" stroke="#7b3fa0" stroke-width="3.5" fill="none" marker-end="url(#sse)"/>
+  <text x="1321" y="152" text-anchor="middle" font-size="19" font-weight="700" fill="#7b3fa0">SSE</text>
+  <text x="1321" y="176" text-anchor="middle" font-size="15">état en direct + alertes</text>
+  <path d="M1436,265 L1206,265" stroke="#555" stroke-width="3" fill="none" marker-end="url(#rest)"/>
+  <text x="1321" y="234" text-anchor="middle" font-size="16" font-weight="700" fill="#555">HTTPS (REST)</text>
+  <text x="1321" y="255" text-anchor="middle" font-size="16">connexion, Démarrer,</text>
+  <text x="1321" y="289" text-anchor="middle" font-size="16">Terminer, historique</text>
+
+  <path d="M1206,480 L1436,480" stroke="#555" stroke-width="3" fill="none" marker-start="url(#rest)" marker-end="url(#rest)"/>
+  <text x="1321" y="449" text-anchor="middle" font-size="16" font-weight="700" fill="#555">HTTPS (REST)</text>
+  <text x="1321" y="470" text-anchor="middle" font-size="16">historique, stats,</text>
+  <text x="1321" y="504" text-anchor="middle" font-size="16">seuils (admin)</text>
+
+  <!-- ========== Apps ========== -->
+  <rect x="1440" y="120" width="340" height="210" rx="10" fill="#ffffff" stroke="#1a1a1a" stroke-width="3"/>
+  <text x="1610" y="172" text-anchor="middle" font-size="42">📱</text>
+  <text x="1610" y="208" text-anchor="middle" font-size="22" font-weight="700">App mobile</text>
+  <text x="1610" y="238" text-anchor="middle" font-size="16" fill="#444">Démarrer / Terminer</text>
+  <text x="1610" y="262" text-anchor="middle" font-size="16" fill="#444">couleur en direct, alertes</text>
+  <text x="1610" y="286" text-anchor="middle" font-size="16" fill="#444">score, conseils</text>
+  <text x="1610" y="312" text-anchor="middle" font-size="14" fill="#7b3fa0">push quand l'app est fermée (ensuite)</text>
+
+  <rect x="1440" y="400" width="340" height="170" rx="10" fill="#ffffff" stroke="#1a1a1a" stroke-width="3"/>
+  <text x="1610" y="450" text-anchor="middle" font-size="42">💻</text>
+  <text x="1610" y="486" text-anchor="middle" font-size="22" font-weight="700">Site web</text>
+  <text x="1610" y="516" text-anchor="middle" font-size="16" fill="#444">historique de l'utilisateur</text>
+  <text x="1610" y="540" text-anchor="middle" font-size="16" fill="#444">admin : stats, réglage des seuils</text>
+
+  <!-- ========== Déroulé d'une session ========== -->
+  <line x1="20" y1="660" x2="1780" y2="660" stroke="#ccc" stroke-width="2"/>
+  <text x="900" y="700" text-anchor="middle" font-size="24" font-weight="700">Déroulé d'une session</text>
+
+  <g font-size="17">
+    <rect x="20" y="725" width="335" height="250" rx="10" fill="#f6f6f6" stroke="#999"/>
+    <circle cx="52" cy="757" r="18" fill="#1a1a1a"/><text x="52" y="764" text-anchor="middle" fill="#fff" font-weight="700">1</text>
+    <text x="80" y="764" font-weight="700">Pi allumé</text>
+    <text x="38" y="800">Il ouvre sa <tspan fill="#1f6fb5" font-weight="700">WebSocket</tspan></text>
+    <text x="38" y="824">vers le serveur, puis attend.</text>
+    <text x="38" y="860" font-weight="700" fill="#2d6636">Aucune capture</text>
+    <text x="38" y="884" font-weight="700" fill="#2d6636">hors session.</text>
+
+    <rect x="375" y="725" width="335" height="250" rx="10" fill="#f6f6f6" stroke="#999"/>
+    <circle cx="407" cy="757" r="18" fill="#1a1a1a"/><text x="407" y="764" text-anchor="middle" fill="#fff" font-weight="700">2</text>
+    <text x="435" y="764" font-weight="700">« Démarrer »</text>
+    <text x="393" y="800">L'app appelle le serveur,</text>
+    <text x="393" y="824">qui crée la session.</text>
+    <text x="393" y="860">Le Pi reçoit par <tspan fill="#1f6fb5" font-weight="700">WebSocket</tspan> :</text>
+    <text x="393" y="884">n° de session + seuils.</text>
+    <text x="393" y="920" font-size="15" fill="#555">Le Pi ne connaît ni le nom</text>
+    <text x="393" y="942" font-size="15" fill="#555">ni l'email de la personne.</text>
+
+    <rect x="730" y="725" width="335" height="250" rx="10" fill="#f6f6f6" stroke="#999"/>
+    <circle cx="762" cy="757" r="18" fill="#1a1a1a"/><text x="762" y="764" text-anchor="middle" fill="#fff" font-weight="700">3</text>
+    <text x="790" y="764" font-weight="700">Surveillance</text>
+    <text x="748" y="800">Le Pi fait tourner poc.py.</text>
+    <text x="748" y="836">À chaque image : état</text>
+    <text x="748" y="860">→ <tspan fill="#1f6fb5" font-weight="700">WebSocket</tspan> → serveur</text>
+    <text x="748" y="884">→ <tspan fill="#7b3fa0" font-weight="700">SSE</tspan> → couleur sur l'app.</text>
+    <text x="748" y="920" font-size="15" fill="#555">Réseau coupé : l'analyse</text>
+    <text x="748" y="942" font-size="15" fill="#555">continue sur le Pi.</text>
+
+    <rect x="1085" y="725" width="335" height="250" rx="10" fill="#f6f6f6" stroke="#999"/>
+    <circle cx="1117" cy="757" r="18" fill="#1a1a1a"/><text x="1117" y="764" text-anchor="middle" fill="#fff" font-weight="700">4</text>
+    <text x="1145" y="764" font-weight="700">Alerte confirmée</text>
+    <text x="1103" y="800"><tspan fill="#c76a00" font-weight="700">POST</tspan> de l'événement</text>
+    <text x="1103" y="824">→ base + alerte sur l'app.</text>
+    <text x="1103" y="860">Toutes les 5 min :</text>
+    <text x="1103" y="884"><tspan fill="#c76a00" font-weight="700">POST</tspan> du résumé (score).</text>
+    <text x="1103" y="920" font-size="15" fill="#555">Échec d'envoi → SQLite,</text>
+    <text x="1103" y="942" font-size="15" fill="#555">renvoyé plus tard.</text>
+
+    <rect x="1440" y="725" width="340" height="250" rx="10" fill="#f6f6f6" stroke="#999"/>
+    <circle cx="1472" cy="757" r="18" fill="#1a1a1a"/><text x="1472" y="764" text-anchor="middle" fill="#fff" font-weight="700">5</text>
+    <text x="1500" y="764" font-weight="700">« Terminer »</text>
+    <text x="1458" y="800">Le serveur envoie « arrête »</text>
+    <text x="1458" y="824">au Pi par <tspan fill="#1f6fb5" font-weight="700">WebSocket</tspan>.</text>
+    <text x="1458" y="860">Le Pi ferme les alertes,</text>
+    <text x="1458" y="884">envoie le dernier résumé</text>
+    <text x="1458" y="908">et coupe la caméra.</text>
+    <text x="1458" y="944" font-size="15" fill="#555">L'app affiche score et conseils.</text>
+  </g>
+
+  <!-- ========== Légende ========== -->
+  <g font-size="17">
+    <line x1="60" y1="1040" x2="120" y2="1040" stroke="#1f6fb5" stroke-width="4"/>
+    <text x="132" y="1046"><tspan font-weight="700">WebSocket</tspan> : temps réel, dans les 2 sens</text>
+    <line x1="520" y1="1040" x2="580" y2="1040" stroke="#c76a00" stroke-width="4"/>
+    <text x="592" y="1046"><tspan font-weight="700">HTTPS POST</tspan> : ce qui doit être gardé</text>
+    <line x1="975" y1="1040" x2="1035" y2="1040" stroke="#7b3fa0" stroke-width="4"/>
+    <text x="1047" y="1046"><tspan font-weight="700">SSE</tspan> : le serveur pousse vers l'app</text>
+    <line x1="1400" y1="1040" x2="1460" y2="1040" stroke="#555" stroke-width="4"/>
+    <text x="1472" y="1046"><tspan font-weight="700">REST</tspan> : actions des apps</text>
+  </g>
+</svg>

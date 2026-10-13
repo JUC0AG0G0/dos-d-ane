@@ -2,6 +2,7 @@ import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   ApiOkResponse,
+  ApiOperation,
   ApiServiceUnavailableResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -19,6 +20,7 @@ export class HealthController {
   /** Utilisé par Docker (healthcheck) et le front : l'API répond et la base est joignable. */
   @Public()
   @Get()
+  @ApiOperation({ summary: "État de l'API et de la base, version déployée" })
   @ApiOkResponse({ description: "L'API répond et la base est joignable" })
   @ApiServiceUnavailableResponse({ description: 'La base est injoignable' })
   async check() {

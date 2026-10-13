@@ -1,77 +1,102 @@
 name: CI
 
-# Lint et compilation du serveur et du client, stack de production lancée
-# dans Docker, secrets de production (vers main), puis déploiement sur main.
+# PR vers develop : ne vérifie que les apps modifiées (commande « check » de
+# .github/apps.json : lint et compilation, tests de edge et desktop), sans
+# lancer Docker sauf si un Dockerfile, nginx.conf ou un fichier compose
+# change. La construction des images et le test de la stack se font après le
+# merge, sur develop (preprod.yml). Les PR vers main sont gérées par release-check.yml.
 # Le job « ci-ok » résume les vérifications pour la protection de branche.
 on:
   pull_request:
-    branches: [main, develop]
-  push:
-    branches: [main, develop]
-  workflow_dispatch:
+    branches: [develop]
 
 concurrency:
   group: ci-${{ github.ref }}
-  # Sur main, un déploiement en cours n'est jamais interrompu.
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      checks: ${{ steps.changed.outputs.checks }}
+      docker: ${{ steps.changed.outputs.docker }}
+      compose: ${{ steps.changed.outputs.compose }}
+      api_docs: ${{ steps.changed.outputs.api_docs }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: changed
+        run: node scripts/release.mjs changed "origin/${{ github.base_ref }}"
+
   # Mêmes tâches (Taskfile.yml) que les hooks Husky en local.
-  # mise-action installe Node et task aux versions de mise.toml.
+  # mise-action installe Node, Python et task aux versions de mise.toml.
   apps:
+    needs: changes
+    if: needs.changes.outputs.checks != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.changes.outputs.checks) }}
+    name: apps (${{ matrix.app }})
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - uses: jdx/mise-action@v3
-      - name: Installer
-        run: task setup
-      - name: Lint
-        run: task lint
-      - name: Compilation
-        run: task build
+      - name: Vérifier ${{ matrix.app }}
+        run: ${{ matrix.check }}
 
-  docker:
+  # Un contrôleur ou un DTO a changé : server/ROUTES.md et openapi.json
+  # doivent avoir été régénérés (hook pre-commit ou `task api:docs`).
+  api-docs:
+    needs: changes
+    if: needs.changes.outputs.api_docs == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: jdx/mise-action@v3
+      - name: Vérifier ROUTES.md et openapi.json
+        run: task api:docs -- --check
+
+  compose:
+    needs: changes
+    if: needs.changes.outputs.compose == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - name: Valider les fichiers compose
-        run: docker compose --env-file .env.dev.example -f compose.yaml -f compose.dev.yaml config -q
-      # Stack de production complète (images, migrations, API, nginx) avec des
-      # valeurs de test, jamais utilisées ailleurs.
-      - name: Lancer la stack de production
         run: |
-          cat > .env.prod <<'EOF'
-          POSTGRES_USER=ci
-          POSTGRES_PASSWORD=ci-password
-          POSTGRES_DB=ci
-          JWT_SECRET=ci-jwt-secret-ci-jwt-secret-ci-jwt-secret
-          ADMIN_EMAIL=admin@ci.test
-          ADMIN_PASSWORD=ci-admin-password
-          EOF
-          docker compose --env-file .env.prod -f compose.yaml -f compose.prod.yaml up -d --build --wait --wait-timeout 300
-      - name: Vérifier l'API à travers nginx
-        run: curl -fsS http://localhost/api/health | tee /dev/stderr | jq -e '.status == "ok" and .env == "production"'
-      - name: Logs
-        if: failure()
-        run: docker compose --env-file .env.prod -f compose.yaml -f compose.prod.yaml logs
+          docker compose --env-file .env.dev.example -f compose.yaml -f compose.dev.yaml config -q
+          # Production : chaque variable de .env.prod.example reçoit une valeur factice.
+          sed -E 's/^([A-Z0-9_]+)=$/\1=ci/' .env.prod.example > .env.prod
+          SERVER_TAG=ci CLIENT_TAG=ci docker compose --env-file .env.prod -f compose.yaml -f compose.prod.yaml config -q
 
-  # Avant main : tous les secrets de .env.prod.example doivent exister.
-  prod-secrets:
-    if: github.base_ref == 'main' || github.ref == 'refs/heads/main'
+  # Construit (sans publier) les images dont le Dockerfile ou nginx.conf a
+  # changé. Le cache est partagé avec la préprod, qui ira donc vite.
+  docker:
+    needs: changes
+    if: needs.changes.outputs.docker != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.changes.outputs.docker) }}
+    name: docker (${{ matrix.image }})
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - name: Vérifier les secrets de production
-        env:
-          SECRETS: ${{ toJSON(secrets) }}
-        run: sh scripts/prod-secrets.sh check
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: "{{defaultContext}}:${{ matrix.context }}"
+          target: ${{ matrix.target }}
+          push: false
+          cache-from: type=gha,scope=${{ matrix.image }}
 
   ci-ok:
     if: always()
-    needs: [apps, docker, prod-secrets]
+    needs: [changes, apps, api-docs, compose, docker]
     runs-on: ubuntu-latest
     steps:
       - name: Vérifier que tous les jobs ont réussi
@@ -80,27 +105,3 @@ jobs:
             echo "Au moins un job a échoué."
             exit 1
           fi
-
-  # Après une CI verte sur main (push ou relance manuelle), sur le runner
-  # auto-hébergé installé sur le serveur (guide : deployReadME.md).
-  deploy:
-    needs: ci-ok
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    runs-on: [self-hosted, dos-d-ane-prod]
-    concurrency:
-      group: deploy
-      cancel-in-progress: false
-    env:
-      TARGET: /opt/dos-d-ane
-    steps:
-      - uses: actions/checkout@v5
-      - name: Préparer la nouvelle version
-        run: |
-          rm -rf "$TARGET/next" && mkdir -p "$TARGET/next"
-          git archive --format=tar HEAD | tar -x -C "$TARGET/next"
-      - name: Vérifier les secrets et écrire .env.prod
-        env:
-          SECRETS: ${{ toJSON(secrets) }}
-        run: sh scripts/prod-secrets.sh write "$TARGET/next/.env.prod"
-      - name: Construire et démarrer
-        run: sh "$TARGET/next/scripts/deploy.sh" "$GITHUB_SHA"
