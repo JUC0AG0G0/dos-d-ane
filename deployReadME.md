@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | PR vers `develop` | `ci.yml` | lint et compilation des seules apps modifiées ; build Docker (sans publication) seulement si un `Dockerfile`, `nginx.conf` ou un fichier compose change ; `server/ROUTES.md` à jour si un contrôleur ou un DTO change |
 | push sur `develop` | `preprod.yml` | build et publication sur GHCR des images dont le contenu a changé, puis stack de production complète lancée depuis ces images et test de `/api/health` à travers nginx |
-| PR `develop` → `main` | `release.yml` | aucun build : versions à publier (cases à cocher dans la description), préprod verte pour ce commit, images présentes, secrets complets |
+| PR `develop` → `main` | `release-check.yml` | aucun build : versions à publier (cases à cocher dans la description), préprod verte pour ce commit, images présentes, secrets complets |
 | push sur `main` | `release.yml` | les images reçoivent leur version, tag git et release GitHub par app, puis le runner du serveur télécharge les images et redémarre la stack |
 
 Images : `ghcr.io/juc0ag0g0/dos-d-ane-server`, `-server-migrate` et `-client` (onglet **Packages** du dépôt). Les apps sont listées dans [.github/apps.json](.github/apps.json) (dossier, commande de vérification, images, première version), la logique est dans [scripts/release.mjs](scripts/release.mjs).

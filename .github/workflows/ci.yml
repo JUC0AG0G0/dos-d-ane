@@ -4,7 +4,7 @@ name: CI
 # .github/apps.json : lint et compilation, tests de edge et desktop), sans
 # lancer Docker sauf si un Dockerfile, nginx.conf ou un fichier compose
 # change. La construction des images et le test de la stack se font après le
-# merge, sur develop (preprod.yml). Les PR vers main sont gérées par release.yml.
+# merge, sur develop (preprod.yml). Les PR vers main sont gérées par release-check.yml.
 # Le job « ci-ok » résume les vérifications pour la protection de branche.
 on:
   pull_request:

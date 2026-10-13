@@ -1,0 +1,66 @@
+name: Release check
+
+# PR vers main : rien n'est compilé. La CI ajoute à la description de la PR
+# les versions qui seront publiées (une case à cocher par app modifiée),
+# vérifie que la préprod de ce commit est verte, que ses images existent et
+# que les secrets de production sont complets. Le merge est publié et
+# déployé par release.yml (séparé : celui-ci ne doit jamais toucher au
+# runner du serveur).
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
+
+concurrency:
+  # La dernière modification de la description l'emporte.
+  group: release-check-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Versions, préprod et images
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/release.mjs pr
+
+  # Tous les secrets de .env.prod.example doivent exister.
+  prod-secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Vérifier les secrets de production
+        env:
+          SECRETS: ${{ toJSON(secrets) }}
+        run: sh scripts/prod-secrets.sh check
+
+  # Check obligatoire du ruleset de main (même nom que celui de la CI).
+  ci-ok:
+    if: always()
+    needs: [plan, prod-secrets]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Vérifier que tous les jobs ont réussi
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}" == "true" ]]; then
+            echo "Au moins un job a échoué."
+            exit 1
+          fi

@@ -1,18 +1,12 @@
 name: Release
 
-# PR vers main : rien n'est compilé. La CI ajoute à la description de la PR
-# les versions qui seront publiées (une case à cocher par app modifiée),
-# vérifie que la préprod de ce commit est verte, que ses images existent et
-# que les secrets de production sont complets.
-# Push sur main (merge) : les images de préprod reçoivent leur version
-# (server:1.2.0), le tag git server-v1.2.0 et une release GitHub sont créés,
-# puis le serveur télécharge les images et redémarre.
+# Push sur main (merge d'une PR validée par release-check.yml) : les images de
+# préprod reçoivent leur version (server:1.2.0), le tag git server-v1.2.0 et
+# une release GitHub sont créés, puis le serveur télécharge les images et
+# redémarre. Rien n'est recompilé.
 # Relance manuelle (Actions > Release > Run workflow) : redéploie la dernière
 # version publiée, ou celle indiquée (retour arrière).
 on:
-  pull_request:
-    branches: [main]
-    types: [opened, synchronize, reopened, edited]
   push:
     branches: [main]
   workflow_dispatch:
@@ -25,39 +19,16 @@ on:
         required: false
 
 concurrency:
-  # PR : la dernière modification de la description l'emporte. Main : un
-  # déploiement en cours n'est jamais interrompu.
-  group: release-${{ github.event_name == 'pull_request' && github.ref || 'main' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # Un déploiement en cours n'est jamais interrompu.
+  group: release
+  cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
-  plan:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-      packages: read
-      pull-requests: write
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Versions, préprod et images
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node scripts/release.mjs pr
-
-  # Tous les secrets de .env.prod.example doivent exister.
+  # Tous les secrets de .env.prod.example doivent exister (déjà vérifié sur la PR,
+  # revérifié au cas où un secret aurait été supprimé depuis).
   prod-secrets:
     runs-on: ubuntu-latest
     steps:
@@ -66,19 +37,6 @@ jobs:
         env:
           SECRETS: ${{ toJSON(secrets) }}
         run: sh scripts/prod-secrets.sh check
-
-  # Check obligatoire du ruleset de main (même nom que celui de la CI).
-  ci-ok:
-    if: always() && github.event_name == 'pull_request'
-    needs: [plan, prod-secrets]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Vérifier que tous les jobs ont réussi
-        run: |
-          if [[ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}" == "true" ]]; then
-            echo "Au moins un job a échoué."
-            exit 1
-          fi
 
   # Merge sur main : versions, tags et releases, sans rien recompiler.
   publish:
@@ -129,7 +87,7 @@ jobs:
   # Sur le runner auto-hébergé installé sur le serveur (guide : deployReadME.md).
   deploy:
     needs: [prod-secrets, publish]
-    if: always() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && needs.prod-secrets.result == 'success' && (needs.publish.result == 'success' || github.event_name == 'workflow_dispatch')
+    if: always() && github.ref == 'refs/heads/main' && needs.prod-secrets.result == 'success' && (needs.publish.result == 'success' || github.event_name == 'workflow_dispatch')
     runs-on: [self-hosted, dos-d-ane-prod]
     permissions:
       contents: read
