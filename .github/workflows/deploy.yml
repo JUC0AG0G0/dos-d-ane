@@ -1,0 +1,43 @@
+name: Déploiement
+
+# Déploie main sur le serveur après une CI verte sur main (guide :
+# deployReadME.md). Tourne sur le runner auto-hébergé installé sur le serveur.
+# Relance manuelle possible depuis l'onglet Actions, sur main.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'))
+    runs-on: [self-hosted, dos-d-ane-prod]
+    env:
+      VERSION: ${{ github.event.workflow_run.head_sha || github.sha }}
+      TARGET: /opt/dos-d-ane
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.VERSION }}
+      - name: Préparer la nouvelle version
+        run: |
+          rm -rf "$TARGET/next" && mkdir -p "$TARGET/next"
+          git archive --format=tar HEAD | tar -x -C "$TARGET/next"
+      - name: Vérifier les secrets et écrire .env.prod
+        env:
+          SECRETS: ${{ toJSON(secrets) }}
+        run: sh scripts/prod-secrets.sh write "$TARGET/next/.env.prod"
+      - name: Construire et démarrer
+        run: sh "$TARGET/next/scripts/deploy.sh" "$VERSION"

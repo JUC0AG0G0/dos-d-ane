@@ -6,7 +6,14 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
-RUN npm run build && npm prune --omit=dev
+RUN npm run build
+
+# --- Migrations Prisma (`migrate deploy`), lancées avant le serveur en production ---
+FROM build AS migrate
+CMD ["npx", "prisma", "migrate", "deploy"]
+
+FROM build AS prune
+RUN npm prune --omit=dev
 
 # --- Image d'exécution, sans outils de build ---
 FROM node:26-alpine AS runtime
@@ -14,9 +21,9 @@ ENV NODE_ENV=production
 WORKDIR /app
 ARG APP_VERSION=dev
 ENV APP_VERSION=${APP_VERSION}
-COPY --from=build --chown=node:node /app/package.json ./
-COPY --from=build --chown=node:node /app/node_modules ./node_modules
-COPY --from=build --chown=node:node /app/dist ./dist
+COPY --from=prune --chown=node:node /app/package.json ./
+COPY --from=prune --chown=node:node /app/node_modules ./node_modules
+COPY --from=prune --chown=node:node /app/dist ./dist
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

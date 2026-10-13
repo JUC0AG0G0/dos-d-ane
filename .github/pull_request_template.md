@@ -10,5 +10,6 @@
 
 - [ ] `task check` passe en local
 - [ ] Nouvelles variables d’environnement ajoutées à `.env.dev.example`
+- [ ] Nouvelles variables de production ajoutées à `.env.prod.example` et aux secrets GitHub
 - [ ] Nouvelles routes documentées dans Swagger
 - [ ] Pas de donnée personnelle inutile ni de donnée brute stockée (RGPD)

@@ -1,6 +1,7 @@
 name: CI
 
-# Lint et compilation du serveur et du client, validation de Docker.
+# Lint et compilation du serveur et du client, stack de production lancée
+# dans Docker, secrets de production (vers main).
 # Le job « ci-ok » résume le tout pour la protection de branche.
 on:
   pull_request:
@@ -37,23 +38,39 @@ jobs:
       - uses: actions/checkout@v5
       - name: Valider les fichiers compose
         run: docker compose --env-file .env.dev.example -f compose.yaml -f compose.dev.yaml config -q
-      - uses: docker/setup-buildx-action@v3
-      - name: Construire l'image du serveur
-        uses: docker/build-push-action@v6
-        with:
-          context: server
-          push: false
-          cache-from: type=gha,scope=server
-      - name: Construire l'image du client
-        uses: docker/build-push-action@v6
-        with:
-          context: client
-          push: false
-          cache-from: type=gha,scope=client
+      # Stack de production complète (images, migrations, API, nginx) avec des
+      # valeurs de test, jamais utilisées ailleurs.
+      - name: Lancer la stack de production
+        run: |
+          cat > .env.prod <<'EOF'
+          POSTGRES_USER=ci
+          POSTGRES_PASSWORD=ci-password
+          POSTGRES_DB=ci
+          JWT_SECRET=ci-jwt-secret-ci-jwt-secret-ci-jwt-secret
+          ADMIN_EMAIL=admin@ci.test
+          ADMIN_PASSWORD=ci-admin-password
+          EOF
+          docker compose --env-file .env.prod -f compose.yaml -f compose.prod.yaml up -d --build --wait --wait-timeout 300
+      - name: Vérifier l'API à travers nginx
+        run: curl -fsS http://localhost/api/health | tee /dev/stderr | jq -e '.status == "ok" and .env == "production"'
+      - name: Logs
+        if: failure()
+        run: docker compose --env-file .env.prod -f compose.yaml -f compose.prod.yaml logs
+
+  # Avant main : tous les secrets de .env.prod.example doivent exister.
+  prod-secrets:
+    if: github.base_ref == 'main' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Vérifier les secrets de production
+        env:
+          SECRETS: ${{ toJSON(secrets) }}
+        run: sh scripts/prod-secrets.sh check
 
   ci-ok:
     if: always()
-    needs: [apps, docker]
+    needs: [apps, docker, prod-secrets]
     runs-on: ubuntu-latest
     steps:
       - name: Vérifier que tous les jobs ont réussi

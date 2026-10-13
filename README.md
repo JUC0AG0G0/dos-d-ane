@@ -114,6 +114,10 @@ Une session expire après `SESSION_TTL_MINUTES` (60 par défaut) sans requête :
 
 Toutes les routes exigent d'être connecté, sauf celles marquées `@Public()`. Pour réserver une route à un rôle : `@Roles(Role.admin)`. Le compte `admin` : en dev, c'est le premier compte inscrit ; en production (`APP_ENV=production`), il est créé au démarrage depuis `ADMIN_EMAIL` et `ADMIN_PASSWORD`, obligatoires et jamais commités. Sinon, il s'attribue en base (`UPDATE users SET role = 'admin' WHERE email = '...'`).
 
+## Production
+
+Chaque merge sur `main` déploie l'application sur le serveur, via un runner GitHub Actions installé dessus, après une CI verte. Seul nginx est exposé (front et `/api`), la base et pgAdmin non. Mise en place du serveur et du runner, secrets GitHub et protection de `main` : [deployReadME.md](deployReadME.md).
+
 ## Branches
 
 `main` et `develop` ne reçoivent que des pull requests. Une branche par tâche, créée depuis `develop`.
