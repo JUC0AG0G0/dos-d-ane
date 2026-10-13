@@ -119,7 +119,7 @@ jobs:
           for image in $(jq -r '.apps[].images | keys[]' .github/apps.json); do
             pkg="$prefix-$image"
             gh api --paginate "/users/$OWNER/packages/container/$pkg/versions" \
-              --jq '.[] | select(all(.metadata.container.tags[]; startswith("tree-"))) | .id' 2>/dev/null |
+              --jq '.[] | select(all(.metadata.container.tags[]; startswith("tree-"))) | .id' |
               tail -n +21 |
               while read -r id; do
                 gh api -X DELETE "/users/$OWNER/packages/container/$pkg/versions/$id" && echo "$pkg : version $id supprimée"
