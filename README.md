@@ -1,29 +1,139 @@
 # Dos d'âne
 
-La nouvelle application **React + Electron** se trouve dans [desktop/](desktop/README.md). Les instructions ci-dessous concernent l’application Python précédente.
+<img src="./images/dos d&apos;âne.jpeg" alt="Mascotte : un âne au dos voûté" width="240">
 
-Petite application PC qui affiche le flux de la webcam, les points du squelette et des repères indicatifs sur la posture au bureau. Elle utilise [MediaPipe Pose Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker/python), [Face Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker/python) et [Hand Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker/python). Les images sont analysées sur l'appareil et l'application ne sauvegarde ni vidéo ni photo. Selon les [conditions de MediaPipe](https://developers.google.com/edge/mediapipe/legal/tos), la bibliothèque peut contacter Google et transmettre des métriques techniques, sans envoyer les images de la caméra.
+Aide à la posture pour le travail sédentaire, POC du Master UHA 4.0 (2026).
 
-## Lancer sous Windows
+> Conseils généraux de posture et d'exercices. **Ne remplace pas l'avis d'un professionnel de santé.**
 
-1. Installer [Python 3.10](https://www.python.org/downloads/) et autoriser l'accès à la caméra dans les paramètres Windows.
-2. Dans PowerShell, depuis ce dossier, lancer `powershell -ExecutionPolicy Bypass -File .\installer.ps1`. Cette étape installe les dépendances et télécharge les trois modèles officiels MediaPipe : [squelette Lite](https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task), [visage](https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task) et [mains](https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task). Leurs empreintes SHA-256 sont vérifiées avant leur installation ; les fichiers valides sont réutilisés aux prochains lancements de l'installateur.
-3. Double-cliquer sur **Lancer Dos d'Ane.cmd** ou lancer `powershell -ExecutionPolicy Bypass -File .\demarrer.ps1`.
+## À installer à la main
 
-Pour obtenir un exécutable Windows autonome après l'installation, lancer `powershell -ExecutionPolicy Bypass -File .\construire-exe.ps1`. Le résultat se trouve dans `dist\DosdAne.exe` et inclut les trois modèles. La création demande un téléchargement supplémentaire de PyInstaller. `dist\DosdAne.exe --self-test` permet de vérifier les modèles et les bibliothèques sans démarrer la caméra (code de sortie 0 si tout fonctionne).
+| Outil | Rôle | Installation |
+| --- | --- | --- |
+| [mise](https://mise.jdx.dev) | installe Node, Python et Task aux versions du projet | voir ci-dessous |
+| [Docker](https://docs.docker.com/get-docker/) | fait tourner le client web, le serveur, la base et pgAdmin | Docker Desktop (macOS, Windows) ou Docker Engine (Linux) |
 
-Sélectionner l'index de caméra (0 en général), puis la vue **Face** (par défaut) ou **Profil**. Placer la webcam à hauteur du buste, assez loin pour voir la tête, les épaules et les hanches. La vue et la qualité peuvent être changées pendant l'analyse : **Fluide** réduit le travail du processeur, **Détaillée** conserve plus de pixels. L'option **Numéros** affiche les indices des articulations sur l'image.
+Tout le reste (Node, npm, Python, Task, dépendances, hooks Git) est installé automatiquement.
 
-Le squelette utilise les **33 points** estimés par MediaPipe lorsqu'ils sont visibles. Le suivi détaillé du visage et des mains est activé par défaut et peut être désactivé dans l'interface pour réduire le travail du processeur. Les modèles spécialisés suivent **478 points du visage** et **21 points par main** : le rendu dessine les contours utiles du visage et les articulations des doigts. Les mesures de posture restent calculées à partir du squelette.
+### Installer et activer mise
 
-**Points détaillés** affiche aussi les repères des contours du visage. Les articulations du corps ont un cercle plus visible. **Données sur l'image**, activé par défaut, ajoute des étiquettes aux épaules, coudes et poignets : les épaules affichent leur visibilité, leur position X/Y et leur angle bras/buste quand il est mesurable. Les losanges bleus sont les centres **calculés** des épaules et du bassin ; ils ne représentent pas de nouvelles articulations détectées. Les pointillés indiquent l'axe du buste et la référence horizontale des épaules.
+**macOS (Homebrew)**
 
-L'onglet **Données des points** suit 14 repères nommés, avec les épaules en premier : coordonnées, visibilité et angles disponibles. X et Y sont des pourcentages de l'image, depuis le coin supérieur gauche ; G/D désignent les côtés de la personne selon le détecteur. Sélectionner une ligne pour lire son numéro et son état. Les points absents, hors cadre ou peu fiables sont signalés ; les angles nécessitant ces points sont masqués. L'onglet **Posture** conserve les mesures globales et les conseils de cadrage.
+```bash
+brew install mise
+echo 'eval "$(mise activate zsh)"' >> ~/.zshrc
+```
 
-En **Face**, l'application mesure le niveau des épaules et du bassin, le centrage et l'inclinaison de la tête, ainsi que l'axe du buste. En **Profil**, elle mesure l'écart oreille/épaule et l'inclinaison du buste ; les angles du coude, de la hanche et du genou sont affichés à titre descriptif lorsqu'ils sont visibles. Les mesures ignorent les points trop incertains.
+**Linux / WSL** (mise s'installe dans `~/.local/bin`, d'où le chemin complet)
 
-Les seuils sont des heuristiques sur une image 2D : l'angle de la caméra, la lumière, les vêtements et les points masqués changent les résultats. Ce retour ne constitue pas un diagnostic médical ou ergonomique.
+```bash
+curl https://mise.run | sh
+echo 'eval "$(~/.local/bin/mise activate zsh)"' >> ~/.zshrc     # shell zsh
+echo 'eval "$(~/.local/bin/mise activate bash)"' >> ~/.bashrc   # shell bash
+```
 
-## Développement
+Ouvrir ensuite **un nouveau terminal** et vérifier : `mise doctor` doit afficher `activated: yes`.
 
-`app.py` gère la caméra et l'interface Tkinter, `tracking.py` les trois détecteurs et `overlay.py` le dessin des contours. `posture.py` contient les mesures globales et `point_data.py` décrit chaque articulation avec ses coordonnées et ses angles 2D. Ces calculs sont séparés pour pouvoir les vérifier sans webcam. Les modèles dans `models/` sont exclus de Git et téléchargés par `installer.ps1`.
+## Premier lancement
+
+```bash
+git clone https://github.com/JUC0AG0G0/dos-d-ane.git
+cd dos-d-ane
+mise trust               # autorise la config du projet (une seule fois)
+cd .. && cd dos-d-ane    # ressortir et revenir déclenche l'installation
+```
+
+La première fois, mise installe les outils (environ une minute) puis prépare le projet. À la fin :
+
+```
+✓ dos-d-ane : environnement OK
+```
+
+Sinon, chaque problème est listé avec la commande qui le règle (`task doctor` pour le détail). Docker lancé, il ne reste plus qu'à démarrer :
+
+```bash
+task dev
+```
+
+```
+✓ Stack de dev lancée
+  Client web  http://localhost:5173
+  API         http://localhost:3000/api/health
+  Swagger     http://localhost:3000/api/docs
+  pgAdmin     http://localhost:5050
+  PostgreSQL  localhost:5432 (base dosdane, utilisateur dosdane)
+```
+
+Si un port est déjà pris, `task dev` propose d'en prendre un libre au hasard.
+
+Le rechargement à chaud est toujours actif : chaque modification de `client/src` met la page à jour, chaque modification de `server/src` recompile et relance l'API (`task logs` pour suivre).
+
+## Commandes
+
+| Commande | Rôle |
+| --- | --- |
+| `task dev` | lance client web, serveur, base et pgAdmin dans Docker et affiche leurs URL |
+| `task dev:restore` | relance la stack avec uniquement les données du dernier dump (ou `-- fichier.sql`) |
+| `task logs` | suit les logs |
+| `task down` | arrête tout ; les données sont gardées pour le prochain `task dev` |
+| `task clean` | arrête tout et **supprime** les données (demande confirmation) |
+| `task check` | lint + compilation (lancé aussi avant chaque commit et push) |
+| `task test:edge` | tests de l'algorithme de posture du Raspberry Pi (`edge/`, Python, sans webcam) |
+| `task db:generate` | crée une migration depuis `server/prisma/schema.prisma`, sans l'appliquer |
+| `task db:migrate` | applique les migrations pas encore appliquées |
+| `task db:dump` | exporte la base dans `dumps/<date>.sql` (ignoré par Git, à ne pas partager) |
+| `task db:restore` | annule la dernière migration, revient à une migration ou charge un dump |
+| `task` | liste toutes les commandes |
+
+`task up` construit les images comme en production : le client y est servi par nginx, qui relaie `/api` au serveur.
+
+Les commandes de la base sont détaillées dans [databaseReadME.md](databaseReadME.md).
+
+## Client web
+
+React + Vite + Tailwind + shadcn/ui dans `client/`. Son fonctionnement, ses dossiers et comment y développer sont expliqués dans [client/README.md](client/README.md).
+
+## Raspberry Pi (edge)
+
+Python 3.13 dans `edge/` : une webcam de profil, MoveNet (17 points du corps), des angles et des règles détectent les mauvaises postures **sur le Pi**, sans qu'aucune image n'en sorte. Installation, organisation et commandes : [edge/README.md](edge/README.md) ; fonctionnement de l'algorithme : [edge/docs/algo-posture.md](edge/docs/algo-posture.md). La liaison avec le serveur (sessions démarrées depuis l'app) reste à faire.
+
+## Configuration
+
+Seul `.env.dev.example` est versionné. Ton `.env.dev` (ports dont `CLIENT_PORT`, base, pgAdmin) est créé à partir de lui et tenu à jour automatiquement : à l'entrée dans le dossier, après chaque `git pull` et à chaque `task dev`, les variables nouvelles du modèle y sont ajoutées sans toucher à tes valeurs.
+
+Le client et le serveur tournent toujours dans Docker, comme en production.
+
+## Authentification
+
+L'API signe ses tokens (JWT) avec la clé `JWT_SECRET` de `.env.dev`. Le modèle en contient une d'exemple, publique : la remplacer par la sienne (une fois par poste, jamais commitée) :
+
+```bash
+openssl rand -base64 48
+```
+
+Coller le résultat après `JWT_SECRET=` dans `.env.dev`, puis relancer `task dev`. La changer déconnecte tout le monde.
+
+`POST /api/auth/register` crée un compte (email, mot de passe, nom affiché, tous uniques ; rôle `user`), puis `POST /api/auth/login` renvoie un `accessToken` à envoyer dans `Authorization: Bearer <token>` (bouton « Authorize » du Swagger). `GET /api/auth/sessions` liste les connexions actives et passées, `DELETE /api/auth/sessions/{id}` en ferme une.
+
+Une session expire après `SESSION_TTL_MINUTES` (60 par défaut) sans requête : chaque requête la repousse, et la nouvelle échéance est renvoyée dans l'en-tête `X-Session-Expires-At`. À la connexion, le nom et le modèle de l'appareil sont déduits du `User-Agent` et l'adresse IP est enregistrée ; `PATCH /api/devices/{id}` renomme un appareil.
+
+Toutes les routes exigent d'être connecté, sauf celles marquées `@Public()`. Pour réserver une route à un rôle : `@Roles(Role.admin)`. Le compte `admin` : en dev, c'est le premier compte inscrit ; en production (`APP_ENV=production`), il est créé au démarrage depuis `ADMIN_EMAIL` et `ADMIN_PASSWORD`, obligatoires et jamais commités. Sinon, il s'attribue en base (`UPDATE users SET role = 'admin' WHERE email = '...'`).
+
+## Production
+
+Chaque merge sur `main` déploie l'application sur le serveur, via un runner GitHub Actions installé dessus, après une CI verte. Seul nginx est exposé (front et `/api`), la base et pgAdmin non. Mise en place du serveur et du runner, secrets GitHub et protection de `main` : [deployReadME.md](deployReadME.md).
+
+## Branches
+
+`main` et `develop` ne reçoivent que des pull requests. Une branche par tâche, créée depuis `develop`.
+
+
+## Licence
+
+Ce projet est sous licence **GNU AGPL v3.0**. Voir le fichier [LICENSE](LICENSE) pour plus de détails.
+
+## Application PC
+
+Application React + Electron : [desktop/README.md](desktop/README.md).
+
+Prototype Python Windows : [README-python.md](README-python.md).

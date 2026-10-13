@@ -29,6 +29,7 @@ Desktop.ini
 .env
 .env.*
 !.env.example
+!.env.*.example
 *.pem
 *.key
 *.p12
@@ -216,7 +217,7 @@ cython_debug/
 .ipynb_checkpoints/
 *.ipynb_checkpoints
 
-# Django / Flask (au cas où)
+# Django / Flask (au cas oÃ¹)
 *.pyc
 local_settings.py
 instance/
@@ -258,3 +259,9 @@ docker-compose.override.yml
 /output/posture-benchmark/dataset/
 /output/posture-benchmark/.electron-profile/
 /output/posture-benchmark-full/
+# Exports de la base (task db:dump) : peuvent contenir des donnÃ©es personnelles
+dumps/
+# Task (cache des checksums de Taskfile)
+.task/
+# Client Prisma gÃ©nÃ©rÃ© (prisma generate)
+server/src/generated/

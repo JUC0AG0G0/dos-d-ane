@@ -1,0 +1,182 @@
+# Commandes du projet (https://taskfile.dev). `task` sans argument liste tout.
+#   task setup            # dépendances, hooks Git, .env (automatique avec mise)
+#   task check            # lint + compilation (lancé par Husky avant push)
+#   task dev              # stack Docker de dev
+#   task test:edge        # tests de l'algorithme de posture (edge/, Python)
+version: "3"
+
+vars:
+  COMPOSE: docker compose --env-file .env.dev -f compose.yaml -f compose.dev.yaml
+
+tasks:
+  default:
+    silent: true
+    cmd: task --list
+
+  doctor:
+    desc: Vérifie les versions des outils et l'installation du projet
+    cmd: sh scripts/doctor.sh
+
+  setup:
+    desc: Prépare le projet (lancé automatiquement à l'entrée du dossier)
+    # Chaque étape est sautée si elle est déjà faite : relancer ne coûte rien.
+    deps: [install, hooks, env]
+
+  install:
+    desc: Installe les dépendances du serveur et du client (seulement si un lockfile a changé)
+    deps: [install:server, install:client]
+
+  install:server:
+    dir: server
+    cmd: npm ci --no-audit --no-fund
+    sources: [package.json, package-lock.json]
+    generates: [node_modules/.package-lock.json]
+
+  install:client:
+    dir: client
+    cmd: npm ci --no-audit --no-fund
+    sources: [package.json, package-lock.json]
+    generates: [node_modules/.package-lock.json]
+
+  hooks:
+    # Installe Husky et active les hooks Git.
+    cmd: npm install --no-audit --no-fund
+    sources: [package.json, package-lock.json]
+    generates: [node_modules/.package-lock.json]
+    status:
+      - test -d node_modules/husky
+      - git config core.hooksPath | grep -q '^.husky/'
+
+  env:
+    # Crée .env.dev à partir du modèle, ou lui ajoute les variables apparues
+    # dans le modèle depuis (les valeurs existantes ne sont pas touchées).
+    cmd: sh scripts/env.sh
+    status: [sh scripts/env.sh --check]
+
+  # --- Vérifications (Husky et CI) ----------------------------------------
+
+  lint:
+    desc: Lint et formatage du serveur et du client (lancé par Husky avant chaque commit)
+    cmds:
+      - task: lint:app
+        vars: { APP: server }
+      - task: lint:app
+        vars: { APP: client }
+
+  format:
+    desc: Formate le code du serveur et du client
+    deps: [install]
+    cmds:
+      - npm --prefix server run format
+      - npm --prefix client run format
+
+  build:
+    desc: Vérifie que le serveur et le client compilent
+    cmds:
+      - task: build:app
+        vars: { APP: server }
+      - task: build:app
+        vars: { APP: client }
+
+  lint:app:
+    internal: true
+    deps: [install]
+    dir: "{{.APP}}"
+    cmds:
+      - npm run lint
+      - npm run format:check
+
+  build:app:
+    internal: true
+    deps: [install]
+    dir: "{{.APP}}"
+    cmd: npm run build
+
+  check:
+    desc: Lint + compilation (lancé par Husky avant chaque push)
+    cmds:
+      - task: lint
+      - task: build
+
+  # --- Edge (Raspberry Pi, Python) -----------------------------------------
+  # Pas dans setup ni check : seuls ceux qui travaillent sur edge/ ont besoin de Python.
+
+  install:edge:
+    desc: Crée edge/.venv avec l'algorithme et pytest (sans webcam ni modèle)
+    dir: edge
+    cmds:
+      - python3 -m venv .venv
+      - .venv/bin/pip install --quiet -e ".[dev]"
+    sources: [pyproject.toml]
+    generates: [.venv/bin/pytest]
+
+  test:edge:
+    desc: Tests unitaires de l'algorithme de posture (edge/tests)
+    deps: [install:edge]
+    dir: edge
+    cmd: .venv/bin/python -m pytest -q
+
+  # --- Base de données (Prisma) -------------------------------------------
+
+  db:generate:
+    desc: Crée une migration depuis les changements de prisma/schema.prisma, sans l'appliquer (`-- nom`, stack lancée)
+    interactive: true
+    cmd: "{{.COMPOSE}} exec server npm run db:generate -- {{if .CLI_ARGS}}--name {{.CLI_ARGS}}{{end}}"
+
+  db:migrate:
+    desc: Applique à la base les migrations pas encore appliquées (stack lancée)
+    cmd: "{{.COMPOSE}} exec server npm run db:migrate"
+
+  db:dump:
+    desc: Exporte la base dans dumps/<date>.sql (stack lancée ; dossier ignoré par Git)
+    cmd: sh scripts/db-dump.sh
+
+  db:restore:
+    desc: Annule la dernière migration (`-- migration` pour revenir à celle-ci, `-- dump` ou `-- fichier.sql` pour charger un dump)
+    interactive: true
+    prompt: La base va être modifiée (migrations annulées ou données remplacées par un dump). Continuer ?
+    cmd: |
+      case "{{.CLI_ARGS}}" in
+        dump) sh scripts/db-restore.sh ;;
+        *.sql) sh scripts/db-restore.sh {{.CLI_ARGS}} ;;
+        *) sh scripts/db-rollback.sh {{.CLI_ARGS}} ;;
+      esac
+
+  # --- Docker -------------------------------------------------------------
+
+  dev:
+    desc: Lance client web, serveur, base et pgAdmin dans Docker puis affiche les URL
+    deps: [env]
+    interactive: true
+    cmd: sh scripts/dev.sh
+
+  dev:restore:
+    desc: Relance la stack de dev avec uniquement les données d'un dump (le plus récent, ou `-- fichier.sql`)
+    deps: [env]
+    interactive: true
+    prompt: Les données actuelles de la base seront remplacées par celles du dump. Continuer ?
+    cmds:
+      - sh scripts/dev.sh
+      - sh scripts/db-restore.sh {{.CLI_ARGS}}
+
+  up:
+    desc: Construit les images du client et du serveur (comme en production) et les lance avec la base
+    cmd: docker compose --env-file .env.dev up -d --build --wait
+
+  down:
+    desc: Arrête la stack ; les données sont gardées pour le prochain `task dev`
+    cmd: "{{.COMPOSE}} down --remove-orphans"
+
+  clean:
+    desc: Arrête la stack et SUPPRIME les données (base et node_modules des conteneurs)
+    interactive: true
+    prompt: Toutes les données de la base locale seront perdues. Continuer ?
+    cmd: "{{.COMPOSE}} down --volumes --remove-orphans"
+
+  logs:
+    desc: Suit les logs de la stack
+    cmd: "{{.COMPOSE}} logs -f"
+
+  ps:
+    desc: État des conteneurs
+    cmd: "{{.COMPOSE}} ps"

@@ -1,0 +1,38 @@
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import type { User } from '@/types/user';
+
+interface AuthState {
+  accessToken: string | null;
+  user: User | null;
+  deviceId: string | null;
+  signIn: (session: {
+    accessToken: string;
+    user: User;
+    deviceId: string;
+  }) => void;
+  setUser: (user: User) => void;
+  signOut: () => void;
+}
+
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
+      accessToken: null,
+      user: null,
+      deviceId: null,
+      signIn: ({ accessToken, user, deviceId }) =>
+        set({ accessToken, user, deviceId }),
+      setUser: (user) => set({ user }),
+      signOut: () => set({ accessToken: null, user: null }),
+    }),
+    {
+      name: 'dos-d-ane.auth',
+      partialize: ({ accessToken, user, deviceId }) => ({
+        accessToken,
+        user,
+        deviceId,
+      }),
+    },
+  ),
+);

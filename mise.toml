@@ -1,2 +1,17 @@
-[env]
-_.python.venv = ".venv310"
+# Versions des outils du projet, gérées par mise (https://mise.jdx.dev).
+# Les commandes sont dans Taskfile.yml.
+min_version = "2026.1.0"
+
+[tools]
+node = "26"
+python = "3.13"   # edge/ (Raspberry Pi) : même version que le Pi
+task = "3"
+
+[settings]
+# Nécessaire pour les hooks ci-dessous.
+experimental = true
+
+[hooks]
+# À chaque entrée dans le dossier (même dans un sous-dossier) : installe les
+# outils manquants, lance `task setup` puis affiche le bilan.
+enter = "sh \"$MISE_PROJECT_ROOT/scripts/enter.sh\""
