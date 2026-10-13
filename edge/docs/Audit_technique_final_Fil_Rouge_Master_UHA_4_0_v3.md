@@ -212,7 +212,7 @@ flowchart TB
             S5{"4. Point fiable et de profil ?"}
             S6["5. Angles tête et tronc"]
             S7["6. Règles, seuils fixes<br/>GOOD / FORWARD_HEAD / NECK_FLEXION / TRUNK_FORWARD / TRUNK_BACKWARD"]
-            S8["7. Filtre dans le temps<br/>≥ 70 % de mauvaises sur 60 s pendant 2 min"]
+            S8["7. Filtre dans le temps<br/>≥ 70 % de mauvaises sur 60 s pendant 1 min"]
             S9["8. État en direct + événement + résumé 5 min<br/>UUID"]
             BUF[("9. SQLite<br/>buffer si réseau coupé")]
             DBG["Écran local — live.py<br/>développeurs uniquement"]
@@ -423,7 +423,7 @@ Plan B si les performances sont insuffisantes : réduire la cadence, réduire la
 
 Le sujet précise : *« L'analyse ne nécessite pas un flux vidéo intense ; les postures changent rarement… il est important de limiter le nombre de captures. »*
 
-La v2 raisonnait en flux continu (FPS). La v3 adopte une **capture ponctuelle et adaptative** : une image toutes les **10 s** quand tout va bien, toutes les **2 s** dès qu'une image est mauvaise (pour confirmer vite), toutes les **30 s** si personne n'est au poste. Chaque image est analysée puis effacée de la RAM. Règle exacte : [algo-posture.md](algo-posture.md), « Les règles en une page ».
+La v2 raisonnait en flux continu (FPS). La v3 adopte une **capture ponctuelle et adaptative** : une image toutes les **10 s** quand tout va bien, toutes les **2 s** dès que 20 % des images de la dernière minute sont mauvaises (pour confirmer vite), toutes les **30 s** si personne n'est au poste. Chaque image est analysée puis effacée de la RAM. Règle exacte : [algo-posture.md](algo-posture.md), « Les règles en une page ».
 
 - **Envoi au serveur** : un état en direct par image (relayé, non stocké), un résumé toutes les 5 min et les événements confirmés, **jamais une image** (§7.2).
 - **Mesures à rapporter** (argument « développement responsable ») : nombre de captures, CPU, température et volume réseau, cadence adaptative comparée à une cadence fixe de 2 s (test T7).
@@ -464,7 +464,7 @@ Grâce à la webcam USB, **le même code Python** tourne sur un PC et sur le Pi 
 | **Fusion multi-caméras** (profil + face, évolution) | **serveur** | lui seul reçoit les résultats des deux Pi |
 | Analyse de la photo mobile (itération 2) | **téléphone** | même principe que le Pi : l'image reste sur l'appareil |
 
-**Proposition retenue : algorithme sur le Pi, seuils pilotés par le serveur.** Les seuils (angles, 70 %, 40 %, 2 min…) sont **envoyés par le serveur** au démarrage de la session et réglables depuis le site admin, sans redéployer le Pi. Le Pi garde les derniers seuils reçus si le serveur est injoignable.
+**Proposition retenue : algorithme sur le Pi, seuils pilotés par le serveur.** Les seuils (angles, 70 %, 40 %, 1 min…) sont **envoyés par le serveur** au démarrage de la session et réglables depuis le site admin, sans redéployer le Pi. Le Pi garde les derniers seuils reçus si le serveur est injoignable.
 
 **Alternative écartée :** le Pi envoie les keypoints et le serveur fait toute la classification. Avantage : règles modifiables et historique réanalysable côté serveur. Inconvénients : les points du corps de chaque personne sortent du poste et sont stockés, plus aucune détection si le réseau tombe, un flux continu au lieu de quelques messages, et une logique Python à réécrire côté serveur. Les seuils pilotés par le serveur donnent la même souplesse sans ces inconvénients.
 
@@ -535,7 +535,7 @@ Ce choix de 4 postures est justifié dans [solution-mvp.md](solution-mvp.md) §4
 
 ### Côté visible
 
-En vue de profil, un seul côté est fiable. On retient le côté dont la confiance moyenne (oreille, épaule, hanche) est la plus élevée, puis on le **bloque** : de profil, MoveNet devine le côté caché avec une confiance parfois aussi haute, et le côté changeait d'une image à l'autre. Il ne change que si l'autre côté a 0,15 de confiance d'avance pendant 5 images d'affilée.
+En vue de profil, un seul côté est fiable. On retient le côté dont la confiance moyenne (oreille, épaule, hanche) est la plus élevée sur les 10 premières images où quelqu'un est vu, puis on le **bloque** : de profil, MoveNet devine le côté caché avec une confiance parfois aussi haute, et le côté changeait d'une image à l'autre. Il ne change que si l'autre côté a 0,15 de confiance d'avance pendant 5 images d'affilée.
 
 ---
 
@@ -581,10 +581,10 @@ Les protections déjà en place, chacune face à l'erreur qu'elle corrige, sont 
 | personne de face ou en biais | écart des épaules ÷ tronc > 0,35 → image ignorée |
 | côté gauche / droit qui saute | côté bloqué (ne change que si l'autre est nettement mieux vu pendant 5 images) |
 | morphologie, deux postures normales (calé au dossier ou droit) | seuils fixes et larges (tête < 50°, tronc entre −30° et +20°), vérifiés sur 4 volontaires (T5) + consigne de placement |
-| geste bref (boire, ramasser un stylo), points qui tremblent | filtre dans le temps : 70 % de mauvaises images sur 60 s pendant 2 min |
+| geste bref (boire, ramasser un stylo), points qui tremblent | filtre dans le temps : 70 % de mauvaises images sur 60 s pendant 1 min |
 | alerte qui clignote | hystérésis : fin d'alerte sous 40 % |
 | alertes à répétition | pas de nouvelle alerte du même type avant 10 min |
-| poste vide | `NO_PERSON` : prochaine capture dans 30 s ; après 60 s sans image jugée, l'alerte en cours se termine et le compte des 2 min repart de zéro |
+| poste vide | `NO_PERSON` : prochaine capture dans 30 s ; après 60 s sans image jugée, l'alerte en cours se termine et le compte de la confirmation repart de zéro |
 | webcam débranchée ou figée | réouverture après 5 captures ratées d'affilée |
 
 **Pas encore codé, à ajouter si les tests le demandent :** contrôle de cohérence (point faux mais confiance haute, par exemple une épaule placée sur le dossier) et médiane d'une rafale de 3 images (si le filtre dans le temps ne suffit pas contre le tremblement).
@@ -808,7 +808,7 @@ L'app peut afficher **un bonhomme simplifié** qui reprend la posture de l'utili
 ```text
 1. J'arrive au poste, j'ouvre l'app et j'appuie sur « Démarrer » → session démarrée (pas de calibration)
 2. Je travaille normalement ; le Pi analyse en local toutes les 10 s (2 s en cas de doute)
-3. J'avance la tête plus de 2 min → événement FORWARD_HEAD → alerte sur mon téléphone
+3. J'avance la tête plus d'1 min 30 → événement FORWARD_HEAD → alerte sur mon téléphone
 4. Je termine la session → l'app affiche le score, les durées par posture,
    les exercices conseillés et « ne remplace pas un professionnel de santé »
 5. Plus tard, sur le web : courbe de progression de la semaine
@@ -847,7 +847,7 @@ Détaillé au §18.
 | Historique par capteur | vue par device : état, `last_seen_at`, volume de mesures, version de l'algorithme |
 | Suivi de plusieurs utilisateurs | liste des participants (pseudonymes) et de leurs sessions |
 | Annotation | retours « fausse alerte » des utilisateurs ; outil d'annotation des événements en itération 2 (§16) |
-| Réglage de l'algorithme | modification des seuils (angles, 70 %, 40 %, 2 min…), envoyés aux Pi avec une nouvelle `algo_version` (§7.1) |
+| Réglage de l'algorithme | modification des seuils (angles, 70 %, 40 %, 1 min…), envoyés aux Pi avec une nouvelle `algo_version` (§7.1) |
 | **Problèmes récurrents / matériel inadapté** | agrégation **par poste de travail** : si `FORWARD_HEAD` domine sur le poste 3 quel que soit l'utilisateur, il faut sans doute rehausser l'écran. Recommandation matérielle associée. |
 | Alertes anonymisées | liste des événements par pseudonyme, filtrable |
 | Optimiser les exercices proposés | classement des types de posture les plus fréquents, qui oriente le catalogue `recommendations` |

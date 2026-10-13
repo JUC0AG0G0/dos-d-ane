@@ -31,19 +31,32 @@ class CoteStable:
     aussi haute que ceux du côté visible : le meilleur côté changeait d'une image à l'autre et les
     angles sautaient. La caméra ne bouge pas pendant une session, donc on garde le côté choisi et on
     ne change que si l'autre est nettement meilleur pendant plusieurs images d'affilée.
+
+    Le côté est choisi sur les IMAGES_CHOIX premières images où quelqu'un est vu, pas sur la
+    première seule : le 13/10, la première image (personne qui s'installe) a donné le côté caché,
+    gardé 36 min parce que l'écart réel (~0,04) restait sous MARGE ; la tête était mesurée ~11° trop bas.
     """
 
     MARGE = 0.15         # confiance moyenne d'avance nécessaire pour envisager de changer
     IMAGES = 5           # nombre d'images d'affilée où l'autre côté doit être nettement meilleur
+    IMAGES_CHOIX = 10    # images où quelqu'un est vu, sur lesquelles le côté est choisi au départ
 
     def __init__(self):
         self.cote = None
         self.compteur = 0
+        self.cumul = {c: 0.0 for c in COTES}   # somme des confiances pendant le choix
+        self.vues = 0
 
     def maj(self, pts):
         conf = {c: float(pts[list(COTES[c]), 2].mean()) for c in COTES}
-        if self.cote is None:
-            self.cote = max(conf, key=conf.get)
+        if self.vues < self.IMAGES_CHOIX:
+            # choix en cours : meilleur côté en moyenne sur les images où quelqu'un est vu
+            if max(conf.values()) >= CONF_MIN:
+                self.vues += 1
+                for c in COTES:
+                    self.cumul[c] += conf[c]
+            source = self.cumul if self.vues else conf
+            self.cote = max(source, key=source.get)
             return self.cote
         autre = "droite" if self.cote == "gauche" else "gauche"
         self.compteur = self.compteur + 1 if conf[autre] > conf[self.cote] + self.MARGE else 0

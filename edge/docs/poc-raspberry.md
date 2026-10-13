@@ -433,7 +433,7 @@ Le code est dans le paquet `posture/` (il n'est pas recopié ici, pour ne pas av
 
 **Mode rapide pour les tests** (`python poc.py --rapide`) : fenêtre de 10 s, confirmation de 10 s, anti-rafale de 1 min, « Levez-vous » après 1 min (pause de 15 s), pour ne pas attendre des minutes.
 
-**Tests unitaires** (`python -m pytest` depuis `edge/`, sur le PC ou le Pi, après `pip install -r requirements-dev.txt`) : 78 tests dans `tests/` vérifient chaque règle d'[algo-posture.md](algo-posture.md) avec des points synthétiques, sans webcam ni modèle : angles et sens du regard, images ignorées, côté stable, point complété, seuils, bocal (70 % pendant 2 min, fin sous 40 %, regroupement, changement de nom, anti-rafale, fenêtre vide), temps assis, score. À relancer après chaque modification de `posture/`.
+**Tests unitaires** (`python -m pytest` depuis `edge/`, sur le PC ou le Pi, après `pip install -r requirements-dev.txt`) : 84 tests dans `tests/` vérifient chaque règle d'[algo-posture.md](algo-posture.md) avec des points synthétiques, sans webcam ni modèle : angles et sens du regard, images ignorées, côté stable, point complété, seuils, bocal (70 % pendant 2 min, fin sous 40 %, regroupement, changement de nom, anti-rafale, fenêtre vide), temps assis, score. À relancer après chaque modification de `posture/`.
 
 ### 5.4 Ce qui est enregistré pendant le POC
 
@@ -453,11 +453,11 @@ Démarrer (depuis l'app)
 │ 3. effacer l'image (elle n'a existé qu'en mémoire)         │
 │ 4. points → angles tête, tronc, cou → posture de l'image   │
 │ 5. ajouter cette posture au bocal (60 dernières s)         │
-│ 6. si mauvaise ≥ 70 % pendant 2 min → ÉVÉNEMENT (alerte)   │
+│ 6. si mauvaise ≥ 70 % pendant 1 min → ÉVÉNEMENT (alerte)   │
 │ 7. envoyer l'état à l'app (angles, posture, score)         │
 │ 8. attendre avant l'image suivante :                       │
 │      tout va bien          → 10 s                          │
-│      posture « en doute »  →  2 s                          │
+│      ≥ 20 % de mauvaises   →  2 s                          │
 │      personne absente      → 30 s                          │
 └────────────────────────────────────────────────────────────┘
 ```
@@ -470,14 +470,15 @@ Il n'y a **pas de fenêtre ni d'écran** sur le Pi : il tourne « à l'aveugle �
 |---|---|---|
 | 14:00:00 | bonne | image suivante dans 10 s |
 | 14:00:10 | bonne | 10 s |
-| 14:00:20 | tête en avant | « en doute » → on accélère à **2 s** |
-| 14:00:22 | tête en avant | 2 s |
-| 14:00:24 | bonne | (la personne a bougé) |
+| 14:00:20 | tête en avant | 1 image mauvaise sur 6 (17 %) : peut-être un geste bref → 10 s |
+| 14:00:30 | tête en avant | 2 sur 6 (33 %) : « en doute » → on accélère à **2 s** |
+| 14:00:32 | tête en avant | 2 s |
+| 14:00:34 | bonne | (la personne a bougé) |
 | … (une image toutes les 2 s) | surtout tête en avant | plus de 70 % de mauvaises images… |
-| **14:02:20** | tête en avant | **depuis 2 min → « Tête en avant détectée »** envoyé à l'app |
+| **~14:01:30** | tête en avant | **depuis 1 min → « Tête en avant détectée »** envoyé à l'app |
 | … | | |
-| 14:05:40 | bonne | moins de 40 % de mauvaises → **fin de l'événement** (durée 3 min 20 s) |
-| ~14:06:40 | bonne | plus aucune image mauvaise depuis 60 s → retour à 10 s |
+| 14:05:40 | bonne | moins de 40 % de mauvaises → **fin de l'événement** (durée 4 min 10 s) |
+| ~14:06:20 | bonne | moins de 20 % d'images mauvaises sur 60 s → retour à 10 s |
 
 Au total : **6 images par minute** quand tout va bien, 30 en cas de doute, soit **moins de 1 seconde de calcul par minute**. Le Pi reste froid et aucune image n'est gardée.
 
@@ -550,7 +551,7 @@ L'écran « session en cours » de l'app n'est donc pas une vidéo : la silhouet
 
 ### Étape 6 — Chaîne complète et T7 : cadence adaptative · *1 jour*
 
-- Script `poc.py` : calibration (2 min de travail normal) → boucle avec la cadence adaptative → règles → filtre → affichage des événements, plus un CSV des mesures et des événements.
+- Script `poc.py` : boucle avec la cadence adaptative (sans calibration : seuils fixes) → règles → filtre → affichage des événements, plus un CSV des mesures et des événements.
 - Le comparer à une cadence fixe de 2 s : même délai de détection ? Combien de captures en moins ?
 - **Assis trop longtemps** : le vérifier en mode rapide (1 min devant la caméra → « Levez-vous » ; 15 s hors champ → fin).
 - **Réussi si :** même détection que la cadence fixe, délai < 1 min, nettement moins de captures.

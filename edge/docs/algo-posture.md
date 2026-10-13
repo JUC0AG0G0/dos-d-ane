@@ -15,7 +15,7 @@ Les seuils de posture sont vérifiés sur 4 volontaires (T5) ; les autres valeur
                 17 points)     exploitable ?)  CETTE image)          70 % / 40 %)
 ```
 
-**① Capture.** Une image en mémoire seulement (jamais écrite, jamais envoyée). Cadence adaptative : 10 s si la posture est bonne ; **2 s dès la première image mauvaise**, tant qu'il reste au moins une image mauvaise dans les 60 dernières secondes (la fenêtre contient alors ~30 images au lieu de 6) ; 30 s si personne n'est détecté.
+**① Capture.** Une image en mémoire seulement (jamais écrite, jamais envoyée). Cadence adaptative : 10 s si la posture est bonne ; **2 s dès que 20 % des images des 60 dernières secondes sont mauvaises** (à 10 s : 2 images sur 6), pour confirmer vite (la fenêtre contient alors ~30 images au lieu de 6) ; retour à 10 s sous 20 %. Au départ, c'était 2 s dès la première image mauvaise : en session réelle (13/10, 67 min), des images isolées (cou à 43°, tête à 49°) gardaient le Pi à 2 s 82 % du temps sans jamais mener à une alerte ; à 20 %, 57 % sur les mêmes données ; 30 s si personne n'est détecté.
 
 **② Squelette.** MoveNet donne 17 points (x, y, confiance). On n'en garde que 3, du côté visible : **oreille, épaule, hanche**.
 
@@ -23,7 +23,7 @@ Les seuils de posture sont vérifiés sur 4 volontaires (T5) ; les autres valeur
 
 | # | Contrôle | Règle | Valeur |
 |---|---|---|---|
-| C1 | Côté vu | côté gauche ou droit le mieux vu, choisi au début puis **bloqué** ; change seulement si l'autre a 0,15 de confiance d'avance pendant 5 images d'affilée | `CoteStable` |
+| C1 | Côté vu | côté gauche ou droit le mieux vu **en moyenne sur les 10 premières images où quelqu'un est vu**, puis **bloqué** ; change seulement si l'autre a 0,15 de confiance d'avance pendant 5 images d'affilée. Choisi d'abord sur la 1ʳᵉ image seule : le 13/10, elle a donné le côté caché, gardé 36 min (tête mesurée ~11° trop bas) | `CoteStable` |
 | C2 | Points fiables | confiance de l'oreille, de l'épaule **et** de la hanche ≥ 0,20 | `CONF_MIN` |
 | C2 bis | Trou court | si **un seul** point est sous 0,20 et qu'il était bien vu il y a **≤ 2,5 s** (une image à la cadence de 2 s, avec la marge du temps de capture), on reprend sa dernière position au lieu d'ignorer l'image | `Completeur` |
 | C3 | De profil | écart des 2 épaules ÷ longueur du tronc ≤ 0,35 (jamais complété) | `ECART_EPAULES_MAX` |
@@ -41,7 +41,7 @@ La caméra peut être à gauche ou à droite : C1 choisit le côté, et le calcu
 
 | Alerte | Ce qu'on mesure | Seuil | Source du seuil | Durée avant alerte |
 |---|---|---|---|---|
-| Tête en avant | angle **tête** | tête < 50° (et tronc ≤ 20°, sinon c'est « dos penché ») | **angle cranio-vertébral** (Yip et al., 2008 : plus il est petit, plus la tête est en avant) | ≥ 70 % d'images mauvaises sur 60 s, **pendant 2 min** |
+| Tête en avant | angle **tête** | tête < 50° (et tronc ≤ 20°, sinon c'est « dos penché ») | **angle cranio-vertébral** (Yip et al., 2008 : plus il est petit, plus la tête est en avant) | ≥ 70 % d'images mauvaises sur 60 s, **pendant 1 min** |
 | Dos penché en avant | angle **tronc** | tronc > +20° | **RULA** (McAtamney & Corlett, 1993) : tronc fléchi de 0 à 20° acceptable, au-delà à surveiller | idem |
 | Cou penché (regarder son téléphone) | angle **cou** : droite oreille → nez sous l'horizontale | cou > 42° (et tronc ≤ 20°) | mesuré le 12/10 sur **2 personnes** : nez à +51° et +58° en regardant son téléphone, contre +5 à +33° en bonne posture et +13 à +43° tête en avant. À 45° : 87 et 96 % reconnus, 0 à 1,2 % de fausses alertes ; **abaissé à 42°** après un test de `poc.py` où le téléphone, tenu plus haut (nez à +41–53°), n'était vu qu'à 64 % (91 % à 42°, pour 0 à 4 % des images de bonne posture). Pas de source publiée pour cet angle : valeur fixée par nos mesures | idem |
 | Allongé dans la chaise | angle **tronc** | tronc < −30° | **REBA** (Hignett & McAtamney, 2000) : tronc en extension de plus de 20° = palier de risque supérieur. −30° et non −20° : « calé contre le dossier », une bonne posture, va jusqu'à −24° (T5) | idem |
@@ -53,21 +53,21 @@ La caméra peut être à gauche ou à droite : C1 choisit le côté, et le calcu
 - **Seuil de la tête : 50° gardé, 45° en réserve.** Au 2ᵉ essai de P01, la tête est restée à 48–51° pendant ~1 min de travail normal (31 % de la calibration sous 50°), sans doute en regardant vers le bas. À 45° : 8 %, pour un F1 presque inchangé (0,83 contre 0,84). On garde la valeur publiée tant que le filtre de 2 min suffit ; si `poc.py` donne trop de fausses alertes en vraie session, passer `SEUILS["tete"]` à 45°.
 - **Allongé, et non « avachi »** : un avachi léger (tronc −20°) se confond avec « calé au dossier » (F1 0,64 en T5). L'alerte ne vise que l'avachi **prononcé** : à −30°, 0,8 % de fausses alertes et 96 % d'alertes justes, mais seulement 35 % des avachis joués en T5 l'atteignaient. Vérifié sur un « allongé » joué (1 personne) : tronc −35° à −47°, 84 % des images sous −30° une fois installé ; à refaire avec d'autres volontaires (nouvelle consigne d'`enregistrer.py`).
 - **Pas de calibration pour les alertes** : la calibration a été testée (écarts à une référence personnelle) puis écartée, voir §5 Temps 2. Le score ne l'utilise pas non plus (§7.4).
-- **La durée de 2 min n'a pas de source** : c'est un choix technique, pour qu'un geste bref (boire, ramasser un stylo) ne déclenche jamais d'alerte. Idée appuyée par la norme **ISO 11226** (postures de travail statiques), pour laquelle le caractère acceptable d'une posture dépend de la **durée** pendant laquelle on la garde. Ajustée par T5 et T7.
+- **La durée de confirmation : 1 min**, au lieu de 2 min au départ. Le but est qu'un geste bref (boire, ramasser un stylo) ne déclenche jamais d'alerte. **RULA** compte une posture comme **statique** quand elle est tenue **plus d'1 minute** : c'est à partir de là qu'on alerte. Rejoué sur la session réelle du 13/10 (67 min, 1 personne, postures jouées) : mêmes alertes qu'à 2 min, **1 min plus tôt**, aucune en plus. À vérifier en travail normal (lire une feuille, écrire à la main) : si plus d'1 fausse alerte par heure, passer à 1 min 30. Idée appuyée par la norme **ISO 11226** (postures de travail statiques), pour laquelle le caractère acceptable d'une posture dépend de la **durée** pendant laquelle on la garde. Ajustée par T5 et T7.
 - **Ce qui part au serveur** (jamais d'image, jamais les points du corps) : voir l'[audit technique](Audit_technique_final_Fil_Rouge_Master_UHA_4_0_v3.md) §7.2.
 
 Verdict de l'image : **BONNE**, **MAUVAISE (posture)** ou **IGNORÉE**.
 
-**⑤ Filtre dans le temps.** Une image seule ne déclenche jamais d'alerte. **Un seul bocal pour les 3 postures vers l'avant** (tête en avant, dos penché, cou penché) : une image y est MAUVAISE si l'une des trois règles s'allume, et l'alerte porte le nom de **la cause la plus fréquente** parmi les mauvaises images de la fenêtre. Tête en avant et cou penché comptent pour une seule cause, « Tête en avant ou baissée ». Si, pendant l'alerte, une autre cause devient la plus fréquente pendant toute une confirmation (2 min), l'alerte change de nom : fin de l'ancienne, début de la nouvelle (vu en test : dos penché, bref redressement, puis téléphone ; sans cela l'alerte restait « dos penché »). Allongé et temps assis ont chacun leur bocal.
+**⑤ Filtre dans le temps.** Une image seule ne déclenche jamais d'alerte. **Un seul bocal pour les 3 postures vers l'avant** (tête en avant, dos penché, cou penché) : une image y est MAUVAISE si l'une des trois règles s'allume, et l'alerte porte le nom de **la cause la plus fréquente** parmi les mauvaises images de la fenêtre. Tête en avant et cou penché comptent pour une seule cause, « Tête en avant ou baissée ». Si, pendant l'alerte, une autre cause devient la plus fréquente pendant toute une confirmation (1 min), l'alerte change de nom : fin de l'ancienne, début de la nouvelle (vu en test : dos penché, bref redressement, puis téléphone ; sans cela l'alerte restait « dos penché »). Allongé et temps assis ont chacun leur bocal.
 
 Pourquoi un bocal commun : tête, cou et dos avancent souvent ensemble, et la cause change d'une image à l'autre. Avec un bocal par posture, une tête en avant à 59 % « tête » + 41 % « cou » n'atteignait jamais 70 % : pas d'alerte, alors que la personne était mal installée 100 % du temps. Sur les postures jouées du T5, la cause la plus fréquente est juste dans **10 cas sur 12** (contre 62 % image par image pour la tête en avant) ; les 2 erreurs : tête **et** dos avancés ensemble, et une égalité sur une posture à peine faite.
 
 | Règle | Valeur |
 |---|---|
 | Fenêtre glissante | verdicts des 60 dernières secondes, images IGNORÉES exclues |
-| Début d'alerte | ≥ 70 % de MAUVAISES dans la fenêtre, pendant 2 min d'affilée |
+| Début d'alerte | ≥ 70 % de MAUVAISES dans la fenêtre, pendant 1 min d'affilée |
 | Fin d'alerte | < 40 % (l'écart 70 / 40 évite une alerte qui clignote) |
-| Fenêtre vide | plus aucune image jugée depuis 60 s (personne partie, ou mal vue) : l'alerte en cours se termine et le compte des 2 min repart de zéro. Sans cela, une alerte restait ouverte pendant toute l'absence, et une seule image penchée en se rasseyant déclenchait l'alerte (bug trouvé le 13/10 en simulation) |
+| Fenêtre vide | plus aucune image jugée depuis 60 s (personne partie, ou mal vue) : l'alerte en cours se termine et le compte de la confirmation repart de zéro. Sans cela, une alerte restait ouverte pendant toute l'absence, et une seule image penchée en se rasseyant déclenchait l'alerte (bug trouvé le 13/10 en simulation) |
 | Assis trop longtemps | 50 min devant la caméra ; une absence d'au moins 1 min (la personne s'est levée) remet le compteur à zéro. L'idée de départ (points presque immobiles, déplacement médian < 0,02 du tronc) ne marche pas : mesuré le 12/10, les points tremblent déjà de 0,025 d'une image à l'autre en travail normal (erreurs de MoveNet, respiration, mains), donc personne n'était jamais « immobile » |
 | Absence | personne vue sur aucune des 3 dernières images (ni oreille ni épaule fiable) → cadence de 30 s |
 | Anti-rafale | après la fin d'une alerte, pas de nouvelle alerte de la **même cause** avant 10 min (un « cou penché » juste après un « dos penché » reste signalé) |
@@ -277,7 +277,7 @@ Si les deux groupes sont **bien séparés**, le seuil se place entre les deux. S
 
 Un seul verdict ne déclenche **pas** d'alerte. On regarde sur la durée ([poc-raspberry.md](poc-raspberry.md) §5.5) :
 
-- **70 %** des images « mauvaises » sur la dernière minute, **pendant au moins 2 min** → **alerte** ;
+- **70 %** des images « mauvaises » sur la dernière minute, **pendant au moins 1 min** → **alerte** ;
 - en dessous de **40 %** → fin de l'alerte.
 
 Ces chiffres sont aussi des seuils à ajuster par les tests. À terme, ils seront envoyés par le serveur pour pouvoir être modifiés sans toucher au Pi ([audit technique](Audit_technique_final_Fil_Rouge_Master_UHA_4_0_v3.md) §7.1).
@@ -351,7 +351,7 @@ Dernière minute : ✅ ✅ ❌ ✅ ✅ ✅      → 1 mauvaise sur 6 = 17 %
 | Règle | Pourquoi |
 |---|---|
 | **1.** Les images IGNORÉES **ne comptent pas** | une image où l'on voit mal ne doit ni accuser ni excuser |
-| **2.** **ALERTE** si au moins **70 %** de mauvaises sur la dernière minute, **pendant au moins 2 minutes d'affilée** | un café ou un stylo dure quelques secondes : ça ne fait jamais 70 % pendant 2 minutes |
+| **2.** **ALERTE** si au moins **70 %** de mauvaises sur la dernière minute, **pendant au moins 1 minute d'affilée** | un café ou un stylo dure quelques secondes : ça ne fait jamais 70 % pendant 2 minutes |
 | **3.** **FIN de l'alerte** seulement sous **40 %** | sinon, autour de 70 %, l'alerte s'allumerait et s'éteindrait sans arrêt |
 
 La règle 3 fonctionne comme un **thermostat** : le chauffage s'allume à 19 °C mais ne s'éteint qu'à 21 °C, pour ne pas claquer toutes les 10 secondes.
@@ -365,7 +365,7 @@ La règle 3 fonctionne comme un **thermostat** : le chauffage s'allume à 19 °C
 | **La capture** | prendre UNE photo et l'analyser | environ **0,08 s** (instantané) |
 | **L'intervalle** | le temps d'attente **entre deux photos** | **10 s** si tout va bien, **2 s** en cas de doute |
 | **La fenêtre glissante** | les verdicts des photos des **60 dernières secondes** | **60 s** |
-| **La confirmation** | combien de temps la fenêtre doit rester « mauvaise » avant d'alerter | **2 min** |
+| **La confirmation** | combien de temps la fenêtre doit rester « mauvaise » avant d'alerter | **1 min** |
 
 Les 2 secondes ne servent pas à confirmer : c'est seulement le rythme des photos quand il y a un doute.
 
@@ -400,7 +400,7 @@ Photo 18 🔴    bocal : 🟢🟢🔴🔴🔴🔴🔴🟢🔴🔴               
 ```text
 Photo 19 🔴    bocal : 🟢🔴🔴🔴🔴🔴🟢🔴🔴🔴     8 rouges → toujours ≥ 7, ça dure…
 Photo 20 🔴    bocal : 🔴🔴🔴🔴🔴🟢🔴🔴🔴🔴     9 rouges → toujours ≥ 7, ça dure…
-...  (ça reste au-dessus de 7 pendant 2 minutes)
+...  (ça reste au-dessus de 7 pendant 1 minute)
              → 🔔 ALERTE « Tête en avant »
 
 Puis la personne se corrige : les photos redeviennent 🟢, les 🔴 sortent du bocal une à une…
@@ -411,7 +411,7 @@ Puis la personne se corrige : les photos redeviennent 🟢, les 🔴 sortent du 
 **Deux idées à retenir :**
 
 1. **On ne juge jamais sur UNE photo.** Une bille rouge isolée (café, stylo, erreur de l'IA) ne pèse presque rien.
-2. **Il faut que le rouge soit majoritaire ET que ça dure.** 🔴🟢🔴🟢🔴🟢… (5 sur 10, posture hésitante) ne déclenche jamais d'alerte ; 🔴🔴🔴🟢🔴🔴🔴🔴… (7 ou plus sur 10 pendant 2 min) déclenche l'alerte.
+2. **Il faut que le rouge soit majoritaire ET que ça dure.** 🔴🟢🔴🟢🔴🟢… (5 sur 10, posture hésitante) ne déclenche jamais d'alerte ; 🔴🔴🔴🟢🔴🔴🔴🔴… (7 ou plus sur 10 pendant 1 min) déclenche l'alerte.
 
 **Dans la vraie version**, c'est le même principe :
 
@@ -419,7 +419,7 @@ Puis la personne se corrige : les photos redeviennent 🟢, les 🔴 sortent du 
 |---|---|---|
 | Taille du bocal | 10 photos | toutes les photos des **60 dernières secondes** (~30 photos à 1 photo / 2 s) |
 | Seuil d'alerte | 7 rouges sur 10 | **70 %** de rouges |
-| Durée de confirmation | « un moment » | **2 minutes** au-dessus de 70 % |
+| Durée de confirmation | « un moment » | **1 minute** au-dessus de 70 % |
 | Fin d'alerte | moins de 4 sur 10 | moins de **40 %** |
 | Photo mal vue | — | **pas de bille du tout** (ne compte ni pour, ni contre) |
 
@@ -439,20 +439,20 @@ Le rythme des photos (10 s ou 2 s) dit seulement **à quelle vitesse on ajoute d
                                            → ignorée = ne compte pas → PAS d'alerte ✅
 
 14:03  ❌ ❌ ✅ ❌ ❌ ❌ ...         83 %   → Léa se concentre, la tête avance
-                                           → au-dessus de 70 %, mais depuis 1 min seulement
+                                           → au-dessus de 70 %, mais depuis moins d'1 min
                                            → on ATTEND (et on passe à 1 photo / 2 s pour mieux suivre)
 
-14:04  ❌ ❌ ❌ ✅ ❌ ❌ ...         85 %   → toujours au-dessus de 70 %…
-
-14:05  ❌ ❌ ❌ ❌ ✅ ❌ ...         85 %   → au-dessus de 70 % DEPUIS 2 MINUTES
+14:04  ❌ ❌ ❌ ✅ ❌ ❌ ...         85 %   → au-dessus de 70 % DEPUIS 1 MINUTE
                                            → 🔔 ALERTE « Tête en avant » envoyée à l'app
+
+14:05  ❌ ❌ ❌ ❌ ✅ ❌ ...         85 %   → toujours au-dessus de 70 % → l'alerte continue
 
 14:06  ❌ ✅ ❌ ❌ ✅ ❌ ...         60 %   → Léa se corrige un peu : 60 %
                                            → pas encore sous 40 % → l'alerte CONTINUE
 
 14:07  ✅ ✅ ✅ ❌ ✅ ✅ ...         17 %   → Léa est bien redressée
                                            → sous 40 % → ✅ FIN de l'alerte
-                                           → enregistré : « tête en avant, 14:05 → 14:07 »
+                                           → enregistré : « tête en avant, 14:04 → 14:07 »
 ```
 
 Le café (14:01) n'a pas déclenché d'alerte ; la vraie mauvaise posture (14:03–14:06) en a déclenché une.
@@ -466,10 +466,10 @@ Le café (14:01) n'a pas déclenché d'alerte ; la vraie mauvaise posture (14:03
 | point mal détecté par l'IA | **guichet 1** : confiance < 0,2 → image ignorée |
 | personne de face | **guichet 2** : pas de profil → image ignorée |
 | deux postures normales (calé au dossier ou droit) | **seuils fixes et larges** (tête < 50°, tronc entre −30° et +20°) : les deux restent 🟢 (T5) |
-| geste bref (café, stylo) | **filtre** : 70 % pendant 2 min |
+| geste bref (café, stylo) | **filtre** : 70 % pendant 1 min |
 | IA qui tremble d'une image à l'autre | **filtre** : une image isolée ne pèse rien |
 | alerte qui clignote | **règle des 40 %** (thermostat) |
-| la personne se rassoit (penchée quelques secondes) | **fenêtre vide** pendant l'absence : le compte des 2 min repart de zéro |
+| la personne se rassoit (penchée quelques secondes) | **fenêtre vide** pendant l'absence : le compte de la confirmation repart de zéro |
 
 **Erreur 2 : l'ALERTE RATÉE** (mauvaise posture, et rien ne se passe).
 
@@ -505,7 +505,7 @@ Le café (14:01) n'a pas déclenché d'alerte ; la vraie mauvaise posture (14:03
 1. **L'IA trouve les points**, elle ne juge pas la posture.
 2. **On ne juge pas une image qu'on voit mal** : point peu sûr ou pas de profil → ignorée.
 3. **Chaque image reçoit un verdict** en comparant ses angles aux seuils (tête < 50°, tronc > 20°, cou > 42°, tronc < −30°).
-4. **On n'alerte que sur la durée** : 70 % de mauvaises images pendant 2 minutes, fin sous 40 %. Les gestes brefs et les erreurs ponctuelles de l'IA sont absorbés.
+4. **On n'alerte que sur la durée** : 70 % de mauvaises images pendant 1 minute, fin sous 40 %. Les gestes brefs et les erreurs ponctuelles de l'IA sont absorbés.
 5. **Les seuils se règlent en mesurant** les vraies postures et en comptant les erreurs.
 
 ---
@@ -516,7 +516,7 @@ Le café (14:01) n'a pas déclenché d'alerte ; la vraie mauvaise posture (14:03
 
 | | **L'écran « en direct »** | **L'alerte** |
 |---|---|---|
-| Quand | mis à jour **à chaque photo** (toutes les 10 s, ou 2 s en cas de doute) | **seulement si** la mauvaise posture est confirmée (70 % pendant 2 min) |
+| Quand | mis à jour **à chaque photo** (toutes les 10 s, ou 2 s en cas de doute) | **seulement si** la mauvaise posture est confirmée (70 % pendant 1 min) |
 | Ce qu'on voit | un statut, sa couleur, le score (silhouette animée : plus tard) | une **notification** sur le téléphone (son ou vibration) avec un conseil |
 | Transport | Pi → serveur en WebSocket, serveur → app en SSE ([audit technique](Audit_technique_final_Fil_Rouge_Master_UHA_4_0_v3.md) §7.2) | SSE si l'app est ouverte, **notification push** sinon |
 | À quoi ça sert | regarder sa posture quand on **en a envie** | **prévenir** la personne quand elle **ne regarde pas** l'app |
@@ -542,7 +542,7 @@ En travaillant, personne ne regarde son téléphone en permanence : **c'est l'al
        Écran : « À surveiller 🟠 » (entre 40 et 70 % de rouge dans le bocal)
        Pas encore de notification : on attend de confirmer.
 
-14:05  Rouge confirmé (≥ 70 % pendant 2 min)
+14:04  Rouge confirmé (≥ 70 % pendant 1 min)
        📳 NOTIFICATION : « Tête en avant détectée — reculez-vous de l'écran »
        Écran : « Tête en avant 🔴 », score 64
 
@@ -554,7 +554,7 @@ En travaillant, personne ne regarde son téléphone en permanence : **c'est l'al
 16:00  Fin de session → résumé : « Score 82, 74 % de bonne posture, 1 alerte tête en avant »
 ```
 
-**Délai entre « je me tiens mal » et « je suis prévenue » : au moins 2 minutes environ, et c'est voulu.** Mieux vaut prévenir un peu tard mais à raison que vite mais pour rien. Cette durée est un réglage, qui pourra être raccourci si les tests le montrent (seuil piloté par le serveur).
+**Délai entre « je me tiens mal » et « je suis prévenue » : environ 1 min 30 à 2 min, et c'est voulu** (le temps que 70 % des photos de la dernière minute soient mauvaises, puis 1 min de confirmation). Mieux vaut prévenir un peu tard mais à raison que vite mais pour rien. Avec 2 min de confirmation (réglage de départ), c'était environ 3 min. Cette durée est un réglage (piloté par le serveur à terme).
 
 ### 7.3 Les 3 couleurs
 
@@ -562,7 +562,7 @@ En travaillant, personne ne regarde son téléphone en permanence : **c'est l'al
 |---|---|---|
 | 🟢 **Bonne** | moins de 40 % | rien |
 | 🟠 **Moyenne / à surveiller** | entre 40 et 70 % | l'écran change de couleur, **pas de notification** |
-| 🔴 **À améliorer** | ≥ 70 % pendant 2 min | **notification** avec un conseil |
+| 🔴 **À améliorer** | ≥ 70 % pendant 1 min | **notification** avec un conseil |
 
 Ce sont ces couleurs qui remplissent la « Répartition des postures » (Bonne / Moyenne / À améliorer) de l'écran « Mes résultats ».
 
@@ -616,7 +616,7 @@ Ce sont ces couleurs qui remplissent la « Répartition des postures » (Bonne /
               │                                          │
       bocal / fenêtre glissante                   sur 5 min, une session, un jour
               │                                          │
-      🔔 ALERTE (70 % pendant 2 min)              📊 AFFICHAGE (app, graphiques)
+      🔔 ALERTE (70 % pendant 1 min)              📊 AFFICHAGE (app, graphiques)
 ```
 
 | | **Verdict** | **Score** |
@@ -665,7 +665,7 @@ Le format exact des trois messages et leur transport (WebSocket, HTTPS, SSE, not
 |---|---|---|
 | **Vue de face** | angles faux, statuts qui clignotent | ✅ traité : épaules trop écartées par rapport au tronc (> 0,35) → image ignorée (§6.1, guichet 2). Seuil à confirmer par les tests |
 | **Dos rond « en C »** | la courbure de la colonne est invisible : MoveNet n'a aucun point le long du dos, seulement oreille, épaule et hanche reliées par des droites | souvent détecté **indirectement** (tête en avant, tronc penché). Piste à tester : le « tassement » (longueur épaule–hanche plus courte que celle de la calibration) |
-| **Points qui tremblent** d'une image à l'autre | verdict qui change autour du seuil | MoveNet **Thunder** au lieu de Lightning (tête 2,9° d'écart-type au lieu de 4,9°, T4) ; le reste est absorbé par le filtre dans le temps (70 % sur 1 min, 2 min) |
+| **Points qui tremblent** d'une image à l'autre | verdict qui change autour du seuil | MoveNet **Thunder** au lieu de Lightning (tête 2,9° d'écart-type au lieu de 4,9°, T4) ; le reste est absorbé par le filtre dans le temps (70 % sur 1 min, confirmé pendant 1 min) |
 | **Dossier incliné : « appuyé » ou « avachi » ?** | les deux penchent le tronc en arrière ; la différence (dos arrondi, bassin qui bascule) est invisible avec 3 points. Mesuré le 12/10 : tronc −11° appuyé contre −18° avachi, hanche immobile, longueur du tronc −7 % mais trop variable | **seul l'avachi prononcé est détecté** (« allongé », tronc < −30°) ; l'avachi léger ne l'est pas : T5 sur 4 volontaires, F1 0,64 (tronc avachi −20° à −30° contre −12° à −18° calé au dossier ; la tête monte chez l'un, descend chez l'autre). **Allongé, la hanche passe sous le bureau** : MoveNet la devine (confiance 0,27 contre 0,4–0,7 assis) et le tronc mesuré reste vers −10/−20° même bien allongé ; une caméra posée sur le bureau ne peut pas la voir. L'épaule qui descend (+7 à +25 % du tronc) chevauche la bonne posture (jusqu'à +12 %). Pistes pour plus tard : modèle avec des points sur la colonne, modèle entraîné (§9) |
 | **Tête en avant en restant calé au dossier** | le buste penché en arrière compense : l'angle de la tête (par rapport à l'horizontale) ne baisse pas. T5 : moitié des images ratées chez P03 et P04 | limite acceptée ; l'angle oreille–épaule–hanche (F1 0,73) ne la règle pas. Piste : modèle entraîné (§9) |
 | **Une autre personne dans le cadre** | MoveNet ne suit qu'une personne : il peut sauter de l'une à l'autre ou mélanger leurs points | cadrer serré sur la personne ; piste : recadrer l'image autour de la personne suivie |

@@ -14,32 +14,59 @@ def mieux_vu(cote, conf_autre):
     return pts
 
 
+def cote_choisi(cote):
+    """CoteStable dont le choix de départ (IMAGES_CHOIX images) est fait, sur `cote`."""
+    c = CoteStable()
+    for _ in range(CoteStable.IMAGES_CHOIX):
+        c.maj(mieux_vu(cote, 0.1))
+    return c
+
+
 class TestCoteStable:
     def test_choisit_le_cote_le_mieux_vu(self):
         assert CoteStable().maj(mieux_vu("droite", 0.1)) == "droite"
 
-    def test_ne_bascule_pas_sur_une_image(self):
+    def test_premiere_image_trompeuse_corrigee_pendant_le_choix(self):
+        # 13/10 : la première image (personne qui s'installe) donnait le côté caché, gardé 36 min
         c = CoteStable()
-        c.maj(mieux_vu("gauche", 0.1))
+        assert c.maj(mieux_vu("gauche", 0.1)) == "gauche"
+        cotes = [c.maj(mieux_vu("droite", 0.5)) for _ in range(CoteStable.IMAGES_CHOIX - 1)]
+        assert cotes[-1] == "droite"
+
+    def test_choix_sur_la_moyenne_et_non_la_majorite(self):
+        # droite un peu mieux vue sur chaque image (+0,04, comme le 13/10) : droite, malgré l'écart < MARGE
+        c = CoteStable()
+        pts = mieux_vu("gauche", 0.1)
+        pts[[4, 6, 12], 2] = 0.64                          # droite 0,64 contre gauche 0,60
+        assert [c.maj(pts) for _ in range(CoteStable.IMAGES_CHOIX)][-1] == "droite"
+
+    def test_images_sans_personne_ne_comptent_pas_dans_le_choix(self):
+        c = CoteStable()
+        vide = personne()
+        vide[:, 2] = 0.05
+        for _ in range(30):
+            c.maj(vide)
+        assert c.vues == 0
+        assert [c.maj(mieux_vu("droite", 0.1)) for _ in range(CoteStable.IMAGES_CHOIX)][-1] == "droite"
+
+    def test_ne_bascule_pas_sur_une_image(self):
+        c = cote_choisi("gauche")
         for _ in range(CoteStable.IMAGES - 1):
             assert c.maj(mieux_vu("droite", 0.1)) == "gauche"
 
     def test_bascule_apres_plusieurs_images_nettement_meilleures(self):
-        c = CoteStable()
-        c.maj(mieux_vu("gauche", 0.1))
+        c = cote_choisi("gauche")
         cotes = [c.maj(mieux_vu("droite", 0.1)) for _ in range(CoteStable.IMAGES)]
         assert cotes[-1] == "droite"
 
     def test_petite_avance_ne_suffit_pas(self):
-        c = CoteStable()
-        c.maj(mieux_vu("gauche", 0.1))
+        c = cote_choisi("gauche")
         pts = mieux_vu("gauche", 0.1)
         pts[[4, 6, 12], 2] = 0.7                           # droite à 0,7 contre 0,6 : < 0,15 d'avance
         assert all(c.maj(pts) == "gauche" for _ in range(20))
 
     def test_compteur_remis_a_zero_si_interrompu(self):
-        c = CoteStable()
-        c.maj(mieux_vu("gauche", 0.1))
+        c = cote_choisi("gauche")
         for _ in range(CoteStable.IMAGES - 1):
             c.maj(mieux_vu("droite", 0.1))
         c.maj(mieux_vu("gauche", 0.1))

@@ -2,14 +2,14 @@
 
 Boucle : capture → MoveNet → l'image est oubliée → angles → règles → bocaux → événements.
 - Bocal « vers l'avant » (tête en avant, dos penché, cou penché) et bocal « allongé » : alerte si
-  ≥ 70 % d'images mauvaises sur 60 s pendant 2 min, fin sous 40 %, nom = cause la plus fréquente.
+  ≥ 70 % d'images mauvaises sur 60 s pendant 1 min, fin sous 40 %, nom = cause la plus fréquente.
   Tête en avant et cou penché ont un seul nom d'alerte : vus de profil, leurs angles se confondent
   (la part de chacun est gardée dans l'événement et les règles restent séparées dans les mesures).
 - « Levez-vous » après 50 min assis sans pause (absent ≥ 1 min = pause).
 - Résumé toutes les 5 min : score (% du temps en bonne posture), temps vert / orange / rouge,
   temps ignoré (image mal vue) et absent.
-- Cadence adaptative : 10 s si tout va bien, 2 s dès qu'une image est mauvaise (tant qu'il en reste
-  une dans la fenêtre), 30 s si personne n'est vu sur 3 images d'affilée.
+- Cadence adaptative : 10 s si tout va bien, 2 s tant qu'au moins 20 % des images de la fenêtre sont
+  mauvaises (Bocal.en_doute), 30 s si personne n'est vu sur 3 images d'affilée.
 Aucune calibration : les règles utilisent des seuils fixes (algo-posture.md).
 
 Écrit dans resultats/ (chiffres seulement, jamais d'image) :
@@ -216,7 +216,7 @@ def main():
                 cadence = args.cadence_fixe
             elif absent_de_suite >= IMAGES_ABSENT:
                 cadence = CADENCE_ABSENT
-            elif avant.mauvaise_recente() or allonge.mauvaise_recente():
+            elif avant.en_doute() or allonge.en_doute():
                 cadence = CADENCE_DOUTE
             else:
                 cadence = CADENCE_CALME

@@ -7,8 +7,11 @@ import numpy as np
 
 FENETRE = 60             # s : verdicts gardés dans le bocal
 TAUX_ALERTE = 0.70       # début d'alerte…
-CONFIRMATION = 120       # s : … si le taux reste au-dessus pendant ce temps
+# s : … si le taux reste au-dessus pendant ce temps. 1 min : au-delà, RULA compte une posture comme
+# statique. Rejoué le 13/10 sur une session de 67 min : mêmes alertes qu'à 2 min, 1 min plus tôt, aucune en plus.
+CONFIRMATION = 60
 TAUX_FIN = 0.40          # fin d'alerte (l'écart 70 / 40 évite une alerte qui clignote)
+TAUX_DOUTE = 0.20        # cadence de 2 s à partir de ce taux (à 10 s : 2 images mauvaises sur 6)
 ANTI_RAFALE = 600        # s après la fin d'une alerte avant une nouvelle alerte de la même cause
 # « Levez-vous » : temps assis sans pause. La règle de la doc (points presque immobiles, < 0,02 du
 # tronc) ne peut pas marcher : mesuré le 12/10, les points tremblent de 0,025 d'une image à l'autre
@@ -40,7 +43,7 @@ class Bocal:
         """Retire les billes trop vieilles. Renvoie les événements, comme ajouter().
 
         Fenêtre vide (personne absente, ou mal vue pendant toute la fenêtre) : on ne peut plus rien
-        juger, donc le compte des 2 min repart de zéro (sinon une seule image penchée en se
+        juger, donc le compte de la confirmation repart de zéro (sinon une seule image penchée en se
         rasseyant déclenchait l'alerte) et l'alerte en cours se termine (sinon elle restait ouverte
         pendant toute l'absence).
         """
@@ -63,9 +66,13 @@ class Bocal:
     def couleur(self):
         return "rouge" if self.alerte else "orange" if self.taux() >= TAUX_FIN else "vert"
 
-    def mauvaise_recente(self):
-        """Au moins une image mauvaise dans la fenêtre : la cadence passe à 2 s."""
-        return any(c is not None for _, c, _ in self.billes)
+    def en_doute(self):
+        """Au moins TAUX_DOUTE d'images mauvaises dans la fenêtre : la cadence passe à 2 s.
+
+        Pas dès la première image mauvaise : le 13/10 (67 min), des images isolées (cou à 43°, tête à
+        49°) gardaient la cadence à 2 s 82 % du temps sans jamais mener à une alerte. À 20 % : 57 %.
+        """
+        return self.taux() >= TAUX_DOUTE
 
     def detail(self):
         """Part de chaque cause (avant regroupement) parmi les images mauvaises, en %."""

@@ -5,7 +5,8 @@ Les instants sont en secondes ; une image toutes les 2 s (cadence « doute ») s
 
 import pytest
 
-from posture.filtre import ANTI_RAFALE, ASSIS_MAX, CONFIRMATION, FENETRE, PAUSE_MIN, Bocal, TempsAssis
+from posture.filtre import (ANTI_RAFALE, ASSIS_MAX, CONFIRMATION, FENETRE, PAUSE_MIN, TAUX_DOUTE, Bocal,
+                            TempsAssis)
 
 A = {"tete": 45.0, "tronc": 5.0}                   # angles joints à chaque bille (pour moyennes())
 DOS, COU, TETE = "Dos penche", "Cou penche", "Tete en avant"
@@ -39,7 +40,7 @@ def alerte_dos():
 class TestDebutAlerte:
     def test_alerte_apres_2_min_de_mauvaise_posture(self):
         b = Bocal()
-        assert remplir(b, 0, CONFIRMATION, DOS) == []         # pas avant 2 min
+        assert remplir(b, 0, CONFIRMATION, DOS) == []         # pas avant la confirmation
         assert b.ajouter(CONFIRMATION, DOS, A) == [("debut", DOS)]
         assert b.alerte == DOS
 
@@ -58,12 +59,13 @@ class TestDebutAlerte:
             t += 2
         assert ev == []
 
-    def test_compte_des_2_min_repart_si_le_taux_retombe(self):
+    def test_compte_repart_si_le_taux_retombe(self):
         b = Bocal()
-        remplir(b, 0, 100, DOS)
-        remplir(b, 100, 160, None)                              # taux < 70 % : on repart de zéro
-        ev = remplir(b, 160, 400, DOS)
-        assert ev and ev[0][0] >= 160 + CONFIRMATION
+        presque = CONFIRMATION - 20
+        assert remplir(b, 0, presque, DOS) == []
+        remplir(b, presque, presque + 60, None)                 # taux < 70 % : on repart de zéro
+        ev = remplir(b, presque + 60, presque + 400, DOS)
+        assert ev and ev[0][0] >= presque + 60 + CONFIRMATION
 
     def test_images_ignorees_ne_comptent_pas(self):
         b = Bocal()
@@ -119,8 +121,8 @@ class TestCause:
 
     def test_pas_de_changement_de_nom_si_bref(self):
         b, t = alerte_dos()
-        ev = remplir(b, t, t + 60, COU)                         # cou majoritaire moins de 2 min
-        ev += remplir(b, t + 60, t + 300, DOS)
+        ev = remplir(b, t, t + CONFIRMATION // 2, COU)          # cou majoritaire moins qu'une confirmation
+        ev += remplir(b, t + CONFIRMATION // 2, t + 300, DOS)
         assert ev == [] and b.alerte == DOS
 
 
@@ -137,7 +139,7 @@ class TestAntiRafale:
         remplir(b, t, t + FENETRE, None)
         ev = remplir(b, t + FENETRE, t + FENETRE + 300, COU)
         assert [e for _, e in ev] == [("debut", COU)]
-        # 70 % atteint après ~42 s (le bocal se vide de ses images bonnes), puis 2 min de confirmation
+        # 70 % atteint après ~42 s (le bocal se vide de ses images bonnes), puis la confirmation
         assert ev[0][0] < t + FENETRE + 60 + CONFIRMATION
 
 
@@ -173,13 +175,33 @@ class TestEtat:
         remplir(b, 40, 200, DOS)
         assert b.couleur() == "rouge"
 
-    def test_cadence_doute_tant_qu_une_mauvaise_reste_dans_la_fenetre(self):
+    def test_une_image_mauvaise_isolee_ne_fait_pas_passer_a_2_s(self):
+        # 13/10 : des images isolées (cou à 43°) gardaient la cadence à 2 s 82 % du temps
         b = Bocal()
-        b.ajouter(0, DOS, A)
-        remplir(b, 2, FENETRE, None)
-        assert b.mauvaise_recente()
-        b.ajouter(FENETRE, None, A)
-        assert not b.mauvaise_recente()
+        remplir(b, 0, 50, None, pas=10)
+        b.ajouter(50, COU, A)                                   # 1 sur 6 = 17 %
+        assert not b.en_doute()
+
+    def test_deux_images_mauvaises_sur_six_font_passer_a_2_s(self):
+        b = Bocal()
+        remplir(b, 0, 40, None, pas=10)
+        b.ajouter(40, COU, A)
+        b.ajouter(50, COU, A)                                   # 2 sur 6 = 33 %
+        assert b.en_doute()
+
+    def test_retour_a_10_s_quand_le_taux_retombe(self):
+        b = Bocal()
+        remplir(b, 0, 20, DOS)
+        assert b.en_doute()
+        remplir(b, 20, 20 + FENETRE, None)
+        assert not b.en_doute()
+
+    def test_seuil_de_doute_inclus(self):
+        b = Bocal()
+        remplir(b, 0, 8, None)
+        b.ajouter(8, DOS, A)                                    # 1 sur 5 = 20 %
+        assert b.taux() == pytest.approx(TAUX_DOUTE)
+        assert b.en_doute()
 
     def test_moyennes_des_images_mauvaises(self):
         b = Bocal()

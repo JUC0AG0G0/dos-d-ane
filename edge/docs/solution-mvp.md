@@ -60,7 +60,7 @@ Pour savoir si une posture est mauvaise, le Raspberry doit **regarder régulièr
 | Situation | Cadence de départ (ajustée par le test T7) |
 |---|---|
 | Posture correcte | 1 capture toutes les **10 s** |
-| Posture douteuse : dès qu'une image est mauvaise | 1 capture toutes les **2 s**, pour confirmer vite, tant qu'il reste une image mauvaise dans la dernière minute |
+| Posture douteuse : au moins 20 % d'images mauvaises dans la dernière minute | 1 capture toutes les **2 s**, pour confirmer vite |
 | Personne absente du poste | 1 capture toutes les **30 s** |
 
 Résultat : on capture beaucoup moins qu'avec une cadence fixe, sans détecter plus tard. C'est la **sobriété** demandée par le sujet.
@@ -83,7 +83,7 @@ Les **seuils** viennent de méthodes d'ergonomie reconnues : l'**angle cranio-ve
 ### Comment on évite les fausses alertes
 
 - **Point mal détecté** (contre-jour, oreille cachée) : la photo est **ignorée**.
-- **Mouvement bref** (boire, ramasser un stylo) : **pas d'alerte**. Il faut une mauvaise posture sur la majorité des photos pendant au moins 2 minutes.
+- **Mouvement bref** (boire, ramasser un stylo) : **pas d'alerte**. Il faut une mauvaise posture sur la majorité des photos pendant au moins 1 minute.
 - **Morphologie différente** d'une personne à l'autre : au début de la session, on mesure la **posture de référence** de la personne (médiane de ses angles pendant les 2 premières minutes de travail normal).
 
 ---
