@@ -125,6 +125,22 @@ class TestCause:
         ev += remplir(b, t + CONFIRMATION // 2, t + 300, DOS)
         assert ev == [] and b.alerte == DOS
 
+    def test_pas_de_changement_de_nom_quand_on_se_redresse(self):
+        # 13/10 à 16:17 : dos penché, puis tête baissée, puis presque redressé. Le cou restait la
+        # cause la plus fréquente parmi les rares images mauvaises : l'alerte devenait « tête » 12 s,
+        # et l'anti-rafale ainsi armé bloquait la vraie tête baissée de 16:24.
+        b, t = alerte_dos()
+        ev = remplir(b, t, t + 30, COU)
+        fin = t + 30 + 3 * CONFIRMATION
+        while t + 30 < fin:                                     # 1 image sur 2 encore tête baissée : 50 %
+            ev += b.ajouter(t + 30, COU if t % 4 == 0 else None, A)
+            t += 2
+        assert ev == [] and b.alerte == DOS
+        t += 30
+        assert [e for _, e in remplir(b, t, t + FENETRE, None)] == [("fin", DOS)]
+        ev = remplir(b, t + FENETRE, t + FENETRE + 300, COU)    # la vraie tête baissée, plus tard
+        assert [e for _, e in ev] == [("debut", COU)]
+
 
 class TestAntiRafale:
     def test_meme_cause_pas_avant_10_min(self):
