@@ -6,7 +6,7 @@ name: Préprod
 # Une PR vers main n'est acceptée que si ce workflow est vert pour son commit.
 on:
   push:
-    branches: [develop]
+    branches: [develop, claude/ci-cd-registry-versions-wa51co]
   workflow_dispatch:
 
 concurrency:
