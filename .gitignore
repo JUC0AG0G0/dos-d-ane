@@ -2,6 +2,13 @@
 # OS / Editors
 # =========================
 .DS_Store
+.venv/
+.venv310/
+__pycache__/
+models/*.task
+models/*.download
+build/
+dist/
 Thumbs.db
 Desktop.ini
 *.swp
@@ -246,3 +253,8 @@ docker-compose.override.yml
 *.pid.lock
 *.zip
 *.tar.gz
+
+# Downloaded posture benchmark assets and local browser profile
+/output/posture-benchmark/dataset/
+/output/posture-benchmark/.electron-profile/
+/output/posture-benchmark-full/
