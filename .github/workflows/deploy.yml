@@ -1,7 +1,8 @@
 name: Déploiement
 
-# Déploie main sur le serveur en SSH (guide : deployReadME.md), après une CI verte
-# sur main. Relance manuelle possible depuis l'onglet Actions, sur main.
+# Déploie main sur le serveur après une CI verte sur main (guide :
+# deployReadME.md). Tourne sur le runner auto-hébergé installé sur le serveur.
+# Relance manuelle possible depuis l'onglet Actions, sur main.
 on:
   workflow_run:
     workflows: [CI]
@@ -22,37 +23,21 @@ jobs:
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'workflow_dispatch' ||
        (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'))
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, dos-d-ane-prod]
     env:
       VERSION: ${{ github.event.workflow_run.head_sha || github.sha }}
+      TARGET: /opt/dos-d-ane
     steps:
       - uses: actions/checkout@v5
         with:
           ref: ${{ env.VERSION }}
+      - name: Préparer la nouvelle version
+        run: |
+          rm -rf "$TARGET/next" && mkdir -p "$TARGET/next"
+          git archive --format=tar HEAD | tar -x -C "$TARGET/next"
       - name: Vérifier les secrets et écrire .env.prod
         env:
           SECRETS: ${{ toJSON(secrets) }}
-        run: sh scripts/prod-secrets.sh write .env.prod
-      - name: Configurer SSH
-        env:
-          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-        run: |
-          install -d -m 700 ~/.ssh
-          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
-          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          printf 'Host prod\n  HostName %s\n  Port %s\n  User %s\n  IdentityFile ~/.ssh/deploy\n  StrictHostKeyChecking yes\n' \
-            "$DEPLOY_HOST" "$DEPLOY_PORT" "$DEPLOY_USER" > ~/.ssh/config
-      - name: Envoyer le code et .env.prod
-        run: |
-          ssh prod 'rm -rf dos-d-ane/next && mkdir -p dos-d-ane/next'
-          git archive --format=tar HEAD | ssh prod 'tar -x -C dos-d-ane/next'
-          ssh prod 'umask 077 && cat > dos-d-ane/next/.env.prod' < .env.prod
+        run: sh scripts/prod-secrets.sh write "$TARGET/next/.env.prod"
       - name: Construire et démarrer
-        run: ssh prod "sh dos-d-ane/next/scripts/deploy.sh $VERSION"
-      - name: Nettoyer
-        if: always()
-        run: rm -f .env.prod ~/.ssh/deploy
+        run: sh "$TARGET/next/scripts/deploy.sh" "$VERSION"

@@ -21,7 +21,6 @@ for k in $compose; do
   echo "$example" | grep -qx "$k" || err "$k est utilisée par compose.prod.yaml : l'ajouter à .env.prod.example"
 done
 for k in $example; do
-  case "$k" in DEPLOY_*) continue ;; esac
   echo "$compose" | grep -qx "$k" || err "$k est dans .env.prod.example mais pas dans compose.prod.yaml"
 done
 
@@ -31,19 +30,14 @@ for k in $example; do
     err "secret GitHub $k manquant"
     continue
   fi
-  case "$k" in
-    DEPLOY_*) ;;
-    *)
-      case "$v" in *"'"* | *'
-'*) err "$k ne doit contenir ni apostrophe ni retour à la ligne" ;; esac ;;
-  esac
+  case "$v" in *"'"* | *'
+'*) err "$k ne doit contenir ni apostrophe ni retour à la ligne" ;; esac
   case "$k" in
     POSTGRES_*)
       printf '%s' "$v" | grep -Eq '^[A-Za-z0-9._~-]+$' ||
         err "$k : lettres, chiffres et . _ ~ - seulement (URL de la base)" ;;
     JWT_SECRET) [ "${#v}" -ge 32 ] || err "JWT_SECRET : 32 caractères minimum" ;;
     ADMIN_PASSWORD) [ "${#v}" -ge 8 ] || err "ADMIN_PASSWORD : 8 caractères minimum" ;;
-    DEPLOY_PORT) printf '%s' "$v" | grep -Eq '^[0-9]+$' || err "DEPLOY_PORT doit être un nombre" ;;
   esac
 done
 
