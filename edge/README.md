@@ -9,18 +9,28 @@ Webcam de profil → MoveNet (17 points du corps) → angles tête, tronc et cou
 
 ## Installation
 
-Sur le Pi (Raspberry Pi 4, Raspberry Pi OS 64 bits Debian 13, Python 3.13 ; compatible Python 3.11+) :
+Dépendances et versions figées : [pyproject.toml](pyproject.toml). Python 3.13, comme le Pi.
+
+Sur le Pi (Raspberry Pi 4, Raspberry Pi OS 64 bits Debian 13) : webcam, MoveNet et tests.
 
 ```bash
 cd edge
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -e ".[pi,dev]"
 ```
 
 Modèles MoveNet à placer dans `models/` (non commités) : voir [docs/poc-raspberry.md §3.4](docs/poc-raspberry.md).
 
-Pour les tests unitaires seulement (PC ou Pi, pas besoin de webcam ni de modèle) : `pip install -r requirements-dev.txt`.
+Sur un PC, pour les tests unitaires seulement (pas besoin de webcam ni de modèle) :
+
+```bash
+cd edge
+python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
+.venv/bin/python -m pytest
+```
+
+Avec mise (comme le reste de l'équipe), depuis la racine du dépôt : `task test:edge`. La CI lance ces tests à chaque PR (job `edge`).
 
 ## Organisation
 

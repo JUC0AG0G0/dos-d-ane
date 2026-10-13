@@ -214,7 +214,7 @@ git config user.name "<nom>" && git config user.email "<email>"
 ssh -T git@github.com                # « Hi <compte>! You've successfully authenticated »
 ```
 
-⚠️ **Ne pas installer mise sur le Pi.** Le `mise.toml` du dépôt sert aux PC de développement du serveur (Node 26, Python 3.11, hooks) : sur le Pi, ce serait lourd et inutile. On utilise le Python du système dans un environnement virtuel.
+⚠️ **Ne pas installer mise sur le Pi.** Le `mise.toml` du dépôt sert aux PC de développement du serveur (Node 26, Python, hooks ; la CI l'utilise aussi pour les tests d'`edge/`) : sur le Pi, ce serait lourd et inutile. On utilise le Python du système dans un environnement virtuel.
 
 **b) Environnement Python**
 
@@ -225,20 +225,20 @@ cd ~/dos-d-ane/edge
 python3 -m venv .venv
 source .venv/bin/activate            # l'invite commence par (.venv)
 pip install --upgrade pip
-pip install -r requirements.txt
+pip install -e ".[pi,dev]"     # webcam + MoveNet + tests (pyproject.toml)
 python -c "import cv2, numpy; from ai_edge_litert.interpreter import Interpreter; print('OK', cv2.__version__)"
 ```
 
-- `requirements.txt` fige les versions : `numpy==2.5.3`, `opencv-python==5.0.0.93`, `ai-edge-litert==2.3.0` (le moteur d'exécution TensorFlow Lite, appelé LiteRT).
-- `.venv/` n'est jamais commité : on le recrée avec `pip install -r requirements.txt`.
+- `pyproject.toml` fige les versions : `numpy==2.5.3` (le cœur de l'algorithme), option `pi` : `opencv-python==5.0.0.93` et `ai-edge-litert==2.3.0` (le moteur d'exécution TensorFlow Lite, appelé LiteRT), option `dev` : `pytest==9.1.1`. Sur un PC sans webcam, `pip install -e ".[dev]"` suffit pour les tests.
+- `.venv/` n'est jamais commité : on le recrée avec `pip install -e ".[pi,dev]"`.
 - `edge/.gitignore` exclut aussi le modèle (`models/*.tflite`) et les mesures (`resultats/`, données personnelles des volontaires).
 
 **Choix retenus**
 
 | Question | Choix | Raison |
 |---|---|---|
-| Python 3.13 (Pi) ou 3.11 (`mise.toml`) ? | **3.13**, le Python du Pi | c'est la machine cible ; `ai-edge-litert` existe en 3.13 pour ARM 64 bits ; aucun code Python dans `develop` n'impose 3.11. Le code reste compatible 3.11+. |
-| `requirements.txt` ou `pyproject.toml` ? | **`requirements.txt`** pour le POC | simple pour des scripts ; passage à `pyproject.toml` quand le POC deviendra un vrai service |
+| Python 3.13 (Pi) ou 3.11 (`mise.toml`) ? | **3.13**, le Python du Pi | c'est la machine cible ; `ai-edge-litert` existe en 3.13 pour ARM 64 bits. `mise.toml` est passé de 3.11 à 3.13 (13/10) : la CI teste avec la même version que le Pi. |
+| `requirements.txt` ou `pyproject.toml` ? | **`pyproject.toml`** (depuis le 13/10) | un seul fichier pour les dépendances, les options (`pi`, `dev`) et la config de pytest ; c'était `requirements.txt` au début du POC |
 
 ### 3.4 Modèle MoveNet
 
@@ -318,9 +318,7 @@ Tous attendent une image carrée en `uint8` et renvoient **17 points × (y, x, s
 ```text
 ~/dos-d-ane/edge/
 ├── docs/                 ← cette documentation
-├── requirements.txt      ← dépendances Python (versions figées)
-├── requirements-dev.txt  ← + pytest, pour les tests unitaires (PC ou Pi)
-├── pytest.ini            ← les tests unitaires sont dans tests/
+├── pyproject.toml        ← dépendances (versions figées, options pi et dev), config de pytest
 ├── .gitignore            ← exclut models/*.tflite et resultats/
 ├── .venv/                ← environnement Python (non commité)
 ├── models/               ← movenet_thunder_int8.tflite (par défaut), movenet_lightning_*.tflite (non commités)
@@ -433,7 +431,7 @@ Le code est dans le paquet `posture/` (il n'est pas recopié ici, pour ne pas av
 
 **Mode rapide pour les tests** (`python poc.py --rapide`) : fenêtre de 10 s, confirmation de 10 s, anti-rafale de 1 min, « Levez-vous » après 1 min (pause de 15 s), pour ne pas attendre des minutes.
 
-**Tests unitaires** (`python -m pytest` depuis `edge/`, sur le PC ou le Pi, après `pip install -r requirements-dev.txt`) : 84 tests dans `tests/` vérifient chaque règle d'[algo-posture.md](algo-posture.md) avec des points synthétiques, sans webcam ni modèle : angles et sens du regard, images ignorées, côté stable, point complété, seuils, bocal (70 % pendant 2 min, fin sous 40 %, regroupement, changement de nom, anti-rafale, fenêtre vide), temps assis, score. À relancer après chaque modification de `posture/`.
+**Tests unitaires** (`python -m pytest` depuis `edge/`, sur le PC ou le Pi, après `pip install -e ".[dev]"` ; `task test:edge` depuis la racine avec mise ; job `edge` de la CI à chaque PR) : 84 tests dans `tests/` vérifient chaque règle d'[algo-posture.md](algo-posture.md) avec des points synthétiques, sans webcam ni modèle : angles et sens du regard, images ignorées, côté stable, point complété, seuils, bocal (70 % pendant 2 min, fin sous 40 %, regroupement, changement de nom, anti-rafale, fenêtre vide), temps assis, score. À relancer après chaque modification de `posture/`.
 
 ### 5.4 Ce qui est enregistré pendant le POC
 

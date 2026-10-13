@@ -1,4 +1,0 @@
-# Tests unitaires de l'algorithme (sans webcam ni modèle) : sur le PC ou sur le Pi.
-# Installation : pip install -r requirements-dev.txt   puis, depuis edge/ : python -m pytest
-numpy==2.5.3
-pytest==9.1.1

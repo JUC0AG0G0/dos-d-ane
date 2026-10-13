@@ -389,7 +389,7 @@ Configuration réelle (installée le 7 octobre 2026, détail et blocages dans [p
 | Carte | **Raspberry Pi 4, 2 Go** | Raspberry Pi OS **64 bits**, Debian 13 « Trixie » |
 | Caméra | **webcam USB Logitech C110** (pilote `uvcvideo`), 640×480 | même code OpenCV sur PC et sur Pi ; câble long, facile à placer de profil. ⚠️ Éviter les vieilles webcams à pilote `gspca_*` : la LifeCam VX-1000 figeait le Pi. Arducam CSI (`picamera2`) : plan B seulement. |
 | Horloge | **NTP obligatoire** | Le Pi 4 n'a pas d'horloge à pile : sans NTP, les timestamps des données mises en buffer hors ligne sont faux. |
-| Python | **3.13 sur le Pi** ; code compatible 3.11+ | environnement `edge/.venv`, versions figées dans `requirements.txt` |
+| Python | **3.13** sur le Pi et dans la CI (`mise.toml`) | environnement `edge/.venv`, versions figées dans `edge/pyproject.toml` ; tests de l'algorithme à chaque PR (job `edge`) |
 | Runtime IA | **LiteRT** (`ai-edge-litert` 2.3.0, successeur de `tflite-runtime`) | installé sans erreur en aarch64 |
 
 ### Le Raspberry Pi 4 peut-il tout faire tourner ?

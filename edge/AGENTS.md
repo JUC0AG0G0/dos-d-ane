@@ -23,14 +23,14 @@ Documentation de référence : `docs/poc-raspberry.md` (plan, installation, briq
 - Toute logique réutilisable va dans `posture/`, dans le module de son étape ; les scripts l'**importent** (`from posture.regles import postures`), ils ne recopient pas de code.
 - Seuls `posture/camera.py` et `posture/movenet.py` importent OpenCV et LiteRT : les autres modules ne dépendent que de NumPy, pour que les tests tournent sur un PC sans webcam.
 - Les outils de mesure se lancent depuis `edge/` : `python -m outils.t2_camera --court`.
-- **Tests unitaires** : `python -m pytest` depuis `edge/` (après `pip install -r requirements-dev.txt`). Les lancer après toute modification de `posture/`, et ajouter un test pour chaque nouvelle règle ou bug corrigé.
+- **Tests unitaires** : `python -m pytest` depuis `edge/` (après `pip install -e ".[dev]"`, ou `task test:edge` depuis la racine avec mise ; la CI les lance à chaque PR). Les lancer après toute modification de `posture/`, et ajouter un test pour chaque nouvelle règle ou bug corrigé.
 - Règles d'alerte, seuils fixes `SEUILS` vérifiés sur 4 volontaires (T5) : tête en avant (tête < 50°), dos penché (tronc > 20°), cou penché (nez > 42° sous l'oreille, 2 personnes), allongé dans la chaise (tronc < −30°). Tête en avant et cou penché donnent une seule alerte, « Tête en avant ou baissée » (`poc.py`, `REGROUPEMENT`). Les autres seuils (écart des épaules 0,35, 70 %, 40 %, 1 min…) sont des **valeurs de départ** à ajuster par les tests ; tous seront à terme envoyés par le serveur.
 
 ## Conventions de code
 
-- Python **compatible 3.11+** (le Pi tourne en 3.13, `mise.toml` du dépôt indique 3.11).
+- Python **3.13**, comme le Pi (`requires-python` dans `pyproject.toml`, `python = "3.13"` dans le `mise.toml` du dépôt, utilisé par la CI).
 - Noms, commentaires et messages **en français**, comme le code existant. Commentaires courts, seulement pour le « pourquoi ».
-- Dépendances figées dans `requirements.txt` ; en ajouter une seulement si nécessaire, et figer sa version.
+- Dépendances figées (`==`) dans `pyproject.toml` : le cœur (NumPy) dans `dependencies`, la webcam et MoveNet dans l'option `pi`, pytest dans `dev`. En ajouter une seulement si nécessaire, dans la bonne option, et figer sa version. Sur le Pi : `pip install -e ".[pi,dev]"`.
 - Points MoveNet : tableau `(17, 3)` = `(x, y, confiance)` en pixels ; un point est fiable si confiance ≥ `CONF_MIN` (0,2, abaissé de 0,3 après mesure). Image ou côté douteux → `None` / UNKNOWN, jamais une valeur inventée ; seule exception, `Completeur` reprend la dernière position fiable d'**un seul** point mal vu depuis ≤ 2,5 s.
 - Angles : tête ≈ 90° = droite, plus petit = tête en avant ; tronc 0° = droit, > 0 = penché en avant, < 0 = avachi en arrière. Valables **uniquement de profil**.
 
