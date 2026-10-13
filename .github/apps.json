@@ -1,0 +1,13 @@
+{
+  "registry": "ghcr.io/juc0ag0g0/dos-d-ane",
+  "apps": {
+    "server": {
+      "path": "server",
+      "images": { "server": "runtime", "server-migrate": "migrate" }
+    },
+    "client": {
+      "path": "client",
+      "images": { "client": "runtime" }
+    }
+  }
+}

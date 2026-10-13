@@ -1,0 +1,176 @@
+name: Release
+
+# PR vers main : rien n'est compilé. La CI ajoute à la description de la PR
+# les versions qui seront publiées (une case à cocher par app modifiée),
+# vérifie que la préprod de ce commit est verte, que ses images existent et
+# que les secrets de production sont complets.
+# Push sur main (merge) : les images de préprod reçoivent leur version
+# (server:1.2.0), le tag git server-v1.2.0 et une release GitHub sont créés,
+# puis le serveur télécharge les images et redémarre.
+# Relance manuelle (Actions > Release > Run workflow) : redéploie la dernière
+# version publiée, ou celle indiquée (retour arrière).
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      server:
+        description: Version du serveur à déployer (vide = la dernière)
+        required: false
+      client:
+        description: Version du client à déployer (vide = la dernière)
+        required: false
+
+concurrency:
+  # PR : la dernière modification de la description l'emporte. Main : un
+  # déploiement en cours n'est jamais interrompu.
+  group: release-${{ github.event_name == 'pull_request' && github.ref || 'main' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Versions, préprod et images
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/release.mjs pr
+
+  # Tous les secrets de .env.prod.example doivent exister.
+  prod-secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Vérifier les secrets de production
+        env:
+          SECRETS: ${{ toJSON(secrets) }}
+        run: sh scripts/prod-secrets.sh check
+
+  # Check obligatoire du ruleset de main (même nom que celui de la CI).
+  ci-ok:
+    if: always() && github.event_name == 'pull_request'
+    needs: [plan, prod-secrets]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Vérifier que tous les jobs ont réussi
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}" == "true" ]]; then
+            echo "Au moins un job a échoué."
+            exit 1
+          fi
+
+  # Merge sur main : versions, tags et releases, sans rien recompiler.
+  publish:
+    if: github.event_name == 'push'
+    needs: prod-secrets
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Calculer les versions
+        id: plan
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/release.mjs merge
+      - name: Étiqueter les images, créer les tags et les releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASES: ${{ steps.plan.outputs.releases }}
+        run: |
+          registry=$(jq -r .registry .github/apps.json)
+          echo "$RELEASES" | jq -c '.[]' | while read -r r; do
+            app=$(echo "$r" | jq -r .app)
+            version=$(echo "$r" | jq -r .version)
+            tree=$(echo "$r" | jq -r .tree)
+            previous=$(echo "$r" | jq -r '.previousTag // empty')
+            for image in $(jq -r --arg a "$app" '.apps[$a].images | keys[]' .github/apps.json); do
+              docker buildx imagetools create -t "$registry-$image:$version" "$registry-$image:tree-$tree"
+            done
+            assets=""
+            if [ "$app" = server ]; then
+              jq --arg v "$version" '.info.version = $v' server/openapi.json > "openapi-$version.json"
+              assets="openapi-$version.json"
+            fi
+            gh release create "$app-v$version" $assets --target "$GITHUB_SHA" --title "$app $version" \
+              --generate-notes ${previous:+--notes-start-tag "$previous"}
+            echo "✓ $app $version" | tee -a "$GITHUB_STEP_SUMMARY"
+          done
+
+  # Sur le runner auto-hébergé installé sur le serveur (guide : deployReadME.md).
+  deploy:
+    needs: [prod-secrets, publish]
+    if: always() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && needs.prod-secrets.result == 'success' && (needs.publish.result == 'success' || github.event_name == 'workflow_dispatch')
+    runs-on: [self-hosted, dos-d-ane-prod]
+    permissions:
+      contents: read
+      packages: read
+    concurrency:
+      group: deploy
+      cancel-in-progress: false
+    env:
+      TARGET: /opt/dos-d-ane
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Préparer la nouvelle version
+        run: |
+          rm -rf "$TARGET/next" && mkdir -p "$TARGET/next"
+          git archive --format=tar HEAD compose.yaml compose.prod.yaml .env.prod.example scripts | tar -x -C "$TARGET/next"
+      - name: Vérifier les secrets et écrire .env.prod
+        env:
+          SECRETS: ${{ toJSON(secrets) }}
+        run: sh scripts/prod-secrets.sh write "$TARGET/next/.env.prod"
+      - name: Choisir les versions
+        env:
+          SERVER: ${{ inputs.server }}
+          CLIENT: ${{ inputs.client }}
+        run: |
+          for app in $(jq -r '.apps | keys[]' .github/apps.json); do
+            var=$(echo "$app" | tr a-z A-Z)
+            eval "version=\${$var:-}"
+            [ -n "$version" ] || version=$(git tag --list "$app-v*" --sort=-v:refname | head -1 | sed "s/^$app-v//")
+            if [ -z "$version" ] || ! git rev-parse -q --verify "refs/tags/$app-v$version" > /dev/null; then
+              echo "::error::Aucune version publiée « ${version:-?} » pour $app"
+              exit 1
+            fi
+            echo "${var}_TAG=$version" >> "$TARGET/next/.env.prod"
+            echo "$app $version" | tee -a "$GITHUB_STEP_SUMMARY"
+          done
+      - name: Télécharger les images et démarrer
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          export DOCKER_CONFIG="$RUNNER_TEMP/docker"
+          echo "$TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          sh "$TARGET/next/scripts/deploy.sh"

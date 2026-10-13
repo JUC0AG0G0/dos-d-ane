@@ -1,9 +1,15 @@
 # Déploiement en production
 
-Chaque push sur `main` (donc chaque PR mergée) déploie l'application sur le serveur, après une CI verte :
+`develop` sert de préprod, `main` ne fait que publier et déployer ce qui y a été validé. Rien n'est compilé deux fois : chaque image est étiquetée avec l'empreinte git du dossier de son app (`tree-<empreinte>`), donc une app qui n'a pas changé n'est ni reconstruite ni redéployée.
 
-1. la CI construit les images, lance la stack de production complète avec des valeurs de test et vérifie que l'API répond à travers nginx ;
-2. le job **deploy** de la CI tourne sur un runner GitHub Actions installé sur le serveur : il y écrit `.env.prod` depuis les secrets GitHub, construit les images puis redémarre la stack (`scripts/deploy.sh`). Si la compilation échoue, la version en ligne n'est pas touchée.
+| Événement | Workflow | Ce qui tourne |
+| --- | --- | --- |
+| PR vers `develop` | `ci.yml` | lint et compilation des seules apps modifiées ; build Docker (sans publication) seulement si un `Dockerfile`, `nginx.conf` ou un fichier compose change ; `server/ROUTES.md` à jour si un contrôleur ou un DTO change |
+| push sur `develop` | `preprod.yml` | build et publication sur GHCR des images dont le contenu a changé, puis stack de production complète lancée depuis ces images et test de `/api/health` à travers nginx |
+| PR `develop` → `main` | `release.yml` | aucun build : versions à publier (cases à cocher dans la description), préprod verte pour ce commit, images présentes, secrets complets |
+| push sur `main` | `release.yml` | les images reçoivent leur version, tag git et release GitHub par app, puis le runner du serveur télécharge les images et redémarre la stack |
+
+Images : `ghcr.io/juc0ag0g0/dos-d-ane-server`, `-server-migrate` et `-client` (onglet **Packages** du dépôt). Les apps sont listées dans [.github/apps.json](.github/apps.json), la logique est dans [scripts/release.mjs](scripts/release.mjs).
 
 Le serveur étant sur un réseau privé, c'est le runner qui va chercher le travail chez GitHub (connexion sortante en HTTPS) : aucun port n'est à ouvrir vers l'extérieur.
 
@@ -11,7 +17,7 @@ En production, seul nginx est exposé (port 80) : il sert le front et relaie `/a
 
 ## 1. Préparer le serveur Ubuntu
 
-Installer Docker Engine ([doc officielle](https://docs.docker.com/engine/install/ubuntu/)), git et jq :
+Installer Docker Engine ([doc officielle](https://docs.docker.com/engine/install/ubuntu/)), git et jq. Le serveur ne compile rien : il télécharge les images depuis `ghcr.io` (connexion HTTPS sortante, comme le runner).
 
 ```bash
 sudo apt-get update && sudo apt-get install -y ca-certificates curl git jq
@@ -81,13 +87,24 @@ Aucune valeur n'est générée ni reprise d'un fichier d'exemple.
 
 `POSTGRES_USER`, `POSTGRES_PASSWORD` et `POSTGRES_DB` ne sont lus qu'à la création de la base : les changer ensuite ne change pas la base existante (il faut le faire aussi en SQL).
 
-## 4. Protéger `main`
+## 4. Protéger `develop` et `main`
 
-Dans le ruleset de `main` (**Settings > Rules > Rulesets**), activer **Require status checks to pass** et ajouter le check **`ci-ok`**. Il regroupe le lint, la compilation, la stack de production et, pour les PR vers `main`, la vérification des secrets.
+Dans les rulesets de `develop` et de `main` (**Settings > Rules > Rulesets**), activer **Require status checks to pass** et ajouter le check **`ci-ok`**. Sur `develop`, il regroupe les vérifications des PR ; sur `main`, les versions, la préprod, les images et les secrets.
 
-## 5. Déployer
+## 5. Publier une version et déployer
 
-Merger une PR dans `main`, ou **Actions > CI > Run workflow** (sur `main`) pour redéployer. Le site est ensuite sur `http://<IP du serveur>/` depuis le réseau de la formation.
+1. Ouvrir une PR de `develop` vers `main`. La CI ajoute à sa description une section **Versions publiées au merge**, avec pour chaque app modifiée depuis sa dernière version :
+   - `patch` (cochée par défaut) : correctif ;
+   - `minor` : nouvelle fonctionnalité ;
+   - `major` : changement incompatible.
+2. Cocher la bonne case directement dans la page de la PR (une seule par app). La CI se relance et affiche la version obtenue, par exemple `server : 1.2.0 → 1.3.0`. La toute première version de chaque app est `1.0.0`.
+3. Merger. La CI crée les tags (`server-v1.3.0`, `client-v1.0.4`) et les releases GitHub (notes générées depuis les PR, `openapi.json` joint pour le serveur), puis déploie.
+
+Une PR vers `main` qui ne part pas de `develop` est refusée : ses images n'ont pas été testées en préprod.
+
+Le site est ensuite sur `http://<IP du serveur>/` depuis le réseau de la formation. `GET /api/health` renvoie la version du serveur en ligne.
+
+**Redéployer ou revenir en arrière** : **Actions > Release > Run workflow** (sur `main`). Laisser les champs vides redéploie les dernières versions ; indiquer `server` = `1.2.0` (par exemple) remet cette version, sans rien recompiler. Attention aux migrations de base : une ancienne version du serveur ne les annule pas.
 
 Sur le serveur, la version en ligne est dans `/opt/dos-d-ane/current` (la précédente dans `/opt/dos-d-ane/previous`) :
 
@@ -107,6 +124,7 @@ sudo docker compose --env-file .env.prod -f compose.yaml -f compose.prod.yaml ex
 ## Limites
 
 - **HTTP seulement** : mots de passe et données circulent en clair sur le réseau. Avant de vraies données (RGPD), mettre HTTPS devant nginx.
-- Pas de retour arrière automatique : si la nouvelle version ne démarre pas, le workflow échoue avec les logs ; corriger et re-merger (un revert compris).
+- Pas de retour arrière automatique : si la nouvelle version ne démarre pas, le workflow échoue avec les logs ; relancer le workflow avec la version précédente (voir plus haut) ou corriger et re-merger.
+- Les images de préprod sont gardées par 20 (les plus récentes, par image) ; les images versionnées ne sont jamais supprimées.
 - Pas de sauvegarde automatique de la base.
 - Le runner tourne avec les droits Docker, équivalents à root sur le serveur : ne pas le partager avec d'autres dépôts.
