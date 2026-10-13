@@ -411,7 +411,7 @@ Le code est dans `posture_lib.py` (il n'est pas recopié ici, pour ne pas avoir 
 | Étape | Code dans `posture_lib.py` |
 |---|---|
 | choisir le côté vu (gauche / droite) et le bloquer | `CoteStable` |
-| reprendre un seul point mal vu depuis ≤ 2 s | `Completeur` |
+| reprendre un seul point mal vu depuis ≤ 2,5 s | `Completeur` |
 | vérifier que la personne est de profil | `ecart_epaules()`, `ECART_EPAULES_MAX` |
 | ignorer les points peu sûrs | `CONF_MIN` |
 | calculer tête, tronc et oreille–épaule–hanche | `angles()` |

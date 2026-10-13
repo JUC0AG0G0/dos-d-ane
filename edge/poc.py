@@ -37,6 +37,7 @@ from posture_lib import (COLONNES_CSV, DOSSIER_RESULTATS, DUREE_RESUME, Bocal, C
 
 CADENCE_CALME, CADENCE_DOUTE, CADENCE_ABSENT = 10, 2, 30     # s entre deux images
 IMAGES_ABSENT = 3                                             # images d'affilée sans personne = absent
+ECHECS_REOUVERTURE = 5                                        # captures ratées d'affilée avant de rouvrir la webcam
 VERS_L_AVANT = ("Dos penche", "Cou penche", "Tete en avant")  # une seule cause par image, dans cet ordre
 ALLONGE = "Allonge dans la chaise"
 TETE = "Tete en avant ou baissee"                              # nom commun de tête en avant et cou penché
@@ -143,7 +144,7 @@ def main():
     print(f"Session {session.id}{' (mode rapide)' if args.rapide else ''} : Ctrl+C pour terminer")
     print(f"Mesures : {base}.csv   Événements et résumés : {base}_evenements.csv, _resumes.csv")
     temp_debut, debut_session = temperature_pi(), time.monotonic()
-    images, absent_de_suite = 0, 0
+    images, absent_de_suite, echecs = 0, 0, 0
     resume, total = Resume(), Resume()
     debut_resume, debut_resume_heure = debut_session, datetime.now()
     precedente = None                 # (instant, état, bonne) de l'image précédente, pour les durées
@@ -152,9 +153,15 @@ def main():
             t_boucle = time.monotonic()
             image = capturer(cam)
             if image is None:
-                print("capture ratée")
+                echecs += 1
+                print(f"capture ratée ({echecs})")
+                if echecs % ECHECS_REOUVERTURE == 0:     # webcam débranchée ou figée : on la rouvre
+                    cam.release()
+                    cam = ouvrir_camera()
+                    print("webcam rouverte" if cam.isOpened() else "webcam toujours absente")
                 time.sleep(CADENCE_DOUTE)
                 continue
+            echecs = 0
             pts = movenet.points(image)
             del image                                        # l'image n'a existé qu'en mémoire
             images += 1
@@ -173,9 +180,9 @@ def main():
                 evenements.append((avant.ajouter(instant, cause, a), avant))
                 evenements.append((allonge.ajouter(instant, ALLONGE if regles[ALLONGE][0] else None, a), allonge))
                 posture = REGROUPEMENT.get(cause, cause) or (ALLONGE if regles[ALLONGE][0] else "bonne posture")
-            else:
-                avant.elaguer(instant)
-                allonge.elaguer(instant)
+            else:                                            # fenêtre vide : l'alerte en cours se termine
+                evenements.append((avant.elaguer(instant), avant))
+                evenements.append((allonge.elaguer(instant), allonge))
                 posture = "absent" if absent_de_suite >= IMAGES_ABSENT else "ignorée"
             for liste, bocal in evenements:
                 for phase, nom in liste:

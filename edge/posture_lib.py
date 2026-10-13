@@ -39,9 +39,10 @@ ECART_EPAULES_MAX = 0.35   # écart des 2 épaules ÷ tronc ; au-delà, la perso
 # vu à 91 % au lieu de 64 %, pour 0 à 4 % des images de bonne posture (essais du 12/10).
 SEUILS = {"tete": 50, "tronc": 20, "allonge": -30, "cou": 42}
 
-# Calibration : médiane des angles pendant les 2 premières minutes de travail normal. Ne sert plus
-# aux alertes (voir SEUILS), seulement au score (algo-posture.md §7.4). Mesuré le 12/10/2026 :
-# 10 s « tenez-vous droit » donnaient une référence jouée, trop haute ou trop basse.
+# Calibration : médiane des angles pendant les 2 premières minutes de travail normal. Écartée des
+# alertes (voir SEUILS) et du score (% du temps en bonne posture, algo-posture.md §7.4) : ne sert plus
+# qu'aux outils de mesure (live.py, enregistrer.py). Mesuré le 12/10/2026 : 10 s « tenez-vous droit »
+# donnaient une référence jouée, trop haute ou trop basse.
 DUREE_CALIBRATION = 120
 
 # Numéros MoveNet des points utiles, par côté : oreille, épaule, hanche
@@ -146,11 +147,14 @@ class Completeur:
 
     Plutôt que d'ignorer l'image pour un trou court (bras qui passe devant, confiance qui chute
     une image), on reprend la position vue juste avant. Seulement si un seul des 3 points manque
-    et qu'il a été bien vu il y a moins de DUREE_MAX secondes : au-delà, l'image reste ignorée,
+    et qu'il a été bien vu il y a au plus DUREE_MAX secondes : au-delà, l'image reste ignorée,
     on n'invente pas une posture. Le contrôle « de profil » s'applique ensuite normalement.
     """
 
-    DUREE_MAX = 2.0      # s : ~10 images à 5 img/s (live.py), 1 image à la cadence « doute » (2 s)
+    # s : ~12 images à 5 img/s (live.py), 1 image à la cadence « doute » de poc.py. 2,5 et non 2,0 :
+    # deux images à 2 s d'écart sont séparées de 2,0 s plus le temps variable de la capture, donc
+    # souvent un peu plus de 2,0 s, et la reprise échouait une fois sur deux.
+    DUREE_MAX = 2.5
     NOMS = ("oreille", "epaule", "hanche")
 
     def __init__(self):
@@ -291,8 +295,25 @@ class Bocal:
         self.fins = {}                 # cause → instant de la fin de sa dernière alerte
 
     def elaguer(self, instant):
+        """Retire les billes trop vieilles. Renvoie les événements, comme ajouter().
+
+        Fenêtre vide (personne absente, ou mal vue pendant toute la fenêtre) : on ne peut plus rien
+        juger, donc le compte des 2 min repart de zéro (sinon une seule image penchée en se
+        rasseyant déclenchait l'alerte) et l'alerte en cours se termine (sinon elle restait ouverte
+        pendant toute l'absence).
+        """
         while self.billes and self.billes[0][0] <= instant - self.fenetre:
             self.billes.popleft()
+        if self.billes:
+            return []
+        self.depuis = self.autre = None
+        return self.terminer(instant) if self.alerte else []
+
+    def terminer(self, instant):
+        ancienne = self.alerte
+        self.alerte = self.depuis = self.autre = None
+        self.fins[ancienne] = instant
+        return [("fin", ancienne)]
 
     def taux(self):
         return sum(c is not None for _, c, _ in self.billes) / len(self.billes) if self.billes else 0.0
@@ -312,6 +333,8 @@ class Bocal:
     def moyennes(self):
         """Angles moyens des images mauvaises de la fenêtre (envoyés avec l'événement)."""
         mauvaises = [a for _, c, a in self.billes if c is not None] or [a for _, _, a in self.billes]
+        if not mauvaises:
+            return None                # fenêtre vide (alerte terminée pendant une absence)
         return {k: round(float(np.mean([a[k] for a in mauvaises])), 1) for k in ("tete", "tronc")}
 
     def ajouter(self, instant, cause, a):
@@ -333,10 +356,7 @@ class Bocal:
                 return [("debut", principale)]
             return []
         if taux < TAUX_FIN:
-            ancienne = self.alerte
-            self.alerte = self.depuis = self.autre = None
-            self.fins[ancienne] = instant
-            return [("fin", ancienne)]
+            return self.terminer(instant)
         if principale == self.alerte:
             self.autre = None
         elif self.autre is None or self.autre[0] != principale:

@@ -11,6 +11,12 @@
 | Raspberry Pi : installation, code, protocole des tests, **résultats mesurés** | [poc-raspberry.md](poc-raspberry.md) |
 | Architecture complète : RGPD, rôle du Pi et du serveur, **messages Pi → serveur**, données, API, sécurité, feuille de route | **ce document** |
 
+> **Mise à jour du 13 octobre 2026 (v3.2)**, après les tests T4 et T5 (4 volontaires) et l'écriture de `poc.py` :
+> - **MoveNet Thunder** à la place de Lightning : angle de la tête 2,9° d'écart-type au lieu de 4,9°, 70 ms par image (§7, ADR-003) ;
+> - **seuils fixes, sans calibration** : la calibration individuelle, testée en T5, sonnait à tort quand la personne se redressait ; écartée des alertes et du score ([algo-posture.md](algo-posture.md) §5) ;
+> - **4 alertes** : `FORWARD_HEAD` (« tête en avant ou baissée », qui regroupe tête en avant et **cou penché** `NECK_FLEXION`, entré dans le MVP), `TRUNK_FORWARD`, `TRUNK_BACKWARD` (« allongé », tronc < −30°) et `IMMOBILE`, qui devient « **assis trop longtemps** » (50 min sans quitter le poste) : l'immobilité des points n'était pas mesurable (§8) ;
+> - **score** = % du temps en bonne posture, calculé par période (5 min) et non par image (§7.2).
+
 > **Mise à jour du 9 octobre 2026 (v3.1)**, après les premiers essais sur le Raspberry Pi :
 > - **les keypoints ne quittent plus le Pi** : le serveur ne reçoit que l'état en direct, les événements et des résumés toutes les 5 min (§7.2, §12). Le dataset vient des enregistrements étiquetés faits sur le Pi avec des volontaires (§16) ;
 > - **webcam USB** (Logitech C110) à la place de l'Arducam CSI, Raspberry Pi OS 13 « Trixie », Python 3.13 ; mesures réelles : capture ~55 ms, MoveNet ~21 ms (§5) ;
@@ -137,7 +143,7 @@ On transmet ainsi des **résultats** (angles, postures, scores, événements), j
 flowchart LR
     subgraph EDGE["Edge — Raspberry Pi 4 (sans Docker)"]
         C[Webcam USB de profil] --> CAP[Capture ponctuelle<br/>OpenCV]
-        CAP --> P[MoveNet Lightning<br/>LiteRT]
+        CAP --> P[MoveNet Thunder<br/>LiteRT]
         P --> K[Keypoints + confidence<br/>restent sur le Pi]
         K --> N[Angles]
         N --> R[Règles + filtrage temporel]
@@ -201,11 +207,11 @@ flowchart TB
             direction TB
             S0{"0. Session active ?"}
             S1["1. Capture d'une image toutes les 10 s / 2 s / 30 s<br/>OpenCV — en RAM uniquement"]
-            S3["2. Pose estimation<br/>MoveNet Lightning — LiteRT"]
+            S3["2. Pose estimation<br/>MoveNet Thunder — LiteRT"]
             S4["3. 17 keypoints + confidence<br/>🗑️ image effacée"]
             S5{"4. Point fiable et de profil ?"}
             S6["5. Angles tête et tronc"]
-            S7["6. Règles + calibration individuelle<br/>GOOD / FORWARD_HEAD / TRUNK_FORWARD / TRUNK_BACKWARD"]
+            S7["6. Règles, seuils fixes<br/>GOOD / FORWARD_HEAD / NECK_FLEXION / TRUNK_FORWARD / TRUNK_BACKWARD"]
             S8["7. Filtre dans le temps<br/>≥ 70 % de mauvaises sur 60 s pendant 2 min"]
             S9["8. État en direct + événement + résumé 5 min<br/>UUID"]
             BUF[("9. SQLite<br/>buffer si réseau coupé")]
@@ -306,7 +312,7 @@ sequenceDiagram
     M->>B: POST /api/sessions
     B->>D: session active participant ↔ poste
     B-->>P: WebSocket : « démarre, session ses_8f2c41 » + seuils
-    Note over P: calibration : 10 s de posture de référence
+    Note over P: pas de calibration : seuils fixes
     end
 
     rect rgba(120,120,120,0.08)
@@ -395,11 +401,11 @@ Mesuré sur le Pi (octobre 2026) :
 | Pour 1 image | Temps |
 |---|---|
 | capture d'une image fraîche | ~55 ms |
-| MoveNet Lightning int8 (4 threads) | ~21 ms (float16 : ~36 ms) |
+| MoveNet **Thunder** int8 (4 threads), retenu en T4 | ~70 ms (Lightning : ~21 à 27 ms) |
 | angles, règles, filtre | < 1 ms |
-| **total** | **~80 ms** |
+| **total** | **~125 ms** |
 
-Soit environ **4 % d'un cœur** à la cadence la plus rapide (1 image / 2 s), et moins de 1 % à 1 image / 10 s, pour ~100 Mo de mémoire. Le test T1 complet (100 mesures, image réelle, 1/2/4 threads) reste à faire.
+Soit environ **6 % d'un cœur** à la cadence la plus rapide (1 image / 2 s), et environ 1 % à 1 image / 10 s, pour ~100 Mo de mémoire. Le test T1 complet (100 mesures, image réelle, 1/2/4 threads) reste à faire.
 
 Ce qui ne tourne **pas** sur le Pi : NestJS, PostgreSQL, React, Expo, l'entraînement d'un modèle.
 
@@ -432,9 +438,10 @@ Les étapes du pipeline sont dans le schéma du §4.1. Le fonctionnement détail
 
 | Rôle | Modèle | Justification |
 |---|---|---|
-| **Principal** | MoveNet SinglePose **Lightning** int8 (LiteRT) | léger (quelques Mo), conçu pour l'embarqué, 17 keypoints suffisants pour une vue de profil, ~21 ms sur le Pi 4 |
-| **Benchmark** | MediaPipe Pose (BlazePose) | 33 landmarks, coordonnée de profondeur estimée ; comparaison sur la précision, la stabilité, le temps d'inférence, le CPU, la RAM et la facilité de déploiement sur Pi (test T4) |
-| Écartés | MoveNet Thunder, OpenPose, YOLO-Pose | trop lourds pour le Pi |
+| **Principal** | MoveNet SinglePose **Thunder** int8 (LiteRT) | conçu pour l'embarqué, 17 keypoints suffisants pour une vue de profil, ~70 ms sur le Pi 4. Retenu en T4 (12/10/2026) : angle de la tête 2,9° d'écart-type au lieu de 4,9°, hanche bien mieux vue (confiance 0,62 au lieu de 0,34). À une image toutes les 2 à 10 s, sa lenteur ne gêne pas |
+| Plan B | MoveNet SinglePose Lightning int8 | ~21 à 27 ms, mais angles moins stables (T4) |
+| **Benchmark** | MediaPipe Pose (BlazePose) | 33 landmarks, coordonnée de profondeur estimée ; comparaison sur la précision, la stabilité, le temps d'inférence, le CPU, la RAM et la facilité de déploiement sur Pi |
+| Écartés | OpenPose, YOLO-Pose | trop lourds pour le Pi |
 | Multi-personne (évolution) | MoveNet **MultiPose** Lightning | modèle différent de SinglePose ; il faut un tracking anonyme en plus |
 
 MoveNet ne « sait » pas si une posture est bonne : **il produit un squelette**. Le diagnostic vient de notre logique (règles, puis éventuellement un classifieur appris).
@@ -450,7 +457,7 @@ Grâce à la webcam USB, **le même code Python** tourne sur un PC et sur le Pi 
 | Analyse | Où | Pourquoi là |
 |---|---|---|
 | Pose estimation (image → keypoints) | **Pi, obligatoirement** | c'est la seule étape qui touche l'image : elle doit rester locale (RGPD) |
-| Angles, règles, filtre → posture, score, événements | **Pi** | fonctionne même **sans réseau** (buffer SQLite) ; réaction immédiate ; seul le Pi a les keypoints et la posture de référence |
+| Angles, règles, filtre → posture, score, événements | **Pi** | fonctionne même **sans réseau** (buffer SQLite) ; réaction immédiate ; seul le Pi a les keypoints |
 | Statistiques quotidiennes, progression, conseils | **serveur** | il faut l'historique de toutes les sessions |
 | **Problèmes récurrents par poste** (matériel inadapté) | **serveur** | il faut comparer **plusieurs utilisateurs** sur le même poste |
 | **Entraînement** d'un classifieur (itération 2) | **poste de dev**, hors ligne (scikit-learn) | sur le dataset étiqueté des volontaires (§16) ; le modèle (quelques Ko) est ensuite déployé sur le Pi |
@@ -469,7 +476,7 @@ Grâce à la webcam USB, **le même code Python** tourne sur un PC et sur le Pi 
 | Message | Sens | Quand | Transport | Stocké ? |
 |---|---|---|---|---|
 | **Commandes** : démarrer / arrêter la session `ses_…`, seuils | serveur → Pi | au démarrage, à l'arrêt, quand l'admin change un seuil | **WebSocket** | — |
-| **État en direct** : posture, couleur, angle tête, angle tronc, score de l'image | Pi → serveur → app | à chaque image (2 à 10 s) | Pi → serveur : **WebSocket** ; serveur → app : **SSE** | ❌ relayé seulement |
+| **État en direct** : posture, couleur, angle tête, angle tronc, score de la période en cours | Pi → serveur → app | à chaque image (2 à 10 s) | Pi → serveur : **WebSocket** ; serveur → app : **SSE** | ❌ relayé seulement |
 | **Événement** : début et fin d'une alerte | Pi → serveur → app | quand le filtre dans le temps confirme | Pi → serveur : **HTTPS POST** ; serveur → app : **SSE** (+ notification push) | ✅ |
 | **Résumé** : score moyen, temps 🟢 / 🟠 / 🔴, temps ignoré | Pi → serveur | toutes les 5 min | **HTTPS POST** | ✅ |
 | **Actions de l'utilisateur** : connexion, démarrer, terminer, historique | app → serveur | à la demande | **HTTPS (REST)** | ✅ |
@@ -482,10 +489,13 @@ Grâce à la webcam USB, **le même code Python** tourne sur un PC et sur le Pi 
 // événement (HTTPS POST)
 { "id": "evt_0193", "session": "ses_8f2c41", "type": "FORWARD_HEAD", "phase": "debut",
   "debut": "2026-10-08T14:03:10Z", "tete_moy": 68.4, "tronc_moy": 6.1 }
+// poc.py ajoute "heure", "duree_s" (à la fin) et "detail", la part de chaque cause
+// (ex. "FORWARD_HEAD:60;NECK_FLEXION:40" : tête en avant et cou penché forment une seule alerte)
 
 // résumé (HTTPS POST)
 { "id": "res_0042", "session": "ses_8f2c41", "periode": "14:00-14:05", "score_moyen": 78,
-  "secondes_bonne": 210, "secondes_moyenne": 60, "secondes_a_ameliorer": 30, "secondes_ignore": 0 }
+  "secondes_bonne": 210, "secondes_moyenne": 60, "secondes_a_ameliorer": 30, "secondes_ignore": 0,
+  "secondes_absent": 0 }
 ```
 
 Les **bonnes postures sont donc aussi envoyées**, sous forme de temps et de score dans les résumés (calcul du score : [algo-posture.md](algo-posture.md) §7.4).
@@ -515,25 +525,25 @@ Avec **une seule caméra**, la v2 voulait détecter `FORWARD_HEAD` et `ROUNDED_B
 | Posture MVP | Métrique | Keypoints | Vue |
 |---|---|---|---|
 | `FORWARD_HEAD` (tête en avant) | angle **tête** : droite épaule → oreille par rapport à l'horizontale (angle cranio-vertébral approché) | oreille, épaule (côté visible) | profil |
+| `NECK_FLEXION` (cou penché, regarder son téléphone) | angle **cou** : droite oreille → nez sous l'horizontale. Même alerte que `FORWARD_HEAD` (« tête en avant ou baissée ») : vus de profil, leurs angles se confondent | oreille, nez | profil |
 | `TRUNK_FORWARD` (dos penché en avant, remplace `ROUNDED_BACK`) | angle **tronc** : droite hanche → épaule par rapport à la verticale | épaule, hanche | profil |
-| `TRUNK_BACKWARD` (avachi en arrière) | même angle **tronc**, vers l'arrière | épaule, hanche | profil |
-| `IMMOBILE` (immobilité prolongée) | déplacement médian des points ÷ longueur du tronc | tous les points fiables | profil |
-| *après le MVP* : `NECK_FLEXION` (cou penché vers le bas) | angle oreille–épaule–hanche, déjà relevé par `live.py` pour être testé | oreille, épaule, hanche | profil |
+| `TRUNK_BACKWARD` (allongé dans la chaise : avachi **prononcé** seulement) | même angle **tronc**, vers l'arrière | épaule, hanche | profil |
+| `IMMOBILE` (assis trop longtemps) | **temps devant la caméra** sans la quitter au moins 1 min. Le déplacement médian des points, prévu au départ, ne marche pas : les points tremblent déjà de 0,025 du tronc en travail normal (mesuré le 12/10) | oreille ou épaule vue | profil |
 | *itération 2* : `SHOULDER_ASYMMETRY` | inclinaison de la ligne des épaules | 2 épaules | **face → photo mobile** ou 2e caméra |
 
 Ce choix de 4 postures est justifié dans [solution-mvp.md](solution-mvp.md) §4 (« Pourquoi pas plus ? »). L'**analyse par photo mobile** demandée par le sujet complète la caméra fixe : la caméra couvre le profil en continu, la photo frontale couvre l'asymétrie ponctuellement.
 
 ### Côté visible
 
-En vue de profil, un seul côté est fiable. On retient le côté dont la confiance moyenne (oreille, épaule, hanche) est la plus élevée, puis on le **bloque** pour la session : de profil, MoveNet devine le côté caché avec une confiance parfois aussi haute, et le côté changeait d'une image à l'autre.
+En vue de profil, un seul côté est fiable. On retient le côté dont la confiance moyenne (oreille, épaule, hanche) est la plus élevée, puis on le **bloque** : de profil, MoveNet devine le côté caché avec une confiance parfois aussi haute, et le côté changeait d'une image à l'autre. Il ne change que si l'autre côté a 0,15 de confiance d'avance pendant 5 images d'affilée.
 
 ---
 
 ## 9. Seuils, calibration et score
 
-Les seuils ne sont **pas arbitraires** : ils partent de méthodes d'ergonomie publiées (angle cranio-vertébral, **RULA**, **REBA**, **ISO 11226**), puis sont **personnalisés** par une calibration de 10 s (la personne se tient droite, on compare ensuite à **sa** posture) et **ajustés par nos mesures** (test T5 : F1 ≥ 0,80 par posture).
+Les seuils ne sont **pas arbitraires** : ils partent de méthodes d'ergonomie publiées (angle cranio-vertébral, **RULA**, **REBA**, **ISO 11226**), puis sont **vérifiés par nos mesures** (test T5, 4 volontaires : F1 0,82 pour « tête < 50° ou tronc > 20° »). Ils sont **fixes** : la calibration individuelle (écart à la posture de référence de chaque personne) a été testée en T5 puis **écartée**. Chacun calibrait calé contre le dossier puis se redressait, et des écarts serrés à cette référence déclenchaient « dos penché » à tort (précision 0,49 à 0,57, contre 0,95 avec les seuils fixes).
 
-Le tableau complet — pour chaque posture : angle mesuré, seuil de départ, **source**, seuil calibré, **durée avant alerte** — ainsi que la formule du score (0–100) sont dans [algo-posture.md](algo-posture.md), « Les règles en une page » et §7.4. **Le score n'est pas un indicateur médical.**
+Le tableau complet — pour chaque posture : angle mesuré, seuil, **source**, **durée avant alerte** — ainsi que la formule du score (0–100) sont dans [algo-posture.md](algo-posture.md), « Les règles en une page » et §7.4. **Le score n'est pas un indicateur médical.**
 
 ### Apprendre au système ce qu'est une bonne posture
 
@@ -546,7 +556,7 @@ Le tableau complet — pour chaque posture : angle mesuré, seuil de départ, **
 | Approche | Principe | Quand |
 |---|---|---|
 | **Règles + seuils** | seuils tirés de la littérature, ajustés grâce aux exemples | MVP |
-| **Référence personnelle** | calibration : écart à la bonne posture de *cette* personne | MVP |
+| **Référence personnelle** | calibration : écart à la bonne posture de *cette* personne | testée en T5, **écartée** (moins bonne que les seuils fixes, [algo-posture.md](algo-posture.md) §5) |
 | **Classifieur appris** | arbre de décision, Random Forest ou SVM (scikit-learn) entraîné sur les exemples étiquetés de tous les volontaires | itération 2, une fois assez d'exemples collectés |
 
 **Évaluation :** validation croisée **par personne** (on teste sur des personnes absentes de l'entraînement), puis matrice de confusion et F1 (§21).
@@ -567,14 +577,15 @@ Les protections déjà en place, chacune face à l'erreur qu'elle corrige, sont 
 
 | Erreur | Protection |
 |---|---|
-| point mal détecté (contre-jour, oreille cachée) | confiance < 0,20 → image ignorée (`UNKNOWN`) ; un **seul** point manquant depuis ≤ 2 s est repris de l'image précédente |
+| point mal détecté (contre-jour, oreille cachée) | confiance < 0,20 → image ignorée (`UNKNOWN`) ; un **seul** point manquant depuis ≤ 2,5 s est repris de l'image précédente |
 | personne de face ou en biais | écart des épaules ÷ tronc > 0,35 → image ignorée |
-| côté gauche / droit qui saute | côté bloqué pour la session |
-| morphologie, placement de la caméra | calibration individuelle + consigne de placement |
+| côté gauche / droit qui saute | côté bloqué (ne change que si l'autre est nettement mieux vu pendant 5 images) |
+| morphologie, deux postures normales (calé au dossier ou droit) | seuils fixes et larges (tête < 50°, tronc entre −30° et +20°), vérifiés sur 4 volontaires (T5) + consigne de placement |
 | geste bref (boire, ramasser un stylo), points qui tremblent | filtre dans le temps : 70 % de mauvaises images sur 60 s pendant 2 min |
 | alerte qui clignote | hystérésis : fin d'alerte sous 40 % |
 | alertes à répétition | pas de nouvelle alerte du même type avant 10 min |
-| poste vide | `NO_PERSON` : prochaine capture dans 30 s |
+| poste vide | `NO_PERSON` : prochaine capture dans 30 s ; après 60 s sans image jugée, l'alerte en cours se termine et le compte des 2 min repart de zéro |
+| webcam débranchée ou figée | réouverture après 5 captures ratées d'affilée |
 
 **Pas encore codé, à ajouter si les tests le demandent :** contrôle de cohérence (point faux mais confiance haute, par exemple une épaule placée sur le dossier) et médiane d'une rafale de 3 images (si le filtre dans le temps ne suffit pas contre le tremblement).
 
@@ -732,7 +743,7 @@ Le sujet demande que l'application permette **d'annoter les données pour produi
 
 ```text
 Volontaire consentant, code P01, assis de profil
-→ calibration 10 s assis droit
+→ 2 min de travail normal (calibration notée dans le CSV pour analyse, pas utilisée par les alertes)
 → chaque posture tenue 30 s, dans un ordre mélangé, + gestes normaux (boire, attraper un objet)
 → une touche indique la posture jouée : 0 bonne, 1 tête en avant, 2 dos penché, 3 avachi, 4 dos en « C »
 → une ligne par image dans resultats/live_<date>.csv : label, angles, confiances, 17 points (JAMAIS l'image)
@@ -795,7 +806,7 @@ L'app peut afficher **un bonhomme simplifié** qui reprend la posture de l'utili
 ### Scénario de démonstration
 
 ```text
-1. J'arrive au poste, j'ouvre l'app et j'appuie sur « Démarrer » → session démarrée, calibration 10 s
+1. J'arrive au poste, j'ouvre l'app et j'appuie sur « Démarrer » → session démarrée (pas de calibration)
 2. Je travaille normalement ; le Pi analyse en local toutes les 10 s (2 s en cas de doute)
 3. J'avance la tête plus de 2 min → événement FORWARD_HEAD → alerte sur mon téléphone
 4. Je termine la session → l'app affiche le score, les durées par posture,
@@ -918,23 +929,23 @@ C'est exactement ce que demande le sujet : **étude préalable**, **choix justif
 
 Les tests **T1–T7** de [solution-mvp.md](solution-mvp.md) §8 sont le plan du MVP ; leur protocole détaillé et leurs résultats sont dans [poc-raspberry.md](poc-raspberry.md) §6 et §7. Les expériences E ci-dessous couvrent **toute** la solution (serveur, buffer, itération 2) ; la colonne « Test » indique quand une expérience **est** un test T, pour ne pas la décrire deux fois.
 
-| # | Hypothèse à valider | Test | Critère de validation | État (9 oct. 2026) | Plan B si échec |
+| # | Hypothèse à valider | Test | Critère de validation | État (13 oct. 2026) | Plan B si échec |
 |---|---|---|---|---|---|
 | **E1** | LiteRT + OpenCV s'installent et tournent sur le Pi 4 | — | le modèle tourne et produit 17 keypoints | ✅ Python 3.13, `ai-edge-litert` 2.3.0 | `tflite-runtime`, autre version de Python |
 | **E2** | La caméra est exploitable depuis Python | **T2** | 0 échec de capture sur 1 h | ✅ webcam USB : 0 échec sur 526 captures (44 min, à refaire sur 1 h) | Arducam CSI (`picamera2`) |
-| **E3** | MoveNet détecte bien une personne assise **de profil** | **T3** | oreille, épaule, hanche ≥ 0,20 sur ≥ 90 % des captures | 🟡 99 % sur un premier enregistrement (1 personne) ; 3 personnes × 3 éclairages à faire | MoveNet Thunder, MediaPipe |
-| **E4** | MoveNet est un meilleur choix que MediaPipe | **T4** | tableau comparatif → choix justifié | ⬜ | — |
-| **E5** | Les keypoints sont assez stables | **T3** | écart-type des angles < 3°, personne immobile 60 s | ⬜ | rafale + médiane, autre modèle |
+| **E3** | MoveNet détecte bien une personne assise **de profil** | **T3** | oreille, épaule, hanche ≥ 0,20 sur ≥ 90 % des captures | 🟡 99 % sur un premier enregistrement (1 personne) ; 3 personnes × 3 éclairages à faire | MediaPipe |
+| **E4** | MoveNet est un meilleur choix que MediaPipe | **T4** | tableau comparatif → choix justifié | 🟡 Lightning contre Thunder fait : **Thunder** retenu (tête 2,9° d'écart-type au lieu de 4,9°) ; MediaPipe pas encore comparé | — |
+| **E5** | Les keypoints sont assez stables | **T3** | écart-type des angles < 3°, personne immobile 60 s | ✅ 1 personne, Thunder : < 3° | rafale + médiane, autre modèle |
 | **E6** | Le placement de la caméra est correct | **T3** | une configuration (1,5 / 2 / 3 m, 2 hauteurs) atteint E3 et E5 | ⬜ | ajuster le placement |
-| **E7** | Les angles distinguent vraiment les postures | **T5** | distributions d'angles bonne / mauvaise bien séparées | ⬜ (enregistrement étiqueté prêt dans `live.py`) | autres métriques, changer de vue |
-| **E8** | Règles + filtre dans le temps donnent peu d'erreurs | **T5** | F1 ≥ 0,80 par posture, < 1 fausse alerte par heure | ⬜ (`evaluer.py` à écrire) | ajuster les seuils, calibration ; classifieur |
-| **E9** | La cadence adaptative suffit | **T7** | même détection qu'une cadence fixe de 2 s, délai < 1 min, nettement moins de captures | ⬜ (`poc.py` à écrire) | ajuster les cadences |
-| **E10** | Le Pi 4 tient la charge en continu | **T1** + endurance | inférence < 150 ms ; 8 h sans baisse de fréquence, < 70 °C | 🟡 ~21 ms mesurés (T1 complet à faire) ; 76 °C en continu dans `live.py` sans dissipateur | dissipateur, cadence plus faible, mini-PC |
+| **E7** | Les angles distinguent vraiment les postures | **T5** | distributions d'angles bonne / mauvaise bien séparées | 🟡 4 volontaires : tête en avant / dos penché bien séparés de la bonne posture ; avachi léger confondu avec « calé au dossier » (seul l'avachi prononcé est gardé) | autres métriques, changer de vue |
+| **E8** | Règles + filtre dans le temps donnent peu d'erreurs | **T5**, **T7** | F1 ≥ 0,80 par posture, < 1 fausse alerte par heure | 🟡 F1 image par image 0,82 (tête en avant ou dos penché), 0,93–0,97 (cou penché, 2 pers.) ; fausses alertes par heure à mesurer en vraie session avec `poc.py` | ajuster les seuils ; classifieur |
+| **E9** | La cadence adaptative suffit | **T7** | même détection qu'une cadence fixe de 2 s, délai < 1 min, nettement moins de captures | ⬜ (`poc.py` écrit, option `--cadence-fixe 2`) | ajuster les cadences |
+| **E10** | Le Pi 4 tient la charge en continu | **T1** + endurance | inférence < 150 ms ; 8 h sans baisse de fréquence, < 70 °C | 🟡 ~70 ms avec Thunder (T1 complet à faire) ; 76 °C en continu dans `live.py` sans dissipateur | dissipateur, cadence plus faible, mini-PC |
 | **E11** | La chaîne de bout en bout fonctionne | — | Pi → backend → mobile : alerte visible en < 5 s | ⬜ | — |
 | **E12** | Le buffer est fiable | — | coupure réseau d'1 h : 0 perte, 0 doublon | ⬜ | revoir l'idempotence |
 | **E13** | Aucune image ne sort ni n'est écrite | **T6** | 0 image sur le réseau (tcpdump), 0 fichier image sur le Pi | ⬜ | corriger avant toute démo |
 | **E14** | La silhouette en direct est utilisable | — | délai Pi → écran < 1 s, mouvement fluide | ⬜ (après le MVP) | interpolation |
-| **E15** | La calibration individuelle améliore la détection | **T5** | F1 meilleur avec calibration | ⬜ | seuils absolus seuls |
+| **E15** | La calibration individuelle améliore la détection | **T5** | F1 meilleur avec calibration | ❌ **réfutée** : F1 0,78 calibré, 0,85 mixte, contre 0,86 avec les seuils fixes (6 enregistrements) | ✅ appliqué : seuils absolus seuls |
 | **E16** *(itération 2)* | Un classifieur fait mieux que les règles | — | F1 supérieur aux règles, validation croisée par personne | ⬜ | garder les règles |
 | **E17** *(itération 2)* | L'analyse photo est faisable sur le téléphone | — | inférence OK sur 2 téléphones | ⬜ | — |
 
@@ -946,12 +957,13 @@ Les tests **T1–T7** de [solution-mvp.md](solution-mvp.md) §8 sont le plan du 
 - Un **ADR** (Architecture Decision Record) par choix validé dans `docs/decisions/` :
 
 ```text
-# ADR-003 — Modèle de pose : MoveNet Lightning
-Statut : accepté (2026-xx-xx)       Expériences : E3, E4, E10
+# ADR-003 — Modèle de pose : MoveNet Thunder
+Statut : accepté (2026-10-12)       Expériences : E3, E4, E10
 Contexte : besoin de keypoints de profil sur Pi 4, à faible cadence
 Options : MoveNet Lightning, MoveNet Thunder, MediaPipe Pose
-Décision : MoveNet Lightning
-Justification : <chiffres de E3/E4/E10> + sources
+Décision : MoveNet Thunder (int8)
+Justification : T4 — angle de la tête 2,9° d'écart-type au lieu de 4,9° (Lightning), hanche
+               confiance 0,62 au lieu de 0,34 ; 70 ms au lieu de 27 ms, négligeable à 1 image / 2 à 10 s
 Conséquences : 17 keypoints, pas de points sur la colonne → TRUNK_FORWARD / TRUNK_BACKWARD
 ```
 
@@ -966,7 +978,7 @@ Valeurs cibles proposées, à confirmer après les premiers benchmarks :
 | IA | F1 par posture, mesuré sur le dataset annoté | ≥ 0,80 |
 | IA | Faux positifs | < 1 alerte injustifiée par heure |
 | IA | Comparaison MoveNet / MediaPipe | tableau précision, stabilité, latence, CPU |
-| Edge | Temps d'inférence MoveNet Lightning sur Pi 4 | < 150 ms (premier essai : ~21 ms) |
+| Edge | Temps d'inférence MoveNet sur Pi 4 | < 150 ms (Thunder : ~70 ms ; Lightning : ~21 à 27 ms) |
 | Edge | CPU moyen à la cadence adaptative | < 25 % (estimé : < 5 %) |
 | Edge | Température en continu sur 8 h | < 70 °C, sans baisse de fréquence |
 | Réseau | **Aucun octet d'image transmis** | démontré par une **capture réseau** (tcpdump / Wireshark) pendant la démo |
@@ -990,14 +1002,14 @@ Valeurs cibles proposées, à confirmer après les premiers benchmarks :
 |---|---|---|---|
 | Keypoints instables (éclairage, occlusion, contre-jour) | moyenne | fort | placement et éclairage documentés, seuil de confiance, complétion d'un point manquant, filtre dans le temps ; rafale de 3 captures si besoin |
 | Hanches masquées | moyenne | moyen | vue latérale ; métrique tronc désactivée si confidence trop faible |
-| Mauvais angle de caméra à l'installation | moyenne | fort | procédure d'installation écrite (distance, hauteur, angle) et calibration individuelle |
+| Mauvais angle de caméra à l'installation | moyenne | fort | procédure d'installation écrite (distance, hauteur, angle) ; contrôle « de profil » (écart des épaules) |
 | Luminosité variable (fenêtres, soir) | moyenne | moyen | tests dans plusieurs environnements et à plusieurs heures |
-| Raspberry trop lent | faible | moyen | modèle Lightning, résolution réduite, cadence de capture réduite |
+| Raspberry trop lent | faible | moyen | revenir à Lightning, résolution réduite, cadence de capture réduite |
 | ~~Wheels LiteRT indisponibles sur le Pi~~ | — | — | **levé** : `ai-edge-litert` installé sans erreur (Python 3.13, aarch64) |
 | ~~Caméra CSI incompatible avec OpenCV~~ | — | — | **levé** : webcam USB retenue |
 | Webcam à vieux pilote qui fige le Pi | constatée | fort | **levé** : LifeCam VX-1000 (`gspca`) remplacée par une Logitech C110 (`uvcvideo`) |
 | Surchauffe du Pi (pas de dissipateur) | moyenne | moyen | cadence adaptative (charge < 5 %) ; dissipateur avant le test d'endurance de 8 h |
-| Seuils non pertinents | forte | moyen | calibration individuelle, sources (CVA, RULA, REBA), validation sur les enregistrements étiquetés (T5) |
+| Seuils non pertinents | forte | moyen | sources (CVA, RULA, REBA), validation sur les enregistrements étiquetés (T5 : F1 0,82) ; calibration individuelle testée et écartée |
 | Exemples enregistrés dans une autre vue que la caméra finale | moyenne | fort | tout enregistrer **de profil**, avec la caméra placée comme en session ; ne mélanger que des données de même vue (§9) |
 | Faible acceptabilité (caméra au poste) | moyenne | fort | aucune image affichée à distance, sessions explicites, signalétique |
 | Dérive du périmètre (trop de fonctions) | forte | fort | MVP strict (§24), itérations courtes |
@@ -1026,7 +1038,7 @@ Noms des étudiants à renseigner, ainsi que la répartition 4.0.4 (backend, web
 
 ```text
 Webcam USB de profil → Pi 4 (cadence adaptative 10 s / 2 s / 30 s) → MoveNet → angles
-→ FORWARD_HEAD / TRUNK_FORWARD / TRUNK_BACKWARD / IMMOBILE → filtre dans le temps
+→ FORWARD_HEAD (dont NECK_FLEXION) / TRUNK_FORWARD / TRUNK_BACKWARD / IMMOBILE (assis trop longtemps) → filtre dans le temps
 → WebSocket (état en direct) + HTTPS (événements, résumés) → NestJS + Prisma → PostgreSQL
 → Mobile : Démarrer / Terminer, état en direct, alertes, conclusions, exercices, progression
 → Web : historique utilisateur, dashboard admin
@@ -1039,10 +1051,10 @@ Webcam USB de profil → Pi 4 (cadence adaptative 10 s / 2 s / 30 s) → MoveNet
 |---|---|---|
 | 0 | Raspberry Pi installé, webcam, LiteRT, MoveNet (E1, E2) | ✅ |
 | 1 | `live.py` : squelette, angles, règles et verdict en direct sur l'écran du Pi | ✅ |
-| 2 | Contrôles : confiance, côté bloqué, complétion d'un point, contrôle de profil ; calibration ; enregistrement étiqueté | ✅ |
-| 3 | Tests T1 complet, T3 (3 personnes × 3 éclairages), enregistrement des volontaires | ⬜ |
-| 4 | `evaluer.py` : F1, distributions d'angles, réglage des seuils (T5) | ⬜ |
-| 5 | `poc.py` : cadence adaptative, filtre dans le temps, événements, score, résumés (T7) | ⬜ |
+| 2 | Contrôles : confiance, côté bloqué, complétion d'un point, contrôle de profil ; calibration (testée puis écartée) ; enregistrement étiqueté | ✅ |
+| 3 | Tests T1 complet, T3 (3 personnes × 3 éclairages), enregistrement des volontaires | 🟡 T3 et T4 sur 1 personne, 4 volontaires enregistrés ; T1 complet à faire |
+| 4 | `evaluer.py` : F1, distributions d'angles, réglage des seuils (T5) | ✅ seuils fixes retenus |
+| 5 | `poc.py` : cadence adaptative, filtre dans le temps, événements, score, résumés (T7) | 🟡 écrit ; vraie session (fausses alertes par heure) et T7 à faire |
 | 6 | Backend : schéma Prisma (§11), WebSocket du Pi, ingestion idempotente, clé de device | ⬜ |
 | 7 | Edge → backend ; buffer SQLite ; T6 (aucune image sur le réseau) | ⬜ |
 | 8 | Mobile : authentification, Démarrer / Terminer, état en direct, alertes, conseils | ⬜ |
@@ -1104,7 +1116,7 @@ web/, mobile/  à créer
 
 | Couche | Technologies |
 |---|---|
-| Edge | Raspberry Pi 4 (Pi OS 64 bits), Python 3.13, webcam USB, OpenCV, MoveNet Lightning, LiteRT, NumPy, SQLite, systemd |
+| Edge | Raspberry Pi 4 (Pi OS 64 bits), Python 3.13, webcam USB, OpenCV, MoveNet Thunder, LiteRT, NumPy, SQLite, systemd |
 | Benchmark IA | MediaPipe Pose |
 | ML (itération 2) | scikit-learn (arbre de décision, Random Forest, SVM) |
 | Communication | WebSocket (Pi ↔ serveur), HTTPS REST/JSON, SSE (serveur → app), notification push, clé API de device, JWT |
@@ -1152,4 +1164,4 @@ Usage de chaque source dans nos seuils : [algo-posture.md](algo-posture.md), « 
 
 ## 29. Décision finale
 
-> **Nous réalisons un POC Edge AI de suivi de posture au poste de travail. Une webcam USB fixe, placée de profil et reliée à un Raspberry Pi 4, capture une image toutes les 2 à 30 secondes selon la situation, uniquement pendant une session démarrée par l'utilisateur depuis l'application mobile. Python, OpenCV, MoveNet Lightning (LiteRT) et nos règles y calculent localement des angles et détectent quatre postures (tête en avant, dos penché en avant, avachi en arrière, immobilité prolongée), avec des seuils issus de l'ergonomie (angle cranio-vertébral, RULA, REBA), calibrés pour chaque personne et confirmés dans le temps. Ni l'image ni les points du corps ne quittent le Pi : seuls un état en direct, des événements et des résumés pseudonymisés sont envoyés (WebSocket et HTTPS, clé de device) à un backend NestJS + Prisma + PostgreSQL au modèle de mesures générique, ouvert à d'autres capteurs. L'application mobile Expo propose sessions, alertes, conclusions, exercices et progression ; le site React offre l'historique utilisateur et le tableau de bord administrateur. Un dataset étiqueté, constitué avec des volontaires sans aucune image, permet de régler les seuils et d'entraîner plus tard un classifieur. L'application rappelle qu'elle ne remplace pas un professionnel de santé. Les évolutions prévues sont la photo mobile frontale, la multi-caméra, le multi-personne, un classifieur appris et d'autres capteurs (IMU, TOF).**
+> **Nous réalisons un POC Edge AI de suivi de posture au poste de travail. Une webcam USB fixe, placée de profil et reliée à un Raspberry Pi 4, capture une image toutes les 2 à 30 secondes selon la situation, uniquement pendant une session démarrée par l'utilisateur depuis l'application mobile. Python, OpenCV, MoveNet Thunder (LiteRT) et nos règles y calculent localement des angles et donnent quatre alertes (tête en avant ou baissée, dos penché en avant, allongé dans la chaise, assis trop longtemps), avec des seuils fixes issus de l'ergonomie (angle cranio-vertébral, RULA, REBA), vérifiés sur des volontaires et confirmés dans le temps. Ni l'image ni les points du corps ne quittent le Pi : seuls un état en direct, des événements et des résumés pseudonymisés sont envoyés (WebSocket et HTTPS, clé de device) à un backend NestJS + Prisma + PostgreSQL au modèle de mesures générique, ouvert à d'autres capteurs. L'application mobile Expo propose sessions, alertes, conclusions, exercices et progression ; le site React offre l'historique utilisateur et le tableau de bord administrateur. Un dataset étiqueté, constitué avec des volontaires sans aucune image, permet de régler les seuils et d'entraîner plus tard un classifieur. L'application rappelle qu'elle ne remplace pas un professionnel de santé. Les évolutions prévues sont la photo mobile frontale, la multi-caméra, le multi-personne, un classifieur appris et d'autres capteurs (IMU, TOF).**

@@ -25,7 +25,7 @@ Les seuils de posture sont vérifiés sur 4 volontaires (T5) ; les autres valeur
 |---|---|---|---|
 | C1 | Côté vu | côté gauche ou droit le mieux vu, choisi au début puis **bloqué** ; change seulement si l'autre a 0,15 de confiance d'avance pendant 5 images d'affilée | `CoteStable` |
 | C2 | Points fiables | confiance de l'oreille, de l'épaule **et** de la hanche ≥ 0,20 | `CONF_MIN` |
-| C2 bis | Trou court | si **un seul** point est sous 0,20 et qu'il était bien vu il y a **≤ 2 s**, on reprend sa dernière position au lieu d'ignorer l'image | `Completeur` |
+| C2 bis | Trou court | si **un seul** point est sous 0,20 et qu'il était bien vu il y a **≤ 2,5 s** (une image à la cadence de 2 s, avec la marge du temps de capture), on reprend sa dernière position au lieu d'ignorer l'image | `Completeur` |
 | C3 | De profil | écart des 2 épaules ÷ longueur du tronc ≤ 0,35 (jamais complété) | `ECART_EPAULES_MAX` |
 
 La caméra peut être à gauche ou à droite : C1 choisit le côté, et le calcul des angles tient compte du sens du regard, donc les angles ont le même sens des deux côtés.
@@ -52,7 +52,7 @@ La caméra peut être à gauche ou à droite : C1 choisit le côté, et le calcu
 - **Pourquoi une règle du cou** : regarder son téléphone baisse aussi l'angle de la tête (48° au lieu de 62–95°), donc « tête en avant » s'allumait. Le nez, lui, plonge sous l'oreille (+55°) ; quand la tête avance, il reste à +13–43°. Une image n'a qu'une cause vers l'avant, par ordre : dos penché, cou penché, tête en avant. Premier essai : 85 % des images « téléphone » reconnues, 0 à 2 % de fausses alertes en bonne posture chez les 4 volontaires ; mais 35 % des têtes en avant du 2ᵉ essai de P01 passent en « cou penché ».
 - **Seuil de la tête : 50° gardé, 45° en réserve.** Au 2ᵉ essai de P01, la tête est restée à 48–51° pendant ~1 min de travail normal (31 % de la calibration sous 50°), sans doute en regardant vers le bas. À 45° : 8 %, pour un F1 presque inchangé (0,83 contre 0,84). On garde la valeur publiée tant que le filtre de 2 min suffit ; si `poc.py` donne trop de fausses alertes en vraie session, passer `SEUILS["tete"]` à 45°.
 - **Allongé, et non « avachi »** : un avachi léger (tronc −20°) se confond avec « calé au dossier » (F1 0,64 en T5). L'alerte ne vise que l'avachi **prononcé** : à −30°, 0,8 % de fausses alertes et 96 % d'alertes justes, mais seulement 35 % des avachis joués en T5 l'atteignaient. Vérifié sur un « allongé » joué (1 personne) : tronc −35° à −47°, 84 % des images sous −30° une fois installé ; à refaire avec d'autres volontaires (nouvelle consigne d'`enregistrer.py`).
-- **Pas de calibration pour les alertes** : la calibration a été testée (écarts à une référence personnelle) puis écartée, voir §5 Temps 2. Elle sert encore au score (§7.4).
+- **Pas de calibration pour les alertes** : la calibration a été testée (écarts à une référence personnelle) puis écartée, voir §5 Temps 2. Le score ne l'utilise pas non plus (§7.4).
 - **La durée de 2 min n'a pas de source** : c'est un choix technique, pour qu'un geste bref (boire, ramasser un stylo) ne déclenche jamais d'alerte. Idée appuyée par la norme **ISO 11226** (postures de travail statiques), pour laquelle le caractère acceptable d'une posture dépend de la **durée** pendant laquelle on la garde. Ajustée par T5 et T7.
 - **Ce qui part au serveur** (jamais d'image, jamais les points du corps) : voir l'[audit technique](Audit_technique_final_Fil_Rouge_Master_UHA_4_0_v3.md) §7.2.
 
@@ -67,6 +67,7 @@ Pourquoi un bocal commun : tête, cou et dos avancent souvent ensemble, et la ca
 | Fenêtre glissante | verdicts des 60 dernières secondes, images IGNORÉES exclues |
 | Début d'alerte | ≥ 70 % de MAUVAISES dans la fenêtre, pendant 2 min d'affilée |
 | Fin d'alerte | < 40 % (l'écart 70 / 40 évite une alerte qui clignote) |
+| Fenêtre vide | plus aucune image jugée depuis 60 s (personne partie, ou mal vue) : l'alerte en cours se termine et le compte des 2 min repart de zéro. Sans cela, une alerte restait ouverte pendant toute l'absence, et une seule image penchée en se rasseyant déclenchait l'alerte (bug trouvé le 13/10 en simulation) |
 | Assis trop longtemps | 50 min devant la caméra ; une absence d'au moins 1 min (la personne s'est levée) remet le compteur à zéro. L'idée de départ (points presque immobiles, déplacement médian < 0,02 du tronc) ne marche pas : mesuré le 12/10, les points tremblent déjà de 0,025 d'une image à l'autre en travail normal (erreurs de MoveNet, respiration, mains), donc personne n'était jamais « immobile » |
 | Absence | personne vue sur aucune des 3 dernières images (ni oreille ni épaule fiable) → cadence de 30 s |
 | Anti-rafale | après la fin d'une alerte, pas de nouvelle alerte de la **même cause** avant 10 min (un « cou penché » juste après un « dos penché » reste signalé) |
@@ -248,7 +249,7 @@ L'idée : chaque corps est différent, donc comparer chaque personne à **sa pro
 
 La raison : la référence d'une **même personne** varie trop. P01, même chaise, même jour : tête de référence 69°, **55°** puis 77° selon ce qu'il faisait pendant les 2 minutes (regarder son téléphone ou son clavier baisse la tête). Un seuil calculé dessus bouge d'autant ; un seuil fixe n'en dépend pas.
 
-**Décidé** : l'alerte utilise les **seuils fixes**. La calibration est gardée pour le **score** (§7.4) et notée dans les CSV (touche `c` de `live.py`).
+**Décidé** : l'alerte utilise les **seuils fixes**, et le score ne dépend pas non plus de la calibration (§7.4). Elle reste seulement notée dans les CSV des outils de mesure (touche `c` de `live.py`) ; `poc.py` ne calibre pas.
 
 ### Temps 3 : ajuster avec de vraies mesures (étapes 4 et 5)
 
@@ -296,11 +297,11 @@ Toutes les quelques secondes, le Pi prend une photo et la fait passer par 4 cont
 ```text
 oreille : 0,85   épaule : 0,90   hanche : 0,78    → tout est au-dessus de 0,2 → ✅ on continue
 oreille : 0,85   épaule : 0,90   hanche : 0,12    → la hanche est mal vue (cachée par le bureau ?)
-   … mais bien vue il y a moins de 2 s           → on reprend sa dernière position → ✅ on continue
+   … mais bien vue il y a 2,5 s au plus          → on reprend sa dernière position → ✅ on continue
    … sinon, ou si 2 points sont mal vus          → ❌ image IGNORÉE (« UNKNOWN »)
 ```
 
-👉 Un trou **court sur un seul point** (bras qui passe devant, confiance qui chute une image) est complété avec l'image d'avant : le corps n'a pas bougé en 2 s. Au-delà, on ne juge pas : on n'invente jamais une posture.
+👉 Un trou **court sur un seul point** (bras qui passe devant, confiance qui chute une image) est complété avec l'image d'avant : le corps n'a pas bougé en 2 secondes. Au-delà, on ne juge pas : on n'invente jamais une posture.
 
 **Guichet 2 : « Est-ce que la personne est bien de profil ? »** On mesure l'écart horizontal entre les deux épaules, divisé par la longueur du tronc (pour ne pas dépendre de la distance à la caméra). De profil, les deux épaules sont l'une derrière l'autre : écart proche de 0. De face, elles sont bien écartées : environ 0,8.
 
@@ -316,7 +317,7 @@ Le seuil de **0,35** (environ 25° de rotation) est une valeur de départ, à aj
 
 **Guichet 3 : « Quels sont les angles ? »** Par exemple : tête = 78°, tronc = +4°.
 
-**Guichet 4 : « Ces angles sont-ils bons ? »** On applique les 3 règles :
+**Guichet 4 : « Ces angles sont-ils bons ? »** On applique les 4 règles :
 
 ```text
 tête en avant ?   78° < 50° ?    NON
@@ -468,6 +469,7 @@ Le café (14:01) n'a pas déclenché d'alerte ; la vraie mauvaise posture (14:03
 | geste bref (café, stylo) | **filtre** : 70 % pendant 2 min |
 | IA qui tremble d'une image à l'autre | **filtre** : une image isolée ne pèse rien |
 | alerte qui clignote | **règle des 40 %** (thermostat) |
+| la personne se rassoit (penchée quelques secondes) | **fenêtre vide** pendant l'absence : le compte des 2 min repart de zéro |
 
 **Erreur 2 : l'ALERTE RATÉE** (mauvaise posture, et rien ne se passe).
 
@@ -502,7 +504,7 @@ Le café (14:01) n'a pas déclenché d'alerte ; la vraie mauvaise posture (14:03
 
 1. **L'IA trouve les points**, elle ne juge pas la posture.
 2. **On ne juge pas une image qu'on voit mal** : point peu sûr ou pas de profil → ignorée.
-3. **Chaque image reçoit un verdict** en comparant ses angles aux seuils (tête < 50°, tronc > 20°, tronc < −30°).
+3. **Chaque image reçoit un verdict** en comparant ses angles aux seuils (tête < 50°, tronc > 20°, cou > 42°, tronc < −30°).
 4. **On n'alerte que sur la durée** : 70 % de mauvaises images pendant 2 minutes, fin sous 40 %. Les gestes brefs et les erreurs ponctuelles de l'IA sont absorbés.
 5. **Les seuils se règlent en mesurant** les vraies postures et en comptant les erreurs.
 
@@ -525,8 +527,8 @@ En travaillant, personne ne regarde son téléphone en permanence : **c'est l'al
 
 ```text
 14:00  Léa ouvre l'app → « Démarrer la session »
-       → « Installez-vous comme d'habitude et travaillez : je m'adapte à vous pendant 2 minutes » (calibration)
-       Elle pose son téléphone et travaille ; aucune alerte pendant ces 2 minutes.
+       → « Installez-vous comme d'habitude et travaillez » (pas de calibration : seuils fixes)
+       Elle pose son téléphone et travaille.
 
 14:00 → 14:03   Tout va bien.
        Écran en direct (si elle regarde) : « Posture correcte 🟢 », score 92
@@ -600,7 +602,7 @@ Ce sont ces couleurs qui remplissent la « Répartition des postures » (Bonne /
 
 | Couche | Ce qu'elle calcule | Pourquoi là |
 |---|---|---|
-| **Pi** | ① score de chaque photo ; ② score moyen et temps 🟢🟠🔴 sur 5 min | seul à avoir les angles et la posture de référence (les points ne sortent pas) |
+| **Pi** | ① score de chaque photo ; ② score moyen et temps 🟢🟠🔴 sur 5 min | seul à avoir les angles de chaque image (les points ne sortent pas) |
 | **Serveur** | ③ stockage ; ④ score par heure, du jour, de la semaine, comparaison avec la veille | seul à voir toutes les sessions d'un utilisateur, sur plusieurs postes et plusieurs jours |
 | **App / site** | ⑤ affichage | — |
 
@@ -713,7 +715,7 @@ L'**entraînement** se fait sur un **PC**. Le Pi ne fait qu'**utiliser** le mod�
 | 2 | **Placer la caméra de profil** | caméra sur le côté, à hauteur d'épaule, à 1,5–3 m ; vérifier dans `live.py` que l'oreille, l'épaule et la hanche du côté caméra sont bien vues | la vue latérale |
 | 3 | **T3** | rester immobile 60 s et regarder si les angles tremblent (objectif : moins de 3° de variation) | les points sont fiables de profil |
 | 4 | **Tester les règles en direct** | dans `live.py`, prendre chaque posture, vérifier que la bonne ligne passe au **rouge**, noter les angles | l'affichage, les degrés, les règles |
-| 5 | **Calibration** | touche `c`, puis comparer | les seuils personnalisés |
+| 5 | **Calibration** ✅ testée, écartée (§5) | touche `c`, puis comparer | les seuils personnalisés : moins bons que les seuils fixes |
 | 6 | **Enregistrer des exemples** (étape 4) | ajouter les touches `0` à `3` dans `live.py` | les données |
 | 7 | **Ajuster les seuils** (étape 5) | `evaluer.py` : distributions et score F1 | les seuils définitifs |
 | 8 | **`poc.py`** | la vraie session ([poc-raspberry.md](poc-raspberry.md) §5.5) | la chaîne complète |
