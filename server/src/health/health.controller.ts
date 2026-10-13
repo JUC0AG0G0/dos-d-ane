@@ -5,6 +5,7 @@ import {
   ApiServiceUnavailableResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Public } from '../auth/decorators.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 @ApiTags('health')
@@ -16,6 +17,7 @@ export class HealthController {
   ) {}
 
   /** Utilisé par Docker (healthcheck) et le front : l'API répond et la base est joignable. */
+  @Public()
   @Get()
   @ApiOkResponse({ description: "L'API répond et la base est joignable" })
   @ApiServiceUnavailableResponse({ description: 'La base est injoignable' })

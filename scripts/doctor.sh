@@ -48,8 +48,10 @@ else
 fi
 
 [ "$QUIET" = 1 ] || echo "Projet"
-if [ -d server/node_modules ]; then ok "dépendances du serveur installées"
-else warn "dépendances du serveur absentes : lancer \`task setup\`"; fi
+for app in server client; do
+  if [ -d "$app/node_modules" ]; then ok "dépendances de $app/ installées"
+  else warn "dépendances de $app/ absentes : lancer \`task setup\`"; fi
+done
 
 case "$(git config core.hooksPath 2>/dev/null)" in
   .husky/*) ok "hooks Git (Husky) actifs" ;;
@@ -58,6 +60,11 @@ esac
 
 if sh scripts/env.sh --check; then ok ".env.dev à jour"
 else warn ".env.dev absent ou incomplet : lancer \`task setup\`"; fi
+if [ -f .env.dev ]; then
+  secret=$(grep '^JWT_SECRET=' .env.dev | cut -d= -f2-)
+  if [ "${#secret}" -ge 32 ]; then ok "JWT_SECRET renseigné"
+  else warn "JWT_SECRET vide ou trop court dans .env.dev : y mettre le résultat de \`openssl rand -base64 48\`"; fi
+fi
 for f in .env .env.* server/.env*; do
   case "$f" in .env.dev | .env.dev.example | *'*'*) continue ;; esac
   [ -f "$f" ] && warn "$f n'est plus utilisé (tout est dans .env.dev) : rm $f"

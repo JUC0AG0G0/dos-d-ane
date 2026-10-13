@@ -22,8 +22,17 @@ tasks:
     deps: [install, hooks, env]
 
   install:
-    desc: Installe les dépendances du serveur (seulement si le lockfile a changé)
+    desc: Installe les dépendances du serveur et du client (seulement si un lockfile a changé)
+    deps: [install:server, install:client]
+
+  install:server:
     dir: server
+    cmd: npm ci --no-audit --no-fund
+    sources: [package.json, package-lock.json]
+    generates: [node_modules/.package-lock.json]
+
+  install:client:
+    dir: client
     cmd: npm ci --no-audit --no-fund
     sources: [package.json, package-lock.json]
     generates: [node_modules/.package-lock.json]
@@ -46,23 +55,40 @@ tasks:
   # --- Vérifications (Husky et CI) ----------------------------------------
 
   lint:
-    desc: Lint et formatage (lancé par Husky avant chaque commit)
+    desc: Lint et formatage du serveur et du client (lancé par Husky avant chaque commit)
+    cmds:
+      - task: lint:app
+        vars: { APP: server }
+      - task: lint:app
+        vars: { APP: client }
+
+  format:
+    desc: Formate le code du serveur et du client
     deps: [install]
-    dir: server
+    cmds:
+      - npm --prefix server run format
+      - npm --prefix client run format
+
+  build:
+    desc: Vérifie que le serveur et le client compilent
+    cmds:
+      - task: build:app
+        vars: { APP: server }
+      - task: build:app
+        vars: { APP: client }
+
+  lint:app:
+    internal: true
+    deps: [install]
+    dir: "{{.APP}}"
     cmds:
       - npm run lint
       - npm run format:check
 
-  format:
-    desc: Formate le code
+  build:app:
+    internal: true
     deps: [install]
-    dir: server
-    cmd: npm run format
-
-  build:
-    desc: Vérifie que le serveur compile
-    deps: [install]
-    dir: server
+    dir: "{{.APP}}"
     cmd: npm run build
 
   check:
@@ -73,26 +99,60 @@ tasks:
 
   # --- Base de données (Prisma) -------------------------------------------
 
-  db:migrate:
-    desc: Crée et applique une migration après modification de prisma/schema.prisma (stack lancée)
+  db:generate:
+    desc: Crée une migration depuis les changements de prisma/schema.prisma, sans l'appliquer (`-- nom`, stack lancée)
     interactive: true
+    cmd: "{{.COMPOSE}} exec server npm run db:generate -- {{if .CLI_ARGS}}--name {{.CLI_ARGS}}{{end}}"
+
+  db:migrate:
+    desc: Applique à la base les migrations pas encore appliquées (stack lancée)
     cmd: "{{.COMPOSE}} exec server npm run db:migrate"
+
+  db:dump:
+    desc: Exporte la base dans dumps/<date>.sql (stack lancée ; dossier ignoré par Git)
+    cmd: sh scripts/db-dump.sh
+
+  db:restore:
+    desc: Annule la dernière migration (`-- migration` pour revenir à celle-ci, `-- dump` ou `-- fichier.sql` pour charger un dump)
+    interactive: true
+    prompt: La base va être modifiée (migrations annulées ou données remplacées par un dump). Continuer ?
+    cmd: |
+      case "{{.CLI_ARGS}}" in
+        dump) sh scripts/db-restore.sh ;;
+        *.sql) sh scripts/db-restore.sh {{.CLI_ARGS}} ;;
+        *) sh scripts/db-rollback.sh {{.CLI_ARGS}} ;;
+      esac
 
   # --- Docker -------------------------------------------------------------
 
   dev:
-    desc: Lance serveur, base et pgAdmin dans Docker puis affiche les URL
+    desc: Lance client web, serveur, base et pgAdmin dans Docker puis affiche les URL
     deps: [env]
     interactive: true
     cmd: sh scripts/dev.sh
 
+  dev:restore:
+    desc: Relance la stack de dev avec uniquement les données d'un dump (le plus récent, ou `-- fichier.sql`)
+    deps: [env]
+    interactive: true
+    prompt: Les données actuelles de la base seront remplacées par celles du dump. Continuer ?
+    cmds:
+      - sh scripts/dev.sh
+      - sh scripts/db-restore.sh {{.CLI_ARGS}}
+
   up:
-    desc: Construit l'image du serveur (comme en production) et la lance avec la base
+    desc: Construit les images du client et du serveur (comme en production) et les lance avec la base
     cmd: docker compose --env-file .env.dev up -d --build --wait
 
   down:
-    desc: Arrête la stack (les données de la base sont conservées)
+    desc: Arrête la stack ; les données sont gardées pour le prochain `task dev`
     cmd: "{{.COMPOSE}} down --remove-orphans"
+
+  clean:
+    desc: Arrête la stack et SUPPRIME les données (base et node_modules des conteneurs)
+    interactive: true
+    prompt: Toutes les données de la base locale seront perdues. Continuer ?
+    cmd: "{{.COMPOSE}} down --volumes --remove-orphans"
 
   logs:
     desc: Suit les logs de la stack

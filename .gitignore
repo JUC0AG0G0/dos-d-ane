@@ -247,6 +247,8 @@ docker-compose.override.yml
 *.pid.lock
 *.zip
 *.tar.gz
+# Exports de la base (task db:dump) : peuvent contenir des données personnelles
+dumps/
 # Task (cache des checksums de Taskfile)
 .task/
 # Client Prisma généré (prisma generate)
