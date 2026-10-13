@@ -3,7 +3,7 @@
 Chaque push sur `main` (donc chaque PR mergée) déploie l'application sur le serveur, après une CI verte :
 
 1. la CI construit les images, lance la stack de production complète avec des valeurs de test et vérifie que l'API répond à travers nginx ;
-2. le workflow **Déploiement** tourne sur un runner GitHub Actions installé sur le serveur : il y écrit `.env.prod` depuis les secrets GitHub, construit les images puis redémarre la stack (`scripts/deploy.sh`). Si la compilation échoue, la version en ligne n'est pas touchée.
+2. le job **deploy** de la CI tourne sur un runner GitHub Actions installé sur le serveur : il y écrit `.env.prod` depuis les secrets GitHub, construit les images puis redémarre la stack (`scripts/deploy.sh`). Si la compilation échoue, la version en ligne n'est pas touchée.
 
 Le serveur étant sur un réseau privé, c'est le runner qui va chercher le travail chez GitHub (connexion sortante en HTTPS) : aucun port n'est à ouvrir vers l'extérieur.
 
@@ -87,7 +87,7 @@ Dans le ruleset de `main` (**Settings > Rules > Rulesets**), activer **Require s
 
 ## 5. Déployer
 
-Merger une PR dans `main`, ou **Actions > Déploiement > Run workflow** (sur `main`) pour redéployer. Le site est ensuite sur `http://<IP du serveur>/` depuis le réseau de la formation.
+Merger une PR dans `main`, ou **Actions > CI > Run workflow** (sur `main`) pour redéployer. Le site est ensuite sur `http://<IP du serveur>/` depuis le réseau de la formation.
 
 Sur le serveur, la version en ligne est dans `/opt/dos-d-ane/current` (la précédente dans `/opt/dos-d-ane/previous`) :
 
