@@ -1,7 +1,7 @@
 """Test T5 : les règles reconnaissent-elles les mauvaises postures ? Score F1.
 
-Lit les enregistrements guidés (resultats/P??_*.csv, faits avec tests_poc/enregistrer.py) et rejoue
-les règles de posture_lib (seuils fixes, SEUILS) :
+Lit les enregistrements guidés (resultats/P??_*.csv, faits avec outils/enregistrer.py) et rejoue
+les règles de posture.regles (seuils fixes, SEUILS) :
 - part d'images exploitables et angles par posture ;
 - « penché vers l'avant » (tête en avant, dos penché ou cou penché allumé) : précision, rappel, F1
   au total et par volontaire, meilleurs seuils (optimiste) et, à partir de 2 volontaires, « un volontaire mis
@@ -13,8 +13,8 @@ Une fausse alerte = la règle s'allume en bonne posture (GOOD). Les images TRANS
 CALIBRATION ne comptent pas.
 
 Lancer depuis edge/ avec .venv activé :
-    python -m tests_poc.evaluer                       # tous les resultats/P??_*.csv
-    python -m tests_poc.evaluer resultats/P01_….csv   # fichiers choisis (live_*.csv aussi)
+    python -m outils.evaluer                       # tous les resultats/P??_*.csv
+    python -m outils.evaluer resultats/P01_….csv   # fichiers choisis (live_*.csv aussi)
 """
 
 import argparse
@@ -24,7 +24,9 @@ from pathlib import Path
 
 import numpy as np
 
-from posture_lib import DOSSIER_RESULTATS, SEUILS, angle_cou, postures
+from posture.angles import angle_cou
+from posture.chemins import DOSSIER_RESULTATS
+from posture.regles import SEUILS, postures
 
 PENCHE = {"FORWARD_HEAD": "Tete en avant", "TRUNK_FORWARD": "Dos penche", "NECK_FLEXION": "Cou penche"}
 OBJECTIF_F1 = 0.80
@@ -101,7 +103,7 @@ def main():
         print(f"Ignorés (aucune image hors calibration) : {', '.join(vides)}")
     personnes = [p for p in personnes if p[1]]
     if not personnes:
-        print("Aucun enregistrement à évaluer : lancer d'abord python -m tests_poc.enregistrer P01")
+        print("Aucun enregistrement à évaluer : lancer d'abord python -m outils.enregistrer P01")
         return
 
     print(f"===== {len(personnes)} enregistrement(s) =====")

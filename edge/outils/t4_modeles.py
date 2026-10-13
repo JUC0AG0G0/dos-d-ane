@@ -6,8 +6,8 @@ angles, la part d'images exploitables et le temps de calcul. Mesure aussi la vit
 Aucune image n'est enregistrée ni affichée : seuls des chiffres vont dans resultats/.
 
 Lancer depuis edge/ avec .venv activé :
-    python -m tests_poc.t4_modeles               # 1 minute
-    python -m tests_poc.t4_modeles --duree 120
+    python -m outils.t4_modeles               # 1 minute
+    python -m outils.t4_modeles --duree 120
 Ctrl+C arrête le test et affiche quand même le bilan.
 """
 
@@ -17,12 +17,16 @@ import statistics
 import time
 from datetime import datetime
 
-from posture_lib import (COTES, CONF_MIN, DOSSIER_EDGE, DOSSIER_RESULTATS, CoteStable, MoveNet, angles,
-                         capturer, ouvrir_camera, temperature_pi, throttled_pi)
+from posture.angles import angles
+from posture.camera import capturer, ouvrir_camera
+from posture.chemins import DOSSIER_MODELES, DOSSIER_RESULTATS
+from posture.movenet import MoveNet
+from posture.pi import temperature_pi, throttled_pi
+from posture.points import CONF_MIN, COTES, CoteStable
 
 MODELES = {
-    "lightning": DOSSIER_EDGE / "models" / "movenet_lightning_int8.tflite",
-    "thunder": DOSSIER_EDGE / "models" / "movenet_thunder_int8.tflite",
+    "lightning": DOSSIER_MODELES / "movenet_lightning_int8.tflite",
+    "thunder": DOSSIER_MODELES / "movenet_thunder_int8.tflite",
 }
 NOMS_POINTS = ("oreille", "epaule", "hanche")
 ANGLES = ("tete", "tronc", "tete_tronc")

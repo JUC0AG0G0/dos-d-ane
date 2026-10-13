@@ -7,7 +7,7 @@
 
 ## Les règles en une page
 
-Les seuils de posture sont vérifiés sur 4 volontaires (T5) ; les autres valeurs sont des **valeurs de départ**, réglées ensuite par nos mesures (objectif F1 ≥ 0,80 par alerte, < 1 fausse alerte par heure). Code : `posture_lib.py`.
+Les seuils de posture sont vérifiés sur 4 volontaires (T5) ; les autres valeurs sont des **valeurs de départ**, réglées ensuite par nos mesures (objectif F1 ≥ 0,80 par alerte, < 1 fausse alerte par heure). Code : paquet `posture/` (`regles.py` pour les seuils, `filtre.py` pour le bocal) ; chaque règle est vérifiée par les tests unitaires de `tests/`.
 
 ```text
 ① Capture ─► ② Squelette ─► ③ Contrôles ─► ④ Angles + règles ─► ⑤ Filtre dans le temps ─► alerte
@@ -88,7 +88,7 @@ Pourquoi un bocal commun : tête, cou et dos avancent souvent ensemble, et la ca
 | `poc.py` : filtre dans le temps, cadence, temps assis, événements | ✅ écrit (12/10) ; ⏳ à tester en vraie session (fausses alertes par heure, T7) |
 | (Plus tard, optionnel) entraîner un modèle | ⬜ |
 
-**T5 : 4 volontaires (12/10, Thunder, `tests_poc/enregistrer.py`, 2 min de calibration puis chaque posture 30 s)** — détail dans [poc-raspberry.md](poc-raspberry.md) §7. Score F1 image par image, une posture contre la bonne posture :
+**T5 : 4 volontaires (12/10, Thunder, `outils/enregistrer.py`, 2 min de calibration puis chaque posture 30 s)** — détail dans [poc-raspberry.md](poc-raspberry.md) §7. Score F1 image par image, une posture contre la bonne posture :
 
 | Règle | F1 (4 pers.) | Précision | Verdict |
 |---|---|---|---|
@@ -573,11 +573,11 @@ Ce sont ces couleurs qui remplissent la « Répartition des postures » (Bonne /
 
 ### 7.4 Le score de 0 à 100
 
-**Score d'une période** (5 min, une session, une journée) = **% du temps passé en bonne posture**, hors temps ignoré (image mal vue) et absent. Exemple : sur 2 h suivies, 1 h 30 en bonne posture → score **75**. Code : `posture_lib.Resume`, résumé toutes les 5 min dans `poc.py`.
+**Score d'une période** (5 min, une session, une journée) = **% du temps passé en bonne posture**, hors temps ignoré (image mal vue) et absent. Exemple : sur 2 h suivies, 1 h 30 en bonne posture → score **75**. Code : `posture.score.Resume`, résumé toutes les 5 min dans `poc.py`.
 
 - **Pondéré par le temps** : chaque image compte pour la durée jusqu'à l'image suivante. Sans cela, les moments « en doute » (une image toutes les 2 s) pèseraient 5 fois plus que les moments calmes (toutes les 10 s) et feraient baisser le score à tort.
 - **Pourquoi pas une note par image** (« un peu penché » 96, « très penché » 4) : la formule prévue au départ comptait les degrés d'écart à la référence de calibration. La calibration a été écartée (§5, Temps 2), et une note par degré demanderait de nouveaux chiffres à inventer puis à valider. Le % du temps en bonne posture s'appuie directement sur les règles validées en T5 et se comprend tout de suite.
-- **Le résumé de 5 min** (audit §7.2) donne aussi le temps en 🟢 / 🟠 / 🔴 (couleur du bocal, §7.3), le **temps ignoré** et le temps absent : le temps ignoré montre si la caméra voyait mal pendant la session (outil d'analyse : `tests_poc/confiance.py`).
+- **Le résumé de 5 min** (audit §7.2) donne aussi le temps en 🟢 / 🟠 / 🔴 (couleur du bocal, §7.3), le **temps ignoré** et le temps absent : le temps ignoré montre si la caméra voyait mal pendant la session (outil d'analyse : `outils/confiance.py`).
 
 **Qui calcule quoi (les couches) :**
 

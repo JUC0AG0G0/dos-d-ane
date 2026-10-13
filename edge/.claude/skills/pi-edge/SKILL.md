@@ -1,6 +1,6 @@
 ---
 name: pi-edge
-description: Agir sur le Raspberry Pi du projet depuis le PC (SSH) — lire son état (température, ralentissement, journaux), lancer ou arrêter un test de tests_poc/ ou live.py, suivre un test long, commiter et pousser depuis le Pi. À utiliser dès qu'une commande doit s'exécuter sur le Pi plutôt que sur le PC.
+description: Agir sur le Raspberry Pi du projet depuis le PC (SSH) — lire son état (température, ralentissement, journaux), lancer ou arrêter un test de outils/ ou live.py, suivre un test long, commiter et pousser depuis le Pi. À utiliser dès qu'une commande doit s'exécuter sur le Pi plutôt que sur le PC.
 ---
 
 # Agir sur le Raspberry Pi
@@ -40,13 +40,13 @@ Toujours depuis `edge/` avec le Python du `.venv`. Vérifier avant qu'aucun autr
 **Test court, résultat direct :**
 
 ```bash
-ssh pi 'cd ~/dos-d-ane/edge && .venv/bin/python -m tests_poc.t2_camera --court'
+ssh pi 'cd ~/dos-d-ane/edge && .venv/bin/python -m outils.t2_camera --court'
 ```
 
 **Test long, en arrière-plan** (survit à la déconnexion SSH) :
 
 ```bash
-ssh pi 'cd ~/dos-d-ane/edge && nohup .venv/bin/python -u -m tests_poc.t2_camera > resultats/t2_complet.log 2>&1 &'
+ssh pi 'cd ~/dos-d-ane/edge && nohup .venv/bin/python -u -m outils.t2_camera > resultats/t2_complet.log 2>&1 &'
 ssh pi 'tail -5 ~/dos-d-ane/edge/resultats/t2_complet.log'      # suivre
 ```
 
@@ -66,8 +66,8 @@ ssh pi 'cd ~/dos-d-ane/edge && XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wa
 - **Code Python multi-lignes** : l'envoyer par l'entrée standard avec un heredoc entre apostrophes, pas dans la chaîne SSH (les guillemets échappés y cassent les f-strings) :
   ```bash
   ssh pi 'cd ~/dos-d-ane/edge && .venv/bin/python -' << 'EOF'
-  import posture_lib as L
-  print(L.temperature_pi())
+  from posture.pi import temperature_pi
+  print(temperature_pi())
   EOF
   ```
 - **`grep -c` renvoie le code 1 quand il ne trouve rien** : en fin de commande SSH, ça fait passer un « 0 échec » pour une erreur de connexion. Ajouter `|| true` (`grep -c RATÉE fichier.log || true`).

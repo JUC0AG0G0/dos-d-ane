@@ -31,9 +31,13 @@ from datetime import datetime
 import cv2
 import numpy as np
 
-from posture_lib import (COLONNES_CSV, COTES, CONF_MIN, DOSSIER_RESULTATS, DUREE_CALIBRATION, ECART_EPAULES_MAX,
-                         SQUELETTE, Completeur, CoteStable, MoveNet, angles, capturer, ecart_epaules, ligne_csv,
-                         ouvrir_camera, postures, reference)
+from posture.angles import ECART_EPAULES_MAX, angles, ecart_epaules
+from posture.camera import capturer, ouvrir_camera
+from posture.chemins import DOSSIER_RESULTATS
+from posture.mesures import COLONNES_CSV, ligne_csv
+from posture.movenet import MoveNet
+from posture.points import CONF_MIN, COTES, SQUELETTE, Completeur, CoteStable
+from posture.regles import DUREE_CALIBRATION, postures, reference
 
 ETIQUETTES = {"0": "GOOD", "1": "FORWARD_HEAD", "2": "TRUNK_FORWARD", "3": "TRUNK_BACKWARD", "4": "C_SHAPE",
               "5": "NECK_FLEXION"}
@@ -115,7 +119,7 @@ class Enregistreur:
         self.etiquette = None
 
     def ligne(self, pts, cote, a, ref, complete=None):
-        """Une ligne par image si un enregistrement est en cours (voir posture_lib.ligne_csv)."""
+        """Une ligne par image si un enregistrement est en cours (voir posture.mesures.ligne_csv)."""
         if not self.etiquette:
             return
         self.ecrivain.writerow(ligne_csv(self.etiquette, pts, cote, a, ref, complete))

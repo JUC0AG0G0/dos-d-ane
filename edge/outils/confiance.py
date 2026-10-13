@@ -9,8 +9,8 @@ Mesuré le 12/10/2026 : 2 % d'images ignorées, 0,20 gardé (à 0,15, les points
 jusqu'à 30 % du tronc : surtout des hanches cachées par le bureau).
 
 Lancer depuis edge/ avec .venv activé :
-    python -m tests_poc.confiance                       # volontaires et sessions
-    python -m tests_poc.confiance resultats/poc_….csv   # fichiers choisis
+    python -m outils.confiance                       # volontaires et sessions
+    python -m outils.confiance resultats/poc_….csv   # fichiers choisis
 """
 
 import argparse
@@ -20,7 +20,8 @@ from collections import Counter
 
 import numpy as np
 
-from posture_lib import CONF_MIN, COTES, DOSSIER_RESULTATS
+from posture.chemins import DOSSIER_RESULTATS
+from posture.points import CONF_MIN, COTES
 
 POINTS = ("oreille", "epaule", "hanche")
 SEUILS_TESTES = (0.10, 0.15, 0.20, 0.25, 0.30)

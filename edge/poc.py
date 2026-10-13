@@ -13,7 +13,7 @@ Boucle : capture → MoveNet → l'image est oubliée → angles → règles →
 Aucune calibration : les règles utilisent des seuils fixes (algo-posture.md).
 
 Écrit dans resultats/ (chiffres seulement, jamais d'image) :
-    poc_<date>.csv              une ligne par image (format posture_lib.COLONNES_CSV)
+    poc_<date>.csv              une ligne par image (format posture.mesures.COLONNES_CSV)
     poc_<date>_evenements.csv   début et fin de chaque alerte
     poc_<date>_resumes.csv      un résumé toutes les 5 min (audit §7.2)
 Rien n'est encore envoyé au serveur : tout passe par envoyer_evenement(), où l'envoi s'ajoutera.
@@ -30,10 +30,16 @@ import csv
 import time
 from datetime import datetime
 
-from posture_lib import (COLONNES_CSV, DOSSIER_RESULTATS, DUREE_RESUME, Bocal, Completeur, CoteStable, MoveNet,
-                         Resume, TempsAssis,
-                         angles, capturer, ligne_csv, ouvrir_camera, personne_vue, postures, temperature_pi,
-                         throttled_pi)
+from posture.angles import angles
+from posture.camera import capturer, ouvrir_camera
+from posture.chemins import DOSSIER_RESULTATS
+from posture.filtre import Bocal, TempsAssis
+from posture.mesures import COLONNES_CSV, ligne_csv
+from posture.movenet import MoveNet
+from posture.pi import temperature_pi, throttled_pi
+from posture.points import Completeur, CoteStable, personne_vue
+from posture.regles import postures
+from posture.score import DUREE_RESUME, Resume
 
 CADENCE_CALME, CADENCE_DOUTE, CADENCE_ABSENT = 10, 2, 30     # s entre deux images
 IMAGES_ABSENT = 3                                             # images d'affilée sans personne = absent

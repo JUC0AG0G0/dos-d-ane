@@ -5,8 +5,8 @@ mesure le temps de capture et relève la température du Pi.
 Aucune image n'est enregistrée ni affichée : seuls des chiffres vont dans resultats/.
 
 Lancer depuis edge/ avec .venv activé :
-    python -m tests_poc.t2_camera --court     # essai de 1 minute
-    python -m tests_poc.t2_camera             # test complet de 1 heure
+    python -m outils.t2_camera --court     # essai de 1 minute
+    python -m outils.t2_camera             # test complet de 1 heure
 Ctrl+C arrête le test et affiche quand même le bilan.
 """
 
@@ -16,7 +16,9 @@ import statistics
 import time
 from datetime import datetime
 
-from posture_lib import DOSSIER_RESULTATS, capturer, ouvrir_camera, temperature_pi, throttled_pi
+from posture.camera import capturer, ouvrir_camera
+from posture.chemins import DOSSIER_RESULTATS
+from posture.pi import temperature_pi, throttled_pi
 
 
 def main():

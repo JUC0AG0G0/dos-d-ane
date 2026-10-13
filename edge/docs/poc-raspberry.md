@@ -302,7 +302,7 @@ Tous attendent une image carrée en `uint8` et renvoient **17 points × (y, x, s
 | L'aperçu de la webcam était saccadé dans VNC | VNC renvoie toute la vidéo par le Wi-Fi | regarder sur un écran HDMI branché au Pi ; les scripts du POC n'affichent rien et ne sont pas concernés |
 | Dans `live.py`, le côté vu (gauche / droite) et les verdicts clignotaient | à chaque image, le côté le mieux vu était recalculé ; de profil, MoveNet devine le côté caché avec une confiance parfois aussi haute | côté **bloqué** (`CoteStable`) : il ne change que si l'autre côté est nettement meilleur 5 images d'affilée. Mesuré ensuite : un seul côté sur 331 images |
 | `UNKNOWN` fréquents alors que la personne était bien de profil (20 % des images) | seuil de confiance de 0,30 trop strict : oreille et épaule souvent vues entre 0,20 et 0,30 | seuil abaissé à **0,20** : 99 % d'images exploitables sur le même enregistrement, angles inchangés (tête 62° en moyenne pour les images récupérées comme pour les autres) |
-| Les points et les angles « tremblaient » sans que la personne bouge (tête de 51° à 97° en 30 s) | MoveNet Lightning place mal l'épaule et la hanche de profil (9 à 13 px de tremblement) ; l'angle de la tête se mesure sur un segment court (oreille–épaule ≈ 70 px), donc quelques pixels font plusieurs degrés. Une autre personne dans le cadre aggravait le problème (MoveNet ne suit qu'une personne et peut mélanger les deux) | test T4 (`tests_poc/t4_modeles.py`) : **Thunder** divise le tremblement de la tête par 1,7 (2,9° au lieu de 4,9°) pour 70 ms par image ; garder le cadre sans autre personne |
+| Les points et les angles « tremblaient » sans que la personne bouge (tête de 51° à 97° en 30 s) | MoveNet Lightning place mal l'épaule et la hanche de profil (9 à 13 px de tremblement) ; l'angle de la tête se mesure sur un segment court (oreille–épaule ≈ 70 px), donc quelques pixels font plusieurs degrés. Une autre personne dans le cadre aggravait le problème (MoveNet ne suit qu'une personne et peut mélanger les deux) | test T4 (`outils/t4_modeles.py`) : **Thunder** divise le tremblement de la tête par 1,7 (2,9° au lieu de 4,9°) pour 70 ms par image ; garder le cadre sans autre personne |
 | Au 1ᵉʳ essai calibré, « tête en avant » s'allumait sur 67 % des images en bonne posture | calibration faite « au garde-à-vous » (référence tête 77,5°, alors que la tête est vers 65–72° en travaillant) | consigne : calibrer assis **comme d'habitude**. Au 2ᵉ essai, 0 % de fausses alertes, mais référence trop basse : la calibration de 10 s reste fragile → remplacée par la **médiane sur 2 min de travail normal** (`DUREE_CALIBRATION`) |
 | Avec un dossier incliné, « appuyé au dossier » et « avachi » se confondent | les 3 points (oreille, épaule, hanche) ne voient pas la courbure du dos. Mesuré le 12/10 : 7° d'écart de tronc seulement (−11° contre −18°), hanche immobile (332 contre 333 px), longueur du tronc −7 % mais trop variable | « avachi » redéfini comme « tronc nettement plus en arrière que la posture habituelle » (calibration faite dans la posture habituelle) ; limite écrite dans `algo-posture.md` §8 |
 | `ssh pi` échouait par moments (« Could not resolve hostname ») | le Wi-Fi de l'école ne transmet pas toujours les noms `.local` | passer par l'IP du Pi (§3.2) |
@@ -319,24 +319,36 @@ Tous attendent une image carrée en `uint8` et renvoient **17 points × (y, x, s
 ~/dos-d-ane/edge/
 ├── docs/                 ← cette documentation
 ├── requirements.txt      ← dépendances Python (versions figées)
+├── requirements-dev.txt  ← + pytest, pour les tests unitaires (PC ou Pi)
+├── pytest.ini            ← les tests unitaires sont dans tests/
 ├── .gitignore            ← exclut models/*.tflite et resultats/
 ├── .venv/                ← environnement Python (non commité)
 ├── models/               ← movenet_thunder_int8.tflite (par défaut), movenet_lightning_*.tflite (non commités)
 ├── README.md             ← installer, lancer, rôle de chaque fichier
-├── posture_lib.py        ← LE CŒUR, commun à tous : caméra, MoveNet, angles, règles (puis filtre, score, profil)
+├── posture/              ← LE CŒUR, commun à tous (paquet Python)
+│   ├── camera.py            ouvrir la webcam, capturer une image fraîche
+│   ├── movenet.py           image → 17 points
+│   ├── points.py            côté vu, point complété, personne présente
+│   ├── angles.py            points → angles tête, tronc, cou ; contrôle « de profil »
+│   ├── regles.py            angles → postures (seuils fixes)
+│   ├── filtre.py            bocal (fenêtre glissante → alertes), temps assis
+│   ├── score.py             résumé de 5 min, score
+│   ├── mesures.py           une ligne de CSV par image
+│   ├── chemins.py, pi.py    dossiers ; température du Pi
 ├── poc.py                ← la vraie session (§5.5) : cadence adaptative, filtre, événements
-├── live.py               ← outil de debug : fenêtre en direct (puis enregistrement d'exemples étiquetés)
-├── tests_poc/            ← outils de mesure, pas utilisés en session
+├── live.py               ← outil de debug : fenêtre en direct, enregistrement d'exemples étiquetés
+├── outils/               ← outils de mesure sur le Pi, pas utilisés en session
 │   ├── t2_camera.py         test caméra
 │   ├── t4_modeles.py        Lightning contre Thunder sur les mêmes images : stabilité et vitesse
 │   ├── t1_vitesse.py        test vitesse de l'IA        (à écrire)
 │   ├── enregistrer.py       enregistrement guidé d'un volontaire (étape 4)
 │   ├── evaluer.py           scores T5 : F1 par posture
 │   └── confiance.py         images ignorées et seuil de confiance
+├── tests/                ← tests unitaires de l'algorithme (pytest), sans webcam ni modèle
 └── resultats/            ← CSV de mesures (jamais d'images, non commités)
 ```
 
-Tous les scripts **importent** `posture_lib.py` au lieu de recopier le code : une correction profite à tous. Les tests se lancent depuis `edge/` avec `python -m tests_poc.t2_camera`.
+Tous les scripts **importent** le paquet `posture` au lieu de recopier le code : une correction profite à tous. Depuis `edge/` : les outils de mesure se lancent avec `python -m outils.t2_camera`, les tests unitaires avec `python -m pytest`.
 
 Le code est directement dans le dépôt (`edge/`) : il est versionné dès le début. Une fois le POC validé, il sera réorganisé en paquet Python (`pyproject.toml`) pour devenir le service du Pi.
 
@@ -362,11 +374,11 @@ def capturer(cam):
 
 L'image n'existe **qu'en mémoire** : on ne l'écrit jamais sur le disque.
 
-⚠️ **Piège des images périmées.** Par défaut, la webcam garde **4 images en réserve**. Après plusieurs secondes sans lecture, ces 4 images sont anciennes, et les lire est instantané. La première version de ce code (3 `grab()` puis `read()`) analysait donc la 4ᵉ image en réserve, **vieille d'environ 5 s**. Mesuré sur le Pi : les 4 premières lectures prennent 0 ms (images en réserve), la 5ᵉ environ 50 ms (image fraîche). Avec une réserve de 1, il suffit de jeter une image. Ce code est celui de `ouvrir_camera()` et `capturer()` dans `posture_lib.py`.
+⚠️ **Piège des images périmées.** Par défaut, la webcam garde **4 images en réserve**. Après plusieurs secondes sans lecture, ces 4 images sont anciennes, et les lire est instantané. La première version de ce code (3 `grab()` puis `read()`) analysait donc la 4ᵉ image en réserve, **vieille d'environ 5 s**. Mesuré sur le Pi : les 4 premières lectures prennent 0 ms (images en réserve), la 5ᵉ environ 50 ms (image fraîche). Avec une réserve de 1, il suffit de jeter une image. Ce code est celui de `ouvrir_camera()` et `capturer()` dans `posture/camera.py`.
 
 ### 5.2 Trouver les points du corps (MoveNet)
 
-MoveNet attend une image **carrée** (192×192 pour Lightning, 256×256 pour Thunder ; `posture_lib.MoveNet` lit la taille dans le modèle) et renvoie **17 points** `(y, x, score)` entre 0 et 1.
+MoveNet attend une image **carrée** (192×192 pour Lightning, 256×256 pour Thunder ; `posture.movenet.MoveNet` lit la taille dans le modèle) et renvoie **17 points** `(y, x, score)` entre 0 et 1.
 
 ```python
 import numpy as np
@@ -406,20 +418,22 @@ Numéros des points utiles :
 
 ### 5.3 Des points aux angles, puis aux postures
 
-Le code est dans `posture_lib.py` (il n'est pas recopié ici, pour ne pas avoir deux versions qui divergent). Le **fonctionnement** (contrôles, angles, règles et sources des seuils, calibration, filtre dans le temps, cadence adaptative) est expliqué **une seule fois**, dans [algo-posture.md](algo-posture.md), « Les règles en une page ».
+Le code est dans le paquet `posture/` (il n'est pas recopié ici, pour ne pas avoir deux versions qui divergent). Le **fonctionnement** (contrôles, angles, règles et sources des seuils, calibration, filtre dans le temps, cadence adaptative) est expliqué **une seule fois**, dans [algo-posture.md](algo-posture.md), « Les règles en une page ».
 
-| Étape | Code dans `posture_lib.py` |
+| Étape | Code dans `posture/` |
 |---|---|
-| choisir le côté vu (gauche / droite) et le bloquer | `CoteStable` |
-| reprendre un seul point mal vu depuis ≤ 2,5 s | `Completeur` |
-| vérifier que la personne est de profil | `ecart_epaules()`, `ECART_EPAULES_MAX` |
-| ignorer les points peu sûrs | `CONF_MIN` |
-| calculer tête, tronc et oreille–épaule–hanche | `angles()` |
-| calculer le cou (oreille → nez) et appliquer les règles (tête < 50°, tronc > 20°, cou > 42°, tronc < −30°, seuils fixes) | `angle_cou()`, `postures()`, `SEUILS` |
-| filtre dans le temps (bocal), temps assis, absence | `Bocal`, `TempsAssis`, `personne_vue()` ; boucle et cadence dans `poc.py` |
-| score de 0 à 100 (% du temps en bonne posture) et résumé de 5 min | `Resume` ; résumé écrit par `poc.py` |
+| choisir le côté vu (gauche / droite) et le bloquer | `points.py` : `CoteStable` |
+| reprendre un seul point mal vu depuis ≤ 2,5 s | `points.py` : `Completeur` |
+| vérifier que la personne est de profil | `angles.py` : `ecart_epaules()`, `ECART_EPAULES_MAX` |
+| ignorer les points peu sûrs | `points.py` : `CONF_MIN` |
+| calculer tête, tronc et oreille–épaule–hanche | `angles.py` : `angles()` |
+| calculer le cou (oreille → nez) et appliquer les règles (tête < 50°, tronc > 20°, cou > 42°, tronc < −30°, seuils fixes) | `angles.py` : `angle_cou()` ; `regles.py` : `postures()`, `SEUILS` |
+| filtre dans le temps (bocal), temps assis, absence | `filtre.py` : `Bocal`, `TempsAssis` ; `points.py` : `personne_vue()` ; boucle et cadence dans `poc.py` |
+| score de 0 à 100 (% du temps en bonne posture) et résumé de 5 min | `score.py` : `Resume` ; résumé écrit par `poc.py` |
 
 **Mode rapide pour les tests** (`python poc.py --rapide`) : fenêtre de 10 s, confirmation de 10 s, anti-rafale de 1 min, « Levez-vous » après 1 min (pause de 15 s), pour ne pas attendre des minutes.
+
+**Tests unitaires** (`python -m pytest` depuis `edge/`, sur le PC ou le Pi, après `pip install -r requirements-dev.txt`) : 78 tests dans `tests/` vérifient chaque règle d'[algo-posture.md](algo-posture.md) avec des points synthétiques, sans webcam ni modèle : angles et sens du regard, images ignorées, côté stable, point complété, seuils, bocal (70 % pendant 2 min, fin sous 40 %, regroupement, changement de nom, anti-rafale, fenêtre vide), temps assis, score. À relancer après chaque modification de `posture/`.
 
 ### 5.4 Ce qui est enregistré pendant le POC
 
@@ -508,7 +522,7 @@ L'écran « session en cours » de l'app n'est donc pas une vidéo : la silhouet
 
 ### Étape 4 — Enregistrer des exemples étiquetés · *1 journée*
 
-- Script `tests_poc/enregistrer.py` ✅ : **enregistrement guidé**, sans rien taper. L'opérateur lance `python -m tests_poc.enregistrer P02` et lit les consignes à voix haute (pendant « tête en avant », le volontaire ne voit pas l'écran). Le script enchaîne (≈ 5 min 45) :
+- Script `outils/enregistrer.py` ✅ : **enregistrement guidé**, sans rien taper. L'opérateur lance `python -m outils.enregistrer P02` et lit les consignes à voix haute (pendant « tête en avant », le volontaire ne voit pas l'écran). Le script enchaîne (≈ 5 min 45) :
 
 | Étape | Durée | Consigne | Étiquette |
 |---|---|---|---|
@@ -525,7 +539,7 @@ L'écran « session en cours » de l'app n'est donc pas une vidéo : la silhouet
 
 ### Étape 5 — T5 : règles et vérification dans le temps · *1 à 2 jours*
 
-- Script `tests_poc/evaluer.py` ✅ : `python -m tests_poc.evaluer` rejoue la règle ([algo-posture.md](algo-posture.md)) sur tous les `resultats/P??_*.csv`.
+- Script `outils/evaluer.py` ✅ : `python -m outils.evaluer` rejoue la règle ([algo-posture.md](algo-posture.md)) sur tous les `resultats/P??_*.csv`.
   - **Distribution des angles** par label (moyenne, écart-type).
   - **Tête en avant ou dos penché** contre la bonne posture : précision, rappel, F1 avec les **seuils actuels**, au total et **par volontaire**, avec les **meilleurs seuils** (optimiste) et en **mettant un volontaire de côté** (seuils choisis sur les autres, testés sur lui).
   - **Cause annoncée** : part des images où l'alerte nomme la bonne posture (tête en avant ou dos penché).

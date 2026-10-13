@@ -1105,7 +1105,7 @@ Reste à faire : **TLS** (reverse proxy devant le serveur), le **schéma Prisma*
 
 ```text
 server/        API NestJS (+ Prisma)
-edge/          Raspberry Pi : posture_lib.py, live.py, poc.py, tests_poc/, docs/
+edge/          Raspberry Pi : posture/ (le cœur), poc.py, live.py, outils/, tests/, docs/
                (branche feat/edge-poc ; consignes dans edge/AGENTS.md)
 web/, mobile/  à créer
 ```

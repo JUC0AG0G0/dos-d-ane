@@ -14,13 +14,16 @@ Documentation de référence : `docs/poc-raspberry.md` (plan, installation, briq
 
 | Fichier | Rôle |
 |---|---|
-| `posture_lib.py` | **le cœur, commun à tous** : `ouvrir_camera()`, `capturer()`, `MoveNet`, `angles()`, `postures()`, `temperature_pi()` |
+| `posture/` | **le cœur, commun à tous** (paquet) : `camera`, `movenet`, `points` (côté, point complété), `angles`, `regles` (`SEUILS`, `postures()`), `filtre` (`Bocal`, `TempsAssis`), `score` (`Resume`), `mesures` (CSV), `chemins`, `pi` |
 | `poc.py` | la vraie session (§5.5) : bocaux, cadence adaptative, événements (sans fenêtre) |
 | `live.py` | outil de debug avec fenêtre (pas utilisé en session) |
-| `tests_poc/` | outils de mesure : `t2_camera.py`, `t4_modeles.py`, `enregistrer.py` (volontaires), `evaluer.py` (F1), `confiance.py` (images ignorées) ; puis `t1_vitesse.py` |
+| `outils/` | outils de mesure sur le Pi : `t2_camera.py`, `t4_modeles.py`, `enregistrer.py` (volontaires), `evaluer.py` (F1), `confiance.py` (images ignorées) ; puis `t1_vitesse.py` |
+| `tests/` | tests unitaires de l'algorithme (pytest), sans webcam ni modèle : `aide.personne()` fabrique des points avec les angles voulus |
 
-- Toute logique réutilisable va dans `posture_lib.py` ; les scripts l'**importent**, ils ne recopient pas de code.
-- Les tests se lancent depuis `edge/` : `python -m tests_poc.t2_camera --court`.
+- Toute logique réutilisable va dans `posture/`, dans le module de son étape ; les scripts l'**importent** (`from posture.regles import postures`), ils ne recopient pas de code.
+- Seuls `posture/camera.py` et `posture/movenet.py` importent OpenCV et LiteRT : les autres modules ne dépendent que de NumPy, pour que les tests tournent sur un PC sans webcam.
+- Les outils de mesure se lancent depuis `edge/` : `python -m outils.t2_camera --court`.
+- **Tests unitaires** : `python -m pytest` depuis `edge/` (après `pip install -r requirements-dev.txt`). Les lancer après toute modification de `posture/`, et ajouter un test pour chaque nouvelle règle ou bug corrigé.
 - Règles d'alerte, seuils fixes `SEUILS` vérifiés sur 4 volontaires (T5) : tête en avant (tête < 50°), dos penché (tronc > 20°), cou penché (nez > 42° sous l'oreille, 2 personnes), allongé dans la chaise (tronc < −30°). Tête en avant et cou penché donnent une seule alerte, « Tête en avant ou baissée » (`poc.py`, `REGROUPEMENT`). Les autres seuils (écart des épaules 0,35, 70 %, 40 %, 2 min…) sont des **valeurs de départ** à ajuster par les tests ; tous seront à terme envoyés par le serveur.
 
 ## Conventions de code
@@ -34,7 +37,7 @@ Documentation de référence : `docs/poc-raspberry.md` (plan, installation, briq
 ## Pièges connus
 
 - **Capture** : la webcam garde des images en réserve ; toujours passer par `ouvrir_camera()` (réserve de 1) et `capturer()` (jette l'image en réserve), sinon on analyse une image vieille de plusieurs secondes.
-- **Une seule application à la fois sur la webcam** : ne pas lancer `live.py` pendant un test (`tests_poc/`) ni l'inverse.
+- **Une seule application à la fois sur la webcam** : ne pas lancer `live.py` pendant un test (`outils/`) ni l'inverse.
 - **Chauffe** : l'IA en continu monte le Pi (sans dissipateur) à ~76 °C en 5 min ; limiter la cadence (`live.py` : 5 images/s). Au-delà de 80 °C le Pi ralentit et fausse les mesures.
 - **Webcam** : utiliser une webcam UVC (pilote `uvcvideo`, actuellement Logitech C110). Les vieux modèles à pilote `gspca_*` ont figé le Pi.
 - **Ne pas installer mise sur le Pi** : utiliser le Python du système avec `edge/.venv`.

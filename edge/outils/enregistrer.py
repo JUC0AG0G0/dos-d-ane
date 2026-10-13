@@ -2,16 +2,16 @@
 
 Enchaîne tout seul : calibration (2 min de travail normal), puis chaque posture 30 s dans un ordre
 tiré au hasard, avec un retour à la posture normale entre deux. Chaque image est écrite dans
-resultats/<code>_<date>.csv avec l'étiquette de l'étape en cours (format : posture_lib.COLONNES_CSV).
+resultats/<code>_<date>.csv avec l'étiquette de l'étape en cours (format : posture.mesures.COLONNES_CSV).
 Les 5 premières secondes de chaque étape sont étiquetées TRANSITION (la personne est en train de
 bouger) et ne comptent pas dans evaluer.py. Aucune image n'est enregistrée.
 
 L'opérateur lit les consignes à voix haute : pendant « tête en avant », le volontaire ne voit pas l'écran.
 
 Lancer depuis edge/ avec .venv activé :
-    python -m tests_poc.enregistrer P02
+    python -m outils.enregistrer P02
 Depuis le PC (fenêtre sur l'écran du Pi, consignes aussi dans le terminal) :
-    ssh -t pi 'cd ~/dos-d-ane/edge && DISPLAY=:0 XDG_RUNTIME_DIR=/run/user/1000 .venv/bin/python -m tests_poc.enregistrer P02'
+    ssh -t pi 'cd ~/dos-d-ane/edge && DISPLAY=:0 XDG_RUNTIME_DIR=/run/user/1000 .venv/bin/python -m outils.enregistrer P02'
 q dans la fenêtre ou Ctrl+C arrête (le CSV garde ce qui a été enregistré).
 """
 
@@ -27,8 +27,14 @@ from datetime import datetime
 import cv2
 
 from live import dessiner, image_affichee, texte
-from posture_lib import (COLONNES_CSV, DOSSIER_RESULTATS, DUREE_CALIBRATION, Completeur, CoteStable, MoveNet,
-                         angles, capturer, ligne_csv, ouvrir_camera, reference, temperature_pi)
+from posture.angles import angles
+from posture.camera import capturer, ouvrir_camera
+from posture.chemins import DOSSIER_RESULTATS
+from posture.mesures import COLONNES_CSV, ligne_csv
+from posture.movenet import MoveNet
+from posture.pi import temperature_pi
+from posture.points import Completeur, CoteStable
+from posture.regles import DUREE_CALIBRATION, reference
 
 # Le 12/10, seul face au Pi, le volontaire changeait de posture jusqu'à 15 s en retard : il ne voyait
 # pas la consigne changer. L'étape suivante est donc annoncée ANNONCE s avant, et les TRANSITION s
@@ -162,7 +168,7 @@ def main():
             print(f"{etiquette:15s} {total:4d} images, {100 * vus / total:3.0f} % exploitables")
     print(f"Température : {temp_debut} °C → {temperature_pi()} °C")
     print(f"Mesures     : {chemin}")
-    print("Puis : python -m tests_poc.evaluer")
+    print("Puis : python -m outils.evaluer")
 
 
 if __name__ == "__main__":
