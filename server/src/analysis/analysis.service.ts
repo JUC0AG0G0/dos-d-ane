@@ -5,15 +5,17 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { AuthContext } from '../auth/auth.guard.js';
+import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type {
   CreateCaptureDto,
   StartAnalysisSessionDto,
 } from './dto/analysis-inputs.dto.js';
-import type {
-  AnalysisSessionDetailDto,
-  AnalysisSessionSummaryDto,
-  CaptureDto,
+import {
+  AnalysisSessionStatus,
+  type AnalysisSessionDetailDto,
+  type AnalysisSessionSummaryDto,
+  type CaptureDto,
 } from './dto/analysis-responses.dto.js';
 
 const captureSelect = {
@@ -37,6 +39,8 @@ type CaptureRow = {
   keypoints: CaptureDto['keypoints'];
 };
 
+type SessionDates = { startedAt: Date | null; endedAt: Date | null };
+
 const toCapture = ({ deviceSession, ...capture }: CaptureRow): CaptureDto => ({
   id: capture.id,
   analysisSessionId: deviceSession.analysisSessionId,
@@ -47,41 +51,68 @@ const toCapture = ({ deviceSession, ...capture }: CaptureRow): CaptureDto => ({
   keypoints: capture.keypoints,
 });
 
-const durationSeconds = (startedAt: Date, endedAt: Date | null): number =>
-  Math.max(
-    0,
-    Math.round(
-      ((endedAt ?? new Date()).getTime() - startedAt.getTime()) / 1000,
-    ),
+const statusOf = ({ startedAt, endedAt }: SessionDates) =>
+  !startedAt
+    ? AnalysisSessionStatus.Setup
+    : endedAt
+      ? AnalysisSessionStatus.Ended
+      : AnalysisSessionStatus.Running;
+
+const durationSeconds = ({ startedAt, endedAt }: SessionDates) =>
+  startedAt
+    ? Math.max(
+        0,
+        Math.round(
+          ((endedAt ?? new Date()).getTime() - startedAt.getTime()) / 1000,
+        ),
+      )
+    : null;
+
+const isUniqueViolation = (error: unknown) =>
+  error instanceof Prisma.PrismaClientKnownRequestError &&
+  error.code === 'P2002';
+
+const deviceBusy = () =>
+  new ConflictException(
+    'Appareil déjà dans une autre session en préparation ou en cours',
   );
 
 @Injectable()
 export class AnalysisService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async start(
+  async create(
     auth: AuthContext,
     dto: StartAnalysisSessionDto,
   ): Promise<AnalysisSessionDetailDto> {
-    const deviceIds = dto.deviceIds ?? [await this.requestDeviceId(auth)];
-    const owned = await this.prisma.device.count({
-      where: { id: { in: deviceIds }, userId: auth.userId },
-    });
-    if (owned !== deviceIds.length) {
-      throw new NotFoundException('Appareil introuvable');
+    let deviceIds = dto.deviceIds;
+    if (deviceIds) {
+      for (const deviceId of deviceIds) {
+        await this.captureDevice(auth.userId, deviceId);
+      }
+    } else {
+      const deviceId = await this.requestDeviceId(auth);
+      const device = await this.prisma.device.findUniqueOrThrow({
+        where: { id: deviceId },
+        select: { captureEligible: true },
+      });
+      deviceIds = device.captureEligible ? [deviceId] : [];
     }
-    const startedAt = new Date();
-    const session = await this.prisma.analysisSession.create({
-      data: {
-        userId: auth.userId,
-        startedAt,
-        deviceSessions: {
-          create: deviceIds.map((deviceId) => ({ deviceId, startedAt })),
+    const now = new Date();
+    try {
+      const session = await this.prisma.analysisSession.create({
+        data: {
+          userId: auth.userId,
+          deviceSessions: {
+            create: deviceIds.map((deviceId) => ({ deviceId, startedAt: now })),
+          },
         },
-      },
-      select: { id: true },
-    });
-    return this.detail(auth.userId, session.id);
+        select: { id: true },
+      });
+      return this.detail(auth.userId, session.id);
+    } catch (error) {
+      throw isUniqueViolation(error) ? deviceBusy() : error;
+    }
   }
 
   async list(userId: string): Promise<AnalysisSessionSummaryDto[]> {
@@ -89,15 +120,20 @@ export class AnalysisService {
       where: { userId },
       select: {
         id: true,
+        createdAt: true,
         startedAt: true,
         endedAt: true,
         deviceSessions: { select: { _count: { select: { captures: true } } } },
       },
-      orderBy: [{ startedAt: 'desc' }, { id: 'desc' }],
+      orderBy: [
+        { startedAt: { sort: 'desc', nulls: 'first' } },
+        { createdAt: 'desc' },
+      ],
     });
     return sessions.map(({ deviceSessions, ...session }) => ({
       ...session,
-      durationSeconds: durationSeconds(session.startedAt, session.endedAt),
+      status: statusOf(session),
+      durationSeconds: durationSeconds(session),
       captureCount: deviceSessions.reduce(
         (sum, ds) => sum + ds._count.captures,
         0,
@@ -111,6 +147,7 @@ export class AnalysisService {
       where: { id, userId },
       select: {
         id: true,
+        createdAt: true,
         startedAt: true,
         endedAt: true,
         deviceSessions: {
@@ -149,9 +186,11 @@ export class AnalysisService {
       );
     return {
       id: session.id,
+      status: statusOf(session),
+      createdAt: session.createdAt,
       startedAt: session.startedAt,
       endedAt: session.endedAt,
-      durationSeconds: durationSeconds(session.startedAt, session.endedAt),
+      durationSeconds: durationSeconds(session),
       captureCount: captures.length,
       deviceCount: session.deviceSessions.length,
       devices: session.deviceSessions.map((ds) => ({
@@ -163,8 +202,35 @@ export class AnalysisService {
     };
   }
 
+  async start(userId: string, id: string): Promise<AnalysisSessionDetailDto> {
+    const status = await this.sessionStatus(userId, id);
+    if (status !== AnalysisSessionStatus.Setup) {
+      throw new ConflictException('Session déjà lancée');
+    }
+    const devices = await this.prisma.deviceSession.count({
+      where: { analysisSessionId: id, endedAt: null },
+    });
+    if (devices === 0) {
+      throw new ConflictException(
+        'Ajoutez un appareil avant de lancer la session',
+      );
+    }
+    await this.prisma.analysisSession.update({
+      where: { id },
+      data: { startedAt: new Date() },
+    });
+    return this.detail(userId, id);
+  }
+
   async stop(userId: string, id: string): Promise<AnalysisSessionDetailDto> {
-    await this.openSession(userId, id);
+    const status = await this.sessionStatus(userId, id);
+    if (status !== AnalysisSessionStatus.Running) {
+      throw new ConflictException(
+        status === AnalysisSessionStatus.Setup
+          ? 'Session pas encore lancée'
+          : 'Session déjà terminée',
+      );
+    }
     const endedAt = new Date();
     await this.prisma.$transaction([
       this.prisma.analysisSession.update({
@@ -179,13 +245,22 @@ export class AnalysisService {
     return this.detail(userId, id);
   }
 
+  async remove(userId: string, id: string): Promise<void> {
+    const { count } = await this.prisma.analysisSession.deleteMany({
+      where: { id, userId },
+    });
+    if (count === 0) {
+      throw new NotFoundException('Session introuvable');
+    }
+  }
+
   async addDevice(
     userId: string,
     id: string,
     deviceId: string,
   ): Promise<AnalysisSessionDetailDto> {
     await this.openSession(userId, id);
-    await this.ownedDevice(userId, deviceId);
+    await this.captureDevice(userId, deviceId);
     const existing = await this.prisma.deviceSession.findUnique({
       where: {
         analysisSessionId_deviceId: { analysisSessionId: id, deviceId },
@@ -195,15 +270,19 @@ export class AnalysisService {
     if (existing && !existing.endedAt) {
       throw new ConflictException('Appareil déjà dans la session');
     }
-    if (existing) {
-      await this.prisma.deviceSession.update({
-        where: { id: existing.id },
-        data: { endedAt: null },
-      });
-    } else {
-      await this.prisma.deviceSession.create({
-        data: { analysisSessionId: id, deviceId, startedAt: new Date() },
-      });
+    try {
+      if (existing) {
+        await this.prisma.deviceSession.update({
+          where: { id: existing.id },
+          data: { endedAt: null },
+        });
+      } else {
+        await this.prisma.deviceSession.create({
+          data: { analysisSessionId: id, deviceId, startedAt: new Date() },
+        });
+      }
+    } catch (error) {
+      throw isUniqueViolation(error) ? deviceBusy() : error;
     }
     return this.detail(userId, id);
   }
@@ -213,11 +292,15 @@ export class AnalysisService {
     id: string,
     deviceId: string,
   ): Promise<AnalysisSessionDetailDto> {
-    await this.openSession(userId, id);
-    const { count } = await this.prisma.deviceSession.updateMany({
-      where: { analysisSessionId: id, deviceId, endedAt: null },
-      data: { endedAt: new Date() },
-    });
+    const status = await this.openSession(userId, id);
+    const where = { analysisSessionId: id, deviceId, endedAt: null };
+    const { count } =
+      status === AnalysisSessionStatus.Setup
+        ? await this.prisma.deviceSession.deleteMany({ where })
+        : await this.prisma.deviceSession.updateMany({
+            where,
+            data: { endedAt: new Date() },
+          });
     if (count === 0) {
       throw new NotFoundException('Appareil absent de la session');
     }
@@ -229,7 +312,14 @@ export class AnalysisService {
     sessionId: string,
     dto: CreateCaptureDto,
   ): Promise<CaptureDto> {
-    await this.openSession(auth.userId, sessionId);
+    const status = await this.sessionStatus(auth.userId, sessionId);
+    if (status !== AnalysisSessionStatus.Running) {
+      throw new ConflictException(
+        status === AnalysisSessionStatus.Setup
+          ? 'Session pas encore lancée'
+          : 'Session terminée',
+      );
+    }
     const deviceId = dto.deviceId ?? (await this.requestDeviceId(auth));
     const deviceSession = await this.prisma.deviceSession.findFirst({
       where: { analysisSessionId: sessionId, deviceId, endedAt: null },
@@ -252,7 +342,7 @@ export class AnalysisService {
     dto: CreateCaptureDto,
   ): Promise<CaptureDto> {
     const deviceId = dto.deviceId ?? (await this.requestDeviceId(auth));
-    await this.ownedDevice(auth.userId, deviceId);
+    await this.captureDevice(auth.userId, deviceId);
     const data = this.captureData(dto);
     const at = data.capturedAt;
     const session = await this.prisma.analysisSession.create({
@@ -285,6 +375,15 @@ export class AnalysisService {
       throw new NotFoundException('Capture introuvable');
     }
     return toCapture(capture);
+  }
+
+  async removeCapture(userId: string, id: string): Promise<void> {
+    const { count } = await this.prisma.capture.deleteMany({
+      where: { id, deviceSession: { analysisSession: { userId } } },
+    });
+    if (count === 0) {
+      throw new NotFoundException('Capture introuvable');
+    }
   }
 
   private captureData(dto: CreateCaptureDto) {
@@ -321,26 +420,43 @@ export class AnalysisService {
     return deviceId;
   }
 
-  private async ownedDevice(userId: string, deviceId: string): Promise<void> {
+  private async captureDevice(userId: string, deviceId: string): Promise<void> {
     const device = await this.prisma.device.findFirst({
       where: { id: deviceId, userId },
-      select: { id: true },
+      select: { captureEligible: true },
     });
     if (!device) {
       throw new NotFoundException('Appareil introuvable');
     }
+    if (!device.captureEligible) {
+      throw new BadRequestException(
+        'Cet appareil ne peut pas envoyer de captures (navigateur web)',
+      );
+    }
   }
 
-  private async openSession(userId: string, id: string): Promise<void> {
+  private async sessionStatus(
+    userId: string,
+    id: string,
+  ): Promise<AnalysisSessionStatus> {
     const session = await this.prisma.analysisSession.findFirst({
       where: { id, userId },
-      select: { endedAt: true },
+      select: { startedAt: true, endedAt: true },
     });
     if (!session) {
       throw new NotFoundException('Session introuvable');
     }
-    if (session.endedAt) {
+    return statusOf(session);
+  }
+
+  private async openSession(
+    userId: string,
+    id: string,
+  ): Promise<AnalysisSessionStatus> {
+    const status = await this.sessionStatus(userId, id);
+    if (status === AnalysisSessionStatus.Ended) {
       throw new ConflictException('Session terminée');
     }
+    return status;
   }
 }

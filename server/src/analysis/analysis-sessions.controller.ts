@@ -14,6 +14,7 @@ import {
   ApiBearerAuth,
   ApiConflictResponse,
   ApiCreatedResponse,
+  ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -43,18 +44,23 @@ export class AnalysisSessionsController {
 
   @Post()
   @ApiOperation({
-    summary: 'Démarre une session d’analyse',
+    summary: 'Crée une session d’analyse en préparation',
     description:
-      'Les captures sont ensuite envoyées une par une sur POST /api/analysis-sessions/{id}/captures.',
+      'Les appareils se règlent ensuite avec /devices, puis la session se lance avec /start. Les captures sont envoyées une par une sur /captures tant qu’elle est en cours.',
   })
   @ApiCreatedResponse({ type: AnalysisSessionDetailDto })
-  @ApiBadRequestResponse({ description: 'Corps invalide' })
+  @ApiBadRequestResponse({
+    description: 'Corps invalide ou appareil qui ne peut pas capturer (web)',
+  })
   @ApiNotFoundResponse({ description: 'Appareil introuvable' })
-  start(
+  @ApiConflictResponse({
+    description: 'Appareil déjà dans une autre session ouverte',
+  })
+  create(
     @CurrentAuth() auth: AuthContext,
     @Body() dto: StartAnalysisSessionDto,
   ): Promise<AnalysisSessionDetailDto> {
-    return this.analysis.start(auth, dto);
+    return this.analysis.create(auth, dto);
   }
 
   @Get()
@@ -80,12 +86,29 @@ export class AnalysisSessionsController {
     return this.analysis.detail(auth.userId, id);
   }
 
-  @Post(':id/stop')
+  @Post(':id/start')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Arrête une session d’analyse' })
+  @ApiOperation({ summary: 'Lance une session en préparation' })
   @ApiOkResponse({ type: AnalysisSessionDetailDto })
   @ApiNotFoundResponse({ description: 'Session introuvable' })
-  @ApiConflictResponse({ description: 'Session déjà terminée' })
+  @ApiConflictResponse({
+    description: 'Session déjà lancée ou sans appareil',
+  })
+  start(
+    @CurrentAuth() auth: AuthContext,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<AnalysisSessionDetailDto> {
+    return this.analysis.start(auth.userId, id);
+  }
+
+  @Post(':id/stop')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Arrête une session en cours' })
+  @ApiOkResponse({ type: AnalysisSessionDetailDto })
+  @ApiNotFoundResponse({ description: 'Session introuvable' })
+  @ApiConflictResponse({
+    description: 'Session pas encore lancée ou déjà terminée',
+  })
   stop(
     @CurrentAuth() auth: AuthContext,
     @Param('id', ParseUUIDPipe) id: string,
@@ -93,17 +116,37 @@ export class AnalysisSessionsController {
     return this.analysis.stop(auth.userId, id);
   }
 
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Supprime une session et toutes ses captures',
+    description: 'Quel que soit son état.',
+  })
+  @ApiNoContentResponse({ description: 'Session supprimée' })
+  @ApiNotFoundResponse({ description: 'Session introuvable' })
+  remove(
+    @CurrentAuth() auth: AuthContext,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    return this.analysis.remove(auth.userId, id);
+  }
+
   @Post(':id/devices')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Ajoute un de ses appareils à une session en cours',
-    description: 'Un appareil retiré peut être ajouté de nouveau.',
+    summary:
+      'Ajoute un de ses appareils à une session en préparation ou en cours',
+    description:
+      'Seuls mobile, desktop et raspberry peuvent capturer. Un appareil n’est que dans une session ouverte à la fois ; un appareil retiré peut être ajouté de nouveau.',
   })
   @ApiOkResponse({ type: AnalysisSessionDetailDto })
-  @ApiBadRequestResponse({ description: 'Identifiant invalide' })
+  @ApiBadRequestResponse({
+    description: 'Identifiant invalide ou appareil qui ne peut pas capturer',
+  })
   @ApiNotFoundResponse({ description: 'Session ou appareil introuvable' })
   @ApiConflictResponse({
-    description: 'Session terminée ou appareil déjà dans la session',
+    description:
+      'Session terminée, appareil déjà dans cette session ou dans une autre session ouverte',
   })
   addDevice(
     @CurrentAuth() auth: AuthContext,
@@ -115,9 +158,9 @@ export class AnalysisSessionsController {
 
   @Delete(':id/devices/:deviceId')
   @ApiOperation({
-    summary: 'Retire un appareil d’une session en cours',
+    summary: 'Retire un appareil d’une session en préparation ou en cours',
     description:
-      'Ses captures restent dans la session ; il ne peut plus en envoyer.',
+      'En cours, ses captures restent dans la session ; il ne peut plus en envoyer.',
   })
   @ApiOkResponse({ type: AnalysisSessionDetailDto })
   @ApiNotFoundResponse({
@@ -144,7 +187,8 @@ export class AnalysisSessionsController {
   })
   @ApiNotFoundResponse({ description: 'Session introuvable' })
   @ApiConflictResponse({
-    description: 'Session terminée ou appareil absent de la session',
+    description:
+      'Session pas encore lancée, terminée, ou appareil absent de la session',
   })
   addCapture(
     @CurrentAuth() auth: AuthContext,

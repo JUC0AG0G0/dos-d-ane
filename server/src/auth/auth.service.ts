@@ -10,7 +10,10 @@ import { Prisma } from '../generated/prisma/client.js';
 import { CaptureStatus, DeviceType, Role } from '../entities/index.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { AuthContext } from './auth.guard.js';
-import type { DeviceInputDto } from './dto/device-input.dto.js';
+import type {
+  DeviceInputDto,
+  LoginDeviceType,
+} from './dto/device-input.dto.js';
 import type { LoginDto } from './dto/login.dto.js';
 import type { RegisterDto } from './dto/register.dto.js';
 import type {
@@ -286,6 +289,13 @@ export class AuthService {
   }
 }
 
+const defaultDeviceNames: Record<LoginDeviceType, string> = {
+  [DeviceType.Web]: 'Navigateur',
+  [DeviceType.Mobile]: 'Téléphone',
+  [DeviceType.Desktop]: 'Application desktop',
+  [DeviceType.Raspberry]: 'Raspberry Pi',
+};
+
 async function findOrCreateDevice(
   tx: Prisma.TransactionClient,
   userId: string,
@@ -300,17 +310,18 @@ async function findOrCreateDevice(
     });
     if (existing) return existing;
   }
-  const mobile = type === DeviceType.Mobile;
+  const capture = type !== DeviceType.Web;
   return tx.device.create({
     data: {
       userId,
       type,
-      name: client.deviceName ?? (mobile ? 'Téléphone' : 'Navigateur'),
+      name: client.deviceName ?? defaultDeviceNames[type],
       model: client.deviceModel,
-      // Un téléphone peut capturer, mais la capture reste coupée tant que
-      // l'utilisateur ne l'active pas. Un navigateur ne capture jamais.
-      captureEligible: mobile,
-      captureStatus: mobile ? CaptureStatus.Inactive : null,
+      // Mobile, desktop et Raspberry peuvent capturer, mais la capture reste
+      // coupée tant que l'utilisateur ne l'active pas. Un navigateur ne capture
+      // jamais.
+      captureEligible: capture,
+      captureStatus: capture ? CaptureStatus.Inactive : null,
     },
     select: { id: true },
   });

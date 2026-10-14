@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Post,
@@ -10,6 +13,7 @@ import {
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiCreatedResponse,
+  ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -37,7 +41,8 @@ export class CapturesController {
   })
   @ApiCreatedResponse({ type: CaptureDto })
   @ApiBadRequestResponse({
-    description: 'Corps invalide ou point en dehors de l’image',
+    description:
+      'Corps invalide, point en dehors de l’image ou appareil qui ne peut pas capturer (web)',
   })
   @ApiNotFoundResponse({ description: 'Appareil introuvable' })
   create(
@@ -58,5 +63,17 @@ export class CapturesController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<CaptureDto> {
     return this.analysis.getCapture(auth.userId, id);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Supprime une capture et ses points' })
+  @ApiNoContentResponse({ description: 'Capture supprimée' })
+  @ApiNotFoundResponse({ description: 'Capture introuvable' })
+  remove(
+    @CurrentAuth() auth: AuthContext,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    return this.analysis.removeCapture(auth.userId, id);
   }
 }

@@ -21,7 +21,7 @@ export class StartAnalysisSessionDto {
     type: [String],
     format: 'uuid',
     description:
-      'Appareils qui participent à la session. Par défaut : l’appareil qui fait la requête.',
+      'Appareils qui participent à la session. Par défaut : l’appareil qui fait la requête s’il peut capturer, aucun sinon.',
   })
   @IsOptional()
   @IsArray()

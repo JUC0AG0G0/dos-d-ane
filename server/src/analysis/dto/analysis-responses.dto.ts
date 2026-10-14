@@ -1,12 +1,35 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { BodyPart, DeviceType } from '../../entities/index.js';
 
+export const AnalysisSessionStatus = {
+  Setup: 'setup',
+  Running: 'running',
+  Ended: 'ended',
+} as const;
+export type AnalysisSessionStatus =
+  (typeof AnalysisSessionStatus)[keyof typeof AnalysisSessionStatus];
+
 export class AnalysisSessionSummaryDto {
   @ApiProperty({ format: 'uuid' })
   id: string;
 
+  @ApiProperty({
+    enum: Object.values(AnalysisSessionStatus),
+    enumName: 'AnalysisSessionStatus',
+    description:
+      'setup : en préparation (appareils modifiables, pas de capture) ; running : en cours ; ended : terminée',
+  })
+  status: AnalysisSessionStatus;
+
   @ApiProperty()
-  startedAt: Date;
+  createdAt: Date;
+
+  @ApiProperty({
+    type: Date,
+    nullable: true,
+    description: 'null tant que la session est en préparation',
+  })
+  startedAt: Date | null;
 
   @ApiProperty({
     type: Date,
@@ -16,11 +39,13 @@ export class AnalysisSessionSummaryDto {
   endedAt: Date | null;
 
   @ApiProperty({
+    type: Number,
+    nullable: true,
     example: 1830,
     description:
-      'Durée en secondes (jusqu’à maintenant si la session est en cours)',
+      'Durée en secondes (jusqu’à maintenant si la session est en cours, null en préparation)',
   })
-  durationSeconds: number;
+  durationSeconds: number | null;
 
   @ApiProperty({ example: 42 })
   captureCount: number;

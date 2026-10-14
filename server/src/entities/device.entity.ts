@@ -5,6 +5,8 @@ import { TimestampedEntity } from './base/base.entity.js';
 export const DeviceType = {
   Web: 'web',
   Mobile: 'mobile',
+  Desktop: 'desktop',
+  Raspberry: 'raspberry',
   Camera: 'camera',
 } as const;
 
