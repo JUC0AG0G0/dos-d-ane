@@ -131,9 +131,3 @@ Chaque merge sur `main` déploie l'application sur le serveur, via un runner Git
 ## Licence
 
 Ce projet est sous licence **GNU AGPL v3.0**. Voir le fichier [LICENSE](LICENSE) pour plus de détails.
-
-## Application PC
-
-Application React + Electron : [desktop/README.md](desktop/README.md).
-
-Prototype Python Windows : [README-python.md](README-python.md).
