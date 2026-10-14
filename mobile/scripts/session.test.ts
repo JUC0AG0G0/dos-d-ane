@@ -1,20 +1,16 @@
 /*
- * Tests de src/camera/mesure.ts : message de la carte de statut, score
- * instantané et chronomètre de l'écran « Session en cours ».
+ * Tests de l'écran « Session en cours » : lecture des messages de la page,
+ * message de la carte de statut et chronomètre.
  *
  *   npm test
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import {
-  formaterDuree,
-  lireMesure,
-  messagePosture,
-  scoreInstantane,
-  type Mesure,
-} from '../src/camera/mesure.ts';
+import { messagePosture, type Mesure } from '../src/camera/mesure.ts';
+import { lireMessagePage } from '../src/page/messages.ts';
 import type { Niveau, SensTronc } from '../src/page/posture.ts';
+import { formaterDuree } from '../src/utils/duree.ts';
 
 const mesure = (
   cou: Niveau,
@@ -32,13 +28,18 @@ const mesure = (
 
 const personne: Mesure = { type: 'mesure', personne: false };
 
-test('lireMesure ne garde que les messages de type mesure', () => {
-  assert.deepEqual(lireMesure('{"type":"mesure","personne":false}'), {
+test('lireMessagePage : seulement les messages connus de la page', () => {
+  assert.deepEqual(lireMessagePage('{"type":"mesure","personne":false}'), {
     type: 'mesure',
     personne: false,
   });
-  assert.equal(lireMesure('{"type":"etat","message":"ok"}'), null);
-  assert.equal(lireMesure('pas du json'), null);
+  assert.deepEqual(lireMessagePage('{"type":"erreur","message":"Caméra refusée"}'), {
+    type: 'erreur',
+    message: 'Caméra refusée',
+  });
+  assert.equal(lireMessagePage('{"type":"autre"}'), null);
+  assert.equal(lireMessagePage('null'), null);
+  assert.equal(lireMessagePage('pas du json'), null);
 });
 
 test('le cou passe avant le tronc dans le message', () => {
@@ -60,13 +61,6 @@ test('rien de mesurable : pas d’alerte', () => {
   assert.equal(messagePosture(null).alerte, false);
   assert.equal(messagePosture(personne).alerte, false);
   assert.equal(messagePosture(mesure('gris', 'gris')).titre, 'Position non mesurable');
-});
-
-test('score instantané : celui de posture.ts, arrondi', () => {
-  assert.equal(scoreInstantane(mesure('vert', 'orange', 87.6)), 88);
-  assert.equal(scoreInstantane(mesure('gris', 'gris', null)), null);
-  assert.equal(scoreInstantane(personne), null);
-  assert.equal(scoreInstantane(null), null);
 });
 
 test('chronomètre', () => {

@@ -1,7 +1,7 @@
 name: CI
 
 # Lint et compilation du serveur et du client, tests de l'algorithme edge
-# (Python), stack de production lancée dans Docker, secrets de production (vers main), puis déploiement sur main.
+# (Python), vérifications de l'app mobile, stack de production lancée dans Docker, secrets de production (vers main), puis déploiement sur main.
 # Le job « ci-ok » résume les vérifications pour la protection de branche.
 on:
   pull_request:
@@ -67,6 +67,15 @@ jobs:
       - name: Tests de l'algorithme de posture
         run: task test:edge
 
+  # App mobile (Expo) : typecheck, lint, tests et page d'analyse à jour.
+  mobile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: jdx/mise-action@v3
+      - name: Vérifications de l'app mobile
+        run: task mobile:check
+
   # Avant main : tous les secrets de .env.prod.example doivent exister.
   prod-secrets:
     if: github.base_ref == 'main' || github.ref == 'refs/heads/main'
@@ -80,7 +89,7 @@ jobs:
 
   ci-ok:
     if: always()
-    needs: [apps, edge, docker, prod-secrets]
+    needs: [apps, edge, mobile, docker, prod-secrets]
     runs-on: ubuntu-latest
     steps:
       - name: Vérifier que tous les jobs ont réussi

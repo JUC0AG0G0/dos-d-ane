@@ -1,37 +1,19 @@
 /*
  * Caméra -> MoveNet (TensorFlow.js) -> points dessinés sur un canvas.
  * Aucune image n'est enregistrée ni envoyée : les frames servent au rendu et à
- * l'inférence, puis sont jetées. Seules les librairies et le modèle sont
- * téléchargés (CDN jsDelivr + storage.googleapis.com), au premier chargement.
- *
- * Compilé avec posture.ts en un seul fichier public/pose.js par
- * `npm run build:page` (esbuild) : la page est servie telle quelle à la
- * WebView, sans étape de compilation côté téléphone.
+ * l'inférence, puis sont jetées. TensorFlow.js est inclus dans la page ; seul
+ * le modèle MoveNet est téléchargé (tfhub.dev), au premier chargement.
  */
+import * as poseDetection from '@tensorflow-models/pose-detection';
+import '@tensorflow/tfjs-backend-webgl';
+import '@tensorflow/tfjs-converter';
+import * as tf from '@tensorflow/tfjs-core';
+
 import type { MessagePage } from './messages';
 import * as Posture from './posture';
 import type { Analyse, Point } from './posture';
 
-// ---------------------------------------------------------------------------
-// Bibliothèques chargées par <script> depuis le CDN (voir public/pose.html) :
-// on ne déclare que ce que la page utilise.
-// ---------------------------------------------------------------------------
-type Detecteur = {
-  estimatePoses(
-    video: HTMLVideoElement,
-    options: { flipHorizontal: boolean },
-  ): Promise<{ keypoints?: Point[] }[]>;
-};
-declare const tf: {
-  setBackend(nom: string): Promise<boolean>;
-  ready(): Promise<void>;
-  getBackend(): string;
-};
-declare const poseDetection: {
-  SupportedModels: { MoveNet: string };
-  movenet: { modelType: { SINGLEPOSE_LIGHTNING: string } };
-  createDetector(modele: string, options: { modelType: string }): Promise<Detecteur>;
-};
+type Detecteur = poseDetection.PoseDetector;
 
 /** Fenêtre de la WebView : pont vers l'app et commandes appelées par l'app. */
 const fenetre = window as Window & {
@@ -61,27 +43,22 @@ const SEUIL = Posture.CONFIG.minKeypointScore;
 const lisseur = Posture.creerLisseur();
 const suiveurCote = Posture.creerSuiveurCote();
 
-// Mode « session » (pose.html?mode=session) : la page est intégrée dans
-// l'écran de session de l'app, qui affiche lui-même les mesures. Le panneau
-// de texte est masqué et les mesures sont envoyées à l'app.
+// pose.html?mode=session : page intégrée à l'écran de session de l'app, qui
+// affiche elle-même les mesures ; le panneau de texte de la page est masqué.
 const MODE_SESSION = /[?&]mode=session\b/.test(location.search);
 if (MODE_SESSION) document.body.classList.add('session');
 
 // En pause, la caméra reste ouverte mais plus aucune image n'est analysée.
 let enPause = false;
 
-// Les mesures partent vers l'app 4 fois par seconde au plus : assez pour un
-// affichage vivant, sans saturer le pont WebView -> React Native.
+// 4 mesures par seconde au plus : assez pour un affichage vivant, sans saturer
+// le pont WebView -> React Native.
 const INTERVALLE_ENVOI_MS = 250;
 let dernierEnvoi = 0;
 
 /** Envoie un message à l'app React Native, si la page tourne dans une WebView. */
 function envoyer(message: MessagePage) {
-  try {
-    fenetre.ReactNativeWebView?.postMessage(JSON.stringify(message));
-  } catch {
-    /* sans conséquence : la page marche aussi ouverte dans Safari */
-  }
+  fenetre.ReactNativeWebView?.postMessage(JSON.stringify(message));
 }
 
 /** Mesures du moment ; `analyse` à null quand personne n'est détecté. */
@@ -97,7 +74,7 @@ function envoyerMesure(analyse: Analyse | null) {
     type: 'mesure',
     personne: true,
     cote: analyse.cote,
-    score: analyse.score,
+    score: analyse.score === null ? null : Math.round(analyse.score),
     cou: { angle: analyse.cou.angle, niveau: analyse.cou.niveau },
     tronc: {
       angle: analyse.tronc.angle,
@@ -125,25 +102,22 @@ function etat(texte: string, estErreur = false) {
   envoyer({ type: estErreur ? 'erreur' : 'etat', message: texte });
 }
 
-function echec(etape: string, err: unknown): never {
-  const msg = etape + ' : ' + (err instanceof Error ? err.name + ' — ' + err.message : String(err));
-  etat(msg, true);
-  throw err;
+function signalerEchec(etape: string, err: unknown) {
+  etat(etape + ' : ' + (err instanceof Error ? err.name + ' — ' + err.message : String(err)), true);
 }
 
 // ---------------------------------------------------------------------------
 // 1. Caméra
 // ---------------------------------------------------------------------------
 async function demarrerCamera(): Promise<boolean> {
-  // getUserMedia n'existe que dans un CONTEXTE SÉCURISÉ (https:// ou
-  // localhost). Sur une URL http:// en IP locale, l'API est absente.
+  // getUserMedia n'existe qu'en contexte sécurisé (https:// ou localhost).
   if (!window.isSecureContext) {
     etat(
       'Contexte NON sécurisé (' +
         location.protocol +
         '//' +
         location.host +
-        '). getUserMedia est indisponible : il faut du https. Relance avec « npx expo start --tunnel ».',
+        '). getUserMedia est indisponible : la page doit être servie en https (tunnel).',
       true,
     );
     return false;
@@ -163,7 +137,8 @@ async function demarrerCamera(): Promise<boolean> {
       video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
     });
   } catch (err) {
-    echec('Caméra refusée ou indisponible', err);
+    signalerEchec('Caméra refusée ou indisponible', err);
+    return false;
   }
 
   video.srcObject = stream;
@@ -186,13 +161,14 @@ async function demarrerCamera(): Promise<boolean> {
 // ---------------------------------------------------------------------------
 // 2. Modèle
 // ---------------------------------------------------------------------------
-async function chargerModele(): Promise<Detecteur> {
+async function chargerModele(): Promise<Detecteur | null> {
   etat('Chargement du backend WebGL…');
   try {
     await tf.setBackend('webgl');
     await tf.ready();
   } catch (err) {
-    echec('Backend WebGL indisponible', err);
+    signalerEchec('Backend WebGL indisponible', err);
+    return null;
   }
 
   etat('Téléchargement du modèle MoveNet…');
@@ -201,7 +177,8 @@ async function chargerModele(): Promise<Detecteur> {
       modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
     });
   } catch (err) {
-    echec('Chargement de MoveNet', err);
+    signalerEchec('Chargement de MoveNet', err);
+    return null;
   }
 }
 
@@ -214,9 +191,8 @@ function dessiner(keypoints: Point[], analyse: Analyse) {
   const parNom = Posture.indexerPoints(keypoints);
   const noms = Posture.POINTS_PAR_COTE[analyse.cote];
 
-  // Seuls les points mesurés sont dessinés, du côté filmé : oreille, épaule,
-  // hanche, reliés par la nuque (oreille-épaule) et le tronc (épaule-hanche).
-  // Les 14 autres points de MoveNet ne servent à aucune mesure.
+  // Seuls les 3 points mesurés (oreille, épaule, hanche du côté filmé) sont
+  // dessinés, reliés par la nuque et le tronc.
   segment(parNom[noms.epaule], parNom[noms.oreille], analyse.cou.couleur);
   segment(parNom[noms.epaule], parNom[noms.hanche], analyse.tronc.couleur);
 
@@ -273,7 +249,7 @@ async function boucle(detecteur: Detecteur) {
       return;
     }
 
-    let poses: { keypoints?: Point[] }[];
+    let poses: poseDetection.Pose[];
     try {
       poses = await detecteur.estimatePoses(video, { flipHorizontal: false });
     } catch (err) {
@@ -315,20 +291,12 @@ async function boucle(detecteur: Detecteur) {
 
 // ---------------------------------------------------------------------------
 async function main() {
-  try {
-    if (typeof tf === 'undefined' || typeof poseDetection === 'undefined') {
-      etat('TensorFlow.js non chargé : vérifie la connexion internet du téléphone.', true);
-      return;
-    }
-    const cameraOk = await demarrerCamera();
-    if (!cameraOk) return;
-    const detecteur = await chargerModele();
-    etat('Modèle prêt — backend ' + tf.getBackend() + '.');
-    envoyer({ type: 'pret', message: 'camera + movenet OK' });
-    await boucle(detecteur);
-  } catch {
-    /* le message est déjà affiché par echec() */
-  }
+  if (!(await demarrerCamera())) return;
+  const detecteur = await chargerModele();
+  if (!detecteur) return;
+  etat('Modèle prêt — backend ' + tf.getBackend() + '.');
+  envoyer({ type: 'pret', message: 'camera + movenet OK' });
+  await boucle(detecteur);
 }
 
 void main();

@@ -4,10 +4,9 @@ Afficher la **vidéo de la caméra en direct** avec les **points mesurés** (ore
 côté filmé, reliés par la nuque et le tronc) dessinés par-dessus, parmi les 17 points de MoveNet,
 colorés selon la posture, **dans Expo Go uniquement** (pas de development build).
 
-Rien n'est enregistré, rien n'est envoyé : aucune photo, aucune capture, aucune base de données.
-Les images servent à l'affichage et au calcul, puis sont jetées. Seuls téléchargements : les
-librairies TensorFlow.js (CDN jsDelivr) et le modèle MoveNet (tfhub.dev → Kaggle), au premier
-chargement de la page.
+Aucune image n'est enregistrée ni envoyée : les images servent à l'affichage et au calcul, puis
+sont jetées. TensorFlow.js est inclus dans la page (dépendances npm, compilées par esbuild) ; seul
+le modèle MoveNet est téléchargé (tfhub.dev → Kaggle), au premier chargement de la page.
 
 ## Résultat du test (8 octobre 2026)
 
@@ -57,10 +56,8 @@ Puis le dev server, en lui passant cette URL pour qu'elle soit **pré-remplie da
 URL à taper sur le téléphone) :
 
 ```bash
-# terminal 2
-cd mobile
-npm install
-EXPO_PUBLIC_PAGE_URL=https://xxx-yyy-zzz.trycloudflare.com/pose.html npx expo start
+# terminal 2, à la racine du dépôt (installe, compile la page, lance Expo)
+task mobile:start -- https://xxx-yyy-zzz.trycloudflare.com
 ```
 
 Puis **scanner le QR code affiché par le terminal** avec l'app **Expo Go** sur l'iPhone
@@ -99,26 +96,39 @@ iOS 16.4 minimum (contrainte d'Expo Go).
 
 ## Commandes
 
+Depuis la racine du dépôt (`task --list` pour tout voir) :
+
 ```bash
-npm test             # 56 tests (angles, seuils, score, statistiques, test des postures), sans téléphone
-npm run typecheck    # TypeScript : l'app, puis les scripts et tests (scripts/tsconfig.json)
-npx expo lint        # lint
-npm run build:page   # compile la page d'analyse : src/page/*.ts -> public/pose.js et src/pageInline.ts
-npm run check:page   # échoue si public/pose.js ou src/pageInline.ts ne sont pas à jour
+task mobile:start    # installe, compile la page, lance Expo (`-- https://…` : URL du tunnel)
+task mobile:build    # compile la page d'analyse : src/page/*.ts -> public/pose.js
+task mobile:test     # tests (angles, seuils, score, statistiques, test des postures), sans téléphone
+task mobile:check    # typecheck + lint + tests + page à jour (lancé par la CI)
 ```
 
-**Tout est en TypeScript.** La page d'analyse chargée par la WebView (`src/page/pose.ts` et
-`posture.ts`) est compilée par **esbuild** en un seul fichier `public/pose.js`, que le téléphone
-charge tel quel. **Après toute modification de `src/page/`, lancer `npm run build:page`** : sinon
-la WebView garde l'ancienne version. `public/pose.js` et `src/pageInline.ts` sont **générés** : ne
-pas les éditer à la main (ils sont marqués comme tels dans `.gitattributes`).
+Ou dans `mobile/` : `npm test`, `npm run typecheck`, `npx expo lint`, `npm run build:page`,
+`npm run check:page`.
 
-## Les deux modes de l'app
+**Tout est en TypeScript.** La page d'analyse chargée par la WebView (`src/page/pose.ts`,
+`posture.ts` et TensorFlow.js) est compilée par **esbuild** en un seul fichier `public/pose.js`, que
+le téléphone charge tel quel. **Après toute modification de `src/page/`, lancer
+`task mobile:build`** : sinon la WebView garde l'ancienne version. `public/pose.js` est **généré** :
+ne pas l'éditer à la main.
 
-| Bouton | Ce qu'il fait | Attendu |
-| --- | --- | --- |
-| **Lancer la vidéo avec les points** | charge `public/pose.html` depuis le dev server | marche si l'URL est en `https` (donc avec `--tunnel`) |
-| **Essayer en HTML embarqué** | page injectée via `source={{ html }}` | **va probablement échouer** : `getUserMedia` reste bloqué quand la page vient de `loadHTMLString` ([react-native-webview #2004](https://github.com/react-native-webview/react-native-webview/issues/2004)). Gardé pour le constater. |
+## Compte et serveur
+
+L'app commence par **Connexion / Inscription** (mêmes routes et mêmes règles que le site web). Par
+défaut, elle appelle le serveur de l'équipe `http://dos-dane.julescorneille.fr/api`, joignable
+**seulement depuis le Wi-Fi de l'école**. Pour un serveur lancé sur son PC avec `task dev` :
+
+```bash
+EXPO_PUBLIC_API_URL=http://<IP du PC>:3000/api npx expo start
+```
+
+## Test caméra
+
+Le lien « Test caméra » de l'accueil charge `public/pose.html` dans une WebView ; l'URL doit être en
+`https` (tunnel). Une page embarquée dans l'app (`source={{ html }}`) ne marche pas : `getUserMedia`
+y reste bloqué ([react-native-webview #2004](https://github.com/react-native-webview/react-native-webview/issues/2004)).
 
 Le lien **« Ouvrir la même page dans Safari »** sert au diagnostic : si ça marche dans Safari mais
 pas dans l'app, le problème vient de la WebView d'Expo Go, pas du modèle.
@@ -218,7 +228,13 @@ Seuls des codes et des angles sont gardés, sur le téléphone, à part de l'his
 ## Structure
 
 ```
-src/app/_layout.tsx          racine Expo Router : police Inter, pile d'écrans
+src/app/_layout.tsx          racine Expo Router : police Inter, écrans réservés aux connectés
+src/app/connexion.tsx        connexion (POST /api/auth/login), comme le site web
+src/app/inscription.tsx      création de compte (POST /api/auth/register)
+src/auth/                    session (jeton dans expo-secure-store), service et hooks d'auth
+src/services/http.ts         appels à l'API (jeton, erreurs, 401 -> déconnexion)
+src/config/env.ts            adresse de l'API (EXPO_PUBLIC_API_URL) et du site
+src/utils/                   petites fonctions partagées (format de durée…)
 src/app/(onglets)/           Accueil, Session, Résultats, Conseils (maquette Figma)
 src/app/session-en-cours.tsx session : caméra en continu + mesures, Pause / Terminer
 src/app/test-camera.tsx      ce test de faisabilité (lien « Test caméra » en bas de l'accueil)
@@ -229,13 +245,12 @@ src/theme.ts                 couleurs, polices, rayons et marges de la maquette
 src/composants/              composants partagés (cadre d'écran, icônes)
 src/page/posture.ts          angles, seuils, score, sens du tronc (partagé page ↔ app ↔ tests)
 src/page/pose.ts             caméra, MoveNet, dessin du canvas, envoi des mesures à l'app
-src/page/messages.ts         forme des messages page -> app (types partagés)
+src/page/messages.ts         forme et lecture des messages page -> app
 public/pose.html             la page servie par le dev server
-public/pose.js               GÉNÉRÉ (npm run build:page) — src/page/ compilé pour Safari
-src/pageInline.ts            GÉNÉRÉ — page inlinée pour le mode « HTML embarqué »
+public/pose.js               GÉNÉRÉ (task mobile:build) — src/page/ + TensorFlow.js compilés pour Safari
 scripts/build-page.ts        compilation de la page (esbuild)
 scripts/*.test.ts            tests (node --test, TypeScript exécuté directement par Node)
 ```
 
-Le test garde ses deux modes internes (accueil du test et WebView) avec un `useState` ; le reste de
-l'app passe par Expo Router.
+Les données de chaque compte (historique, scores) sont gardées sur le téléphone, séparées par
+utilisateur ; le serveur n'a pas encore de routes pour les sessions d'analyse.

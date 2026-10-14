@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Carte } from '@/composants/elements';
 import { couleurs, espaces, polices } from '@/theme';
 
 /**
@@ -36,15 +35,6 @@ export function EnTete({
   );
 }
 
-/** Contenu provisoire des onglets pas encore construits. */
-export function AVenir({ etape }: { etape: string }) {
-  return (
-    <Carte>
-      <Text style={styles.aVenir}>Écran à venir ({etape}).</Text>
-    </Carte>
-  );
-}
-
 const styles = StyleSheet.create({
   ecran: { flex: 1, backgroundColor: couleurs.fond },
   contenu: {
@@ -61,5 +51,4 @@ const styles = StyleSheet.create({
     color: couleurs.texteSecondaire,
     marginTop: 2,
   },
-  aVenir: { fontFamily: polices.medium, fontSize: 14, color: couleurs.texteSecondaire },
 });

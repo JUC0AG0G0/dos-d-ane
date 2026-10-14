@@ -4,19 +4,14 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { formaterDuree, messagePosture, scoreInstantane, type Mesure } from '@/camera/mesure';
+import { messagePosture, type Mesure } from '@/camera/mesure';
 import { useEnregistrementSession } from '@/camera/enregistrement';
 import { CameraAnalyse, type CommandesCamera } from '@/composants/CameraAnalyse';
 import { IconeAlerte, IconeFeuille, IconeFermer, IconeInfoRond } from '@/composants/icones';
 import { couleurs, espaces, polices, rayons } from '@/theme';
+import { formaterDuree } from '@/utils/duree';
 
-/**
- * Session en cours : la caméra frontale filme en continu, la page
- * public/pose.html (mode session) analyse chaque image avec MoveNet et renvoie
- * les angles du cou et du tronc. Seuls ces chiffres sont gardés, sur le
- * téléphone (scores et angles moyens par heure) : aucune image n'est
- * enregistrée ni envoyée.
- */
+/** Session en cours : la caméra filme en continu ; seuls les angles et scores sont gardés. */
 export default function SessionEnCours() {
   // L'écran ne doit pas se mettre en veille pendant qu'on se filme.
   useKeepAwake();
@@ -76,7 +71,7 @@ export default function SessionEnCours() {
     : erreur
       ? { titre: 'Caméra indisponible', conseil: erreur, alerte: true }
       : messagePosture(mesure);
-  const score = enPause ? null : scoreInstantane(mesure);
+  const score = !enPause && mesure?.personne ? mesure.score : null;
 
   return (
     <SafeAreaView style={styles.ecran} edges={['top', 'bottom']}>

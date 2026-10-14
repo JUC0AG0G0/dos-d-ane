@@ -36,21 +36,17 @@ export type Regle = RegleGrandEstMieux | ReglePetitEstMieux;
 // SEUILS — un seul objet de configuration. Une ligne = une valeur + sa source.
 // ---------------------------------------------------------------------------
 export const CONFIG = {
-  // Confiance minimale d'un point MoveNet pour être utilisé.
-  // Valeur de départ usuelle des exemples TensorFlow.js pour MoveNet, à régler à l'usage.
+  // Confiance minimale d'un point MoveNet : valeur des exemples TensorFlow.js.
   minKeypointScore: 0.3,
 
-  // Lissage : moyenne mobile sur les N dernières positions de chaque point.
-  // MoveNet tremble d'une image à l'autre ; 3 suffit à calmer sans ajouter de
-  // retard visible. Mettre 1 pour désactiver complètement le lissage.
+  // Moyenne mobile sur les N dernières positions de chaque point : 3 calme le
+  // tremblement de MoveNet sans retard visible. 1 désactive le lissage.
   lissageFenetre: 3,
 
-  // Verrouillage du côté filmé : une fois choisi, on ne change de côté que si
-  // l'autre est nettement mieux vu (confiance moyenne plus haute d'au moins
-  // `coteMarge`) pendant `coteImagesPourChanger` images d'affilée. Le test du
-  // 13/10/2026 a montré 54 mesures sur 1 378 (4 %) « basculées » un instant
-  // sur le côté caché, avec des angles absurdes (cou à -9°, tronc à 40°).
-  // Valeurs PROVISOIRES, choisies à la main.
+  // On ne change de côté filmé que si l'autre est mieux vu d'au moins
+  // `coteMarge` pendant `coteImagesPourChanger` images d'affilée : évite les
+  // bascules d'un instant vers le côté caché (4 % des mesures au test du
+  // 13/10/2026). Valeurs choisies à la main.
   coteMarge: 0.1,
   coteImagesPourChanger: 10,
 
@@ -59,19 +55,13 @@ export const CONFIG = {
     // Angle craniovertébral APPROCHÉ : angle entre l'horizontale passant par
     // l'épaule et la droite épaule -> oreille. Plus grand = mieux.
     sens: 'plusGrandEstMieux',
-    // Vert au-dessus de 50° : valeur la plus utilisée dans la littérature
-    // sur l'angle craniovertébral (aucun seuil validé ; fourchette 44–55°
-    // selon les auteurs), et confirmée par notre test du 13/10/2026
-    // (3 participants, 1 378 mesures) : passer de 53° à 50° fait passer la
-    // détection de la bonne posture de 84 % à 92 %, et la détection globale
-    // de 92,9 % à 94,5 %, sans gêner celle de la tête en avant (91 -> 89 %).
-    // Voir mobile/README.md, « Test des postures ».
+    // 50° : seuil le plus courant dans la littérature sur l'angle
+    // craniovertébral (44 à 55° selon les auteurs), validé par le test du
+    // 13/10/2026 (mobile/README.md, « Test des postures »).
     vertAuDessusDe: 50,
-    // Rouge sous 45° : bas de la fourchette de la littérature ; dans le test,
-    // 78 % des mesures « tête en avant » et aucune « bien droit » en dessous.
+    // 45° : bas de la fourchette de la littérature.
     orangeAuDessusDe: 45,
-    // Note 0 à partir de cet angle (voir noteMesure). PROVISOIRE, choisi à la
-    // main : 15° sous la borne orange.
+    // Note 0 à partir de cet angle (voir noteMesure) ; choisi à la main.
     noteZeroEnDessousDe: 30,
     // APPROXIMATION ASSUMÉE : le vrai angle craniovertébral se mesure depuis C7.
     // MoveNet ne donne pas C7, on prend l'épaule à la place : les valeurs
@@ -84,14 +74,11 @@ export const CONFIG = {
     // Angle de la droite épaule -> hanche par rapport à la verticale.
     // Plus petit = mieux (tronc droit).
     sens: 'plusPetitEstMieux',
-    // Rouge au-delà de 20° : ISO 11226 (inclinaison du tronc acceptable
-    // jusqu'à 20°) et palier de RULA. Vert sous 10° : choisi à la main.
-    // Confirmés par le test du 13/10/2026 : 90 % des mesures « bien droit »
-    // sous 7,9°, 90 % des « penché » et « avachi » au-dessus de 18,6°.
+    // 20° : ISO 11226 et RULA ; 10° : choisi à la main. Les deux validés par
+    // le test du 13/10/2026.
     vertEnDessousDe: 10,
     orangeEnDessousDe: 20,
-    // Note 0 à partir de cet angle (voir noteMesure). PROVISOIRE, choisi à la
-    // main : 20° au-dessus de la borne orange.
+    // Note 0 à partir de cet angle (voir noteMesure) ; choisi à la main.
     noteZeroAuDessusDe: 40,
     approximation: 'epaule-hanche en 2D, sans correction de perspective',
   } satisfies ReglePetitEstMieux,

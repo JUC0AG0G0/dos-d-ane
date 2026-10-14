@@ -26,7 +26,7 @@
         position: relative;
         width: 100%;
         background: #111;
-        aspect-ratio: 3 / 4; /* remplacé par le vrai rapport de la vidéo */
+        aspect-ratio: 3 / 4;
       }
       #video,
       #overlay {
@@ -36,9 +36,6 @@
         height: 100%;
       }
       #video {
-        /* La boîte #scene reçoit en JS le rapport d'aspect exact de la vidéo,
-           donc `contain` ne rogne ni ne déforme rien, et le canvas (étiré sur
-           la même boîte) reste pile aligné sur l'image. */
         object-fit: contain;
       }
       #panneau {
@@ -95,13 +92,6 @@
       <div class="etat" id="etat">Démarrage…</div>
     </div>
 
-    <!-- Librairies et modèle téléchargés depuis le CDN au premier chargement.
-         Versions figées pour que le test soit reproductible. -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.22.0/dist/tf-core.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@4.22.0/dist/tf-converter.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.22.0/dist/tf-backend-webgl.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js"></script>
-    <!-- GÉNÉRÉ par `npm run build:page` à partir de src/page/pose.ts et posture.ts. -->
     <script src="./pose.js"></script>
   </body>
 </html>

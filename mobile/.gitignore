@@ -42,3 +42,6 @@ yarn-error.*
 
 # Résultats du test des postures (données de participants, à ne pas versionner)
 donnees-test/
+
+# Réglages locaux de Claude Code (propres à chaque poste)
+.claude/

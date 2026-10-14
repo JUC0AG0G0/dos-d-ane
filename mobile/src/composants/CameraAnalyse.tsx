@@ -2,9 +2,12 @@ import { useImperativeHandle, useMemo, useRef, useState, type Ref } from 'react'
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { WebView } from 'react-native-webview';
 
-import { lireMesure, type Mesure, type Niveau } from '@/camera/mesure';
+import type { Mesure } from '@/camera/mesure';
 import { urlPageParDefaut } from '@/camera/urlPage';
-import { couleurs, couleursNiveau, polices, rayons } from '@/theme';
+import { Pastille } from '@/composants/elements';
+import { PastilleAngle } from '@/composants/PastilleAngle';
+import { lireMessagePage } from '@/page/messages';
+import { couleurs, polices, rayons } from '@/theme';
 
 export type CommandesCamera = { pause: () => void; reprendre: () => void };
 
@@ -61,17 +64,12 @@ export function CameraAnalyse({
           // iOS 15+ : accorde la caméra à la page sans second dialogue.
           mediaCapturePermissionGrantType="grant"
           onMessage={(e) => {
-            const lue = lireMesure(e.nativeEvent.data);
-            if (lue) {
-              setMesure(lue);
-              onMesure(lue);
-              return;
-            }
-            try {
-              const objet = JSON.parse(e.nativeEvent.data);
-              if (objet?.type === 'erreur') onErreur?.(String(objet.message));
-            } catch {
-              /* message non JSON : ignoré */
+            const message = lireMessagePage(e.nativeEvent.data);
+            if (message?.type === 'mesure') {
+              setMesure(message);
+              onMesure(message);
+            } else if (message?.type === 'erreur') {
+              onErreur?.(message.message);
             }
           }}
           onError={({ nativeEvent }) => onErreur?.(nativeEvent.description ?? 'page injoignable')}
@@ -88,9 +86,7 @@ export function CameraAnalyse({
       )}
 
       <View style={styles.pastilles} pointerEvents="none">
-        <View style={[styles.pastille, styles.pastilleVue]}>
-          <Text style={styles.pastilleTexte}>Vue de profil</Text>
-        </View>
+        <Pastille texte="Vue de profil" />
         {mesurePersonne ? (
           <>
             <PastilleAngle
@@ -106,26 +102,6 @@ export function CameraAnalyse({
           </>
         ) : null}
       </View>
-    </View>
-  );
-}
-
-/** « ● Cou 42° », point coloré selon le niveau ; le texte reste lisible sans la couleur. */
-function PastilleAngle({
-  libelle,
-  angle,
-  niveau,
-}: {
-  libelle: string;
-  angle: number | null;
-  niveau: Niveau;
-}) {
-  return (
-    <View style={[styles.pastille, styles.pastilleAngle]}>
-      <View style={[styles.pointNiveau, { backgroundColor: couleursNiveau[niveau] }]} />
-      <Text style={styles.pastilleTexte}>
-        {libelle} {angle === null ? '—' : `${Math.round(angle)}°`}
-      </Text>
     </View>
   );
 }
@@ -160,18 +136,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   pastilles: { position: 'absolute', top: 13, left: 13, gap: 8, alignItems: 'flex-start' },
-  pastille: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderWidth: 1,
-    borderColor: couleurs.vertPale,
-    borderRadius: rayons.pastille,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  pastilleVue: { backgroundColor: couleurs.vertFondPastille },
-  pastilleAngle: { backgroundColor: couleurs.carte },
-  pastilleTexte: { fontFamily: polices.semiBold, fontSize: 12, color: couleurs.vertTexte },
-  pointNiveau: { width: 7, height: 7, borderRadius: 3.5 },
 });

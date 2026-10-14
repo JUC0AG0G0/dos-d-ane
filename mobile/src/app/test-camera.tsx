@@ -14,7 +14,6 @@ import { router } from 'expo-router';
 import { WebView } from 'react-native-webview';
 
 import { urlPageParDefaut } from '@/camera/urlPage';
-import { PAGE_INLINE } from '@/pageInline';
 
 /**
  * Test de faisabilité : afficher la caméra en direct avec les 17 points MoveNet
@@ -23,16 +22,12 @@ import { PAGE_INLINE } from '@/pageInline';
  * `expo-camera` ne donne pas les images à JS dans Expo Go, donc tout se passe
  * dans une WebView : getUserMedia + TensorFlow.js + canvas.
  *
- * getUserMedia exige un CONTEXTE SÉCURISÉ (https:// ou localhost). D'où les
- * deux modes, à tester dans cet ordre :
- *   - 'url'    : la page est servie par le dev server depuis public/pose.html.
- *                Avec `npx expo start --tunnel`, cette URL est en https.
- *   - 'inline' : la page est embarquée dans l'app (source={{ html }}).
- *                Connu pour échouer : getUserMedia reste bloqué quand la page
- *                vient de loadHTMLString (react-native-webview #2004). Gardé
- *                comme test rapide, pour le constater soi-même.
+ * getUserMedia exige un CONTEXTE SÉCURISÉ (https:// ou localhost) : la page
+ * public/pose.html doit être servie en https (tunnel). Une page embarquée dans
+ * l'app (source={{ html }}) ne marche pas : getUserMedia y reste bloqué
+ * (react-native-webview #2004).
  */
-type Mode = 'accueil' | 'url' | 'inline';
+type Mode = 'accueil' | 'video';
 
 export default function TestCamera() {
   const [mode, setMode] = useState<Mode>('accueil');
@@ -74,14 +69,10 @@ export default function TestCamera() {
 
           <Pressable
             style={[styles.bouton, styles.boutonPrincipal]}
-            onPress={() => setMode('url')}
+            onPress={() => setMode('video')}
             disabled={!url}
           >
             <Text style={styles.boutonTexte}>Lancer la vidéo avec les points</Text>
-          </Pressable>
-
-          <Pressable style={styles.bouton} onPress={() => setMode('inline')}>
-            <Text style={styles.boutonTexte}>Essayer en HTML embarqué</Text>
           </Pressable>
 
           <Pressable
@@ -105,28 +96,21 @@ export default function TestCamera() {
     );
   }
 
-  const source =
-    mode === 'inline'
-      ? // baseUrl en https pour tenter d'obtenir un contexte sécurisé.
-        { html: PAGE_INLINE, baseUrl: 'https://localhost/' }
-      : { uri: url };
-
   return (
     <View style={styles.ecran}>
       <StatusBar barStyle="light-content" />
       <View style={styles.barre}>
-        {/* Retour à l'écran d'accueil de ce test, pas à l'app. */}
         <Pressable onPress={() => setMode('accueil')} hitSlop={12}>
           <Text style={styles.retour}>‹ Retour</Text>
         </Pressable>
         <Text style={styles.barreTexte} numberOfLines={1}>
-          {mode === 'inline' ? 'HTML embarqué' : url}
+          {url}
         </Text>
       </View>
 
       <WebView
         style={styles.webview}
-        source={source}
+        source={{ uri: url }}
         originWhitelist={['*']}
         javaScriptEnabled
         domStorageEnabled
@@ -136,10 +120,6 @@ export default function TestCamera() {
         // iOS 15+ : accorde la caméra à la page sans second dialogue. La
         // permission système, elle, est demandée par Expo Go au premier usage.
         mediaCapturePermissionGrantType="grant"
-        // Android : relaie la permission caméra de l'app à la page.
-        onPermissionRequest={(e: { nativeEvent: { grant: () => void } }) =>
-          e.nativeEvent.grant()
-        }
         onMessage={(e) => {
           // Les mesures (4 par seconde) sont pour l'écran de session, pas pour ce journal.
           if (e.nativeEvent.data.includes('"type":"mesure"')) return;
@@ -190,7 +170,11 @@ const styles = StyleSheet.create({
   lien: { paddingVertical: 14, alignItems: 'center' },
   lienTexte: { color: '#2f6fed', fontSize: 13, textAlign: 'center' },
   journal: { marginTop: 16, gap: 4 },
-  journalTexte: { color: '#ddd', fontSize: 12, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
+  journalTexte: {
+    color: '#ddd',
+    fontSize: 12,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
   barre: {
     flexDirection: 'row',
     alignItems: 'center',

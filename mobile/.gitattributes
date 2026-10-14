@@ -1,4 +1,3 @@
-# Fichiers générés par `npm run build:page` à partir de src/page/*.ts :
-# exclus des statistiques de langage de GitHub et repliés dans les diffs.
+# Fichier généré par `npm run build:page` à partir de src/page/*.ts :
+# exclu des statistiques de langage de GitHub et replié dans les diffs.
 public/pose.js linguist-generated=true
-src/pageInline.ts linguist-generated=true

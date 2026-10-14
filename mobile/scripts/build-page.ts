@@ -1,19 +1,13 @@
 /*
- * Construit la page d'analyse servie à la WebView, à partir des sources
- * TypeScript de src/page/ :
+ * Compile la page d'analyse servie à la WebView : src/page/pose.ts (+ posture.ts
+ * et TensorFlow.js) -> public/pose.js, un seul fichier JavaScript pour Safari.
+ * Le téléphone ne compile rien : il charge ce fichier tel quel.
  *
- *   1. src/page/pose.ts (+ posture.ts) -> public/pose.js, un seul fichier
- *      JavaScript pour Safari (esbuild) : le téléphone ne compile rien.
- *   2. public/pose.html avec ce script inclus en clair -> src/pageInline.ts,
- *      pour le mode « HTML embarqué » du test caméra (source={{ html }}).
- *
- *   npm run build:page            # régénère les deux fichiers
- *   npm run build:page -- --check # échoue s'ils ne sont pas à jour (CI)
- *
- * Les deux fichiers produits sont GÉNÉRÉS : ne pas les éditer à la main.
+ *   npm run build:page            # régénère public/pose.js
+ *   npm run build:page -- --check # échoue s'il n'est pas à jour (CI)
  */
-import { build } from 'esbuild';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { build, type Plugin } from 'esbuild';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -22,57 +16,44 @@ const chemin = (p: string) => join(racine, p);
 const verifier = process.argv.includes('--check');
 
 const ENTETE =
-  '// FICHIER GÉNÉRÉ par `npm run build:page` à partir de src/page/ : ne pas éditer à la main.\n';
+  '// FICHIER GÉNÉRÉ par `npm run build:page` à partir de src/page/ : ne pas éditer à la main.';
 
-// 1. Page : TypeScript -> un seul fichier JavaScript lisible.
+// pose-detection importe aussi BlazePose (@mediapipe/pose) et le moteur WebGPU,
+// que la page n'utilise pas (MoveNet + WebGL) : remplacés par un module vide.
+const MODULES_INUTILES = /^(@mediapipe\/pose|@tensorflow\/tfjs-backend-webgpu)$/;
+const moduleVide: Plugin = {
+  name: 'module-vide',
+  setup(b) {
+    b.onResolve({ filter: MODULES_INUTILES }, (args) => ({ path: args.path, namespace: 'vide' }));
+    b.onLoad({ filter: /.*/, namespace: 'vide' }, () => ({ contents: 'module.exports = {};' }));
+  },
+};
+
 const resultat = await build({
   entryPoints: [chemin('src/page/pose.ts')],
   bundle: true,
   format: 'iife',
   // iOS 16.4 minimum (Expo Go 57) : Safari 16 comprend tout le JS moderne.
   target: ['safari16'],
-  banner: { js: ENTETE.trimEnd() },
+  banner: { js: ENTETE },
   charset: 'utf8',
+  minify: true,
+  plugins: [moduleVide],
   write: false,
   logLevel: 'warning',
 });
 const poseJs = resultat.outputFiles[0].text;
 
-// 2. Page inlinée : le <script src="./pose.js"> local remplacé par son code.
-const balise = '<script src="./pose.js"></script>';
-const html = readFileSync(chemin('public/pose.html'), 'utf8');
-if (!html.includes(balise)) {
-  throw new Error(`Balise introuvable dans public/pose.html : ${balise}`);
-}
-// </script> dans le code casserait le parseur HTML : on le neutralise.
-const code = poseJs.replace(/<\/script>/gi, '<\\/script>');
-const pageInline = `${ENTETE}// Source : public/pose.html + src/page/pose.ts + src/page/posture.ts
-export const PAGE_INLINE = ${JSON.stringify(html.replace(balise, `<script>\n${code}</script>`))};
-`;
-
-const sorties: [string, string][] = [
-  ['public/pose.js', poseJs],
-  ['src/pageInline.ts', pageInline],
-];
+const sortie = chemin('public/pose.js');
 
 if (verifier) {
-  const perimes = sorties.filter(([p, contenu]) => {
-    try {
-      return readFileSync(chemin(p), 'utf8') !== contenu;
-    } catch {
-      return true;
-    }
-  });
-  if (perimes.length) {
-    console.error(
-      `Pas à jour : ${perimes.map(([p]) => p).join(', ')}. Lancer \`npm run build:page\`.`,
-    );
+  const actuel = existsSync(sortie) ? readFileSync(sortie, 'utf8') : '';
+  if (actuel !== poseJs) {
+    console.error('public/pose.js n’est pas à jour : lancer `npm run build:page`.');
     process.exit(1);
   }
-  console.log('public/pose.js et src/pageInline.ts sont à jour.');
+  console.log('public/pose.js est à jour.');
 } else {
-  for (const [p, contenu] of sorties) writeFileSync(chemin(p), contenu);
-  console.log(
-    `public/pose.js (${(poseJs.length / 1024).toFixed(1)} Ko) et src/pageInline.ts écrits.`,
-  );
+  writeFileSync(sortie, poseJs);
+  console.log(`public/pose.js écrit (${(poseJs.length / 1024).toFixed(0)} Ko).`);
 }
