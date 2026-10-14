@@ -6,6 +6,5 @@ ALTER TABLE "analysisSessions" ALTER COLUMN "startedAt" DROP NOT NULL;
 ALTER TABLE "analysisSessions" ADD CONSTRAINT "analysisSessions_dates_check"
     CHECK ("endedAt" IS NULL OR ("startedAt" IS NOT NULL AND "endedAt" >= "startedAt"));
 
--- Un appareil n'est que dans une seule session ouverte à la fois.
 CREATE UNIQUE INDEX "deviceSessions_deviceId_open_key"
     ON "deviceSessions" ("deviceId") WHERE "endedAt" IS NULL;
