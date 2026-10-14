@@ -1,6 +1,6 @@
 # Comment l'algorithme détecte la posture
 
-> Explication simple de l'algorithme du POC edge : les points, les axes, les angles, les seuils, et la possibilité d'entraîner un modèle plus tard.
+> Explication simple de l'algorithme du POC edge : les points, les axes, les angles, les seuils, et et le plan pour entraîner un classifieur à la place des règles (§9).
 > Détails techniques et code : [poc-raspberry.md](poc-raspberry.md) §5. Choix, RGPD et messages vers le serveur : [audit technique](Audit_technique_final_Fil_Rouge_Master_UHA_4_0_v3.md) §7 et §15.
 
 ---
@@ -86,7 +86,7 @@ Pourquoi un bocal commun : tête, cou et dos avancent souvent ensemble, et la ca
 | Les angles bougent dans le bon sens pour chaque posture | ✅ vérifié dans `live.py` |
 | Vérifier les seuils sur des volontaires (étapes 4 et 5, T5) | ✅ **4 volontaires** : tête en avant / dos penché F1 0,82 ensemble (ci-dessous) ; « allongé » ✅ sur 1 personne |
 | `poc.py` : filtre dans le temps, cadence, temps assis, événements | ✅ écrit (12/10) ; ⏳ à tester en vraie session (fausses alertes par heure, T7) |
-| (Plus tard, optionnel) entraîner un modèle | ⬜ |
+| (Itération 2) classifieur appris à la place des règles, plan au §9 | ⬜ |
 
 **T5 : 4 volontaires (12/10, Thunder, `outils/enregistrer.py`, 2 min de calibration puis chaque posture 30 s)** — détail dans [poc-raspberry.md](poc-raspberry.md) §7. Score F1 image par image, une posture contre la bonne posture :
 
@@ -672,38 +672,108 @@ Le format exact des trois messages et leur transport (WebSocket, HTTPS, SSE, not
 
 ---
 
-## 9. « Entraîner l'IA » : oui, mais plus tard et en option
+## 9. Entraîner un classifieur à la place des règles (itération 2)
 
-### Ce qu'on n'entraîne pas
+> Plan prêt, **pas encore fait**. Objectif : vérifier si un modèle appris décide mieux que les règles écrites à la main (hypothèse E16 de l'[audit](Audit_technique_final_Fil_Rouge_Master_UHA_4_0_v3.md) §16 et §21), et c'est la partie « IA entraînée » du projet.
 
-**MoveNet**, qui trouve les points, est **déjà entraîné par Google** sur des milliers d'images. On ne le modifie pas.
+### 9.1 Ce qui change, ce qui ne change pas
 
-### Ce qu'on pourrait entraîner plus tard
-
-Au lieu d'écrire les règles à la main (« si tête < 50° »), un **petit modèle** pourrait apprendre la règle à partir des exemples étiquetés :
+Le classifieur remplace **une seule étape** : le verdict d'une image (`posture.regles.postures()`). Les règles actuelles sont déjà un **arbre de décision écrit à la main** (tronc > 20° ? → dos penché ; sinon cou > 42° ? → cou penché ; sinon tête < 50° ? → tête en avant ; tronc < −30° ? → allongé). Le classifieur apprend ces questions et ces seuils à partir d'exemples étiquetés.
 
 ```text
-ENTRÉE : angles (tête, tronc) + éventuellement les points
-SORTIE : « bonne », « tête en avant », « dos penché », « avachi »
-APPRIS À PARTIR DE : des centaines d'exemples étiquetés (étape 4)
+image → MoveNet → points → contrôles (présence, profil, angles possibles) → angles
+      → [ VERDICT DE L'IMAGE : règles aujourd'hui, classifieur demain ]
+      → bocal (70 % pendant 1 min, fin sous 40 %, anti-rafale) → alerte
 ```
 
-C'est utile si les règles simples ne suffisent pas, par exemple pour le dos en « C », qu'aucun angle seul ne capte bien.
-
-### Avec quoi ?
-
-| Outil | Quand |
+| Partie | Avec le classifieur |
 |---|---|
-| **scikit-learn** (arbre de décision, régression logistique) | **premier choix** : simple, rapide, et la décision reste **explicable** |
-| **TensorFlow / Keras** (petit réseau de neurones) | si scikit-learn ne suffit pas. Le modèle s'exporte en **`.tflite`** et tourne sur le Pi avec `ai-edge-litert`, **le même moteur que MoveNet** : rien de nouveau à installer sur le Pi |
+| MoveNet, côté stable, point complété, présence, contrôles C1 à C4, angles | **inchangés** : MoveNet reste pré-entraîné, on ne le réentraîne pas |
+| Verdict d'une image | **remplacé** |
+| Bocal, temps assis, cadence, événements, résumés, score | **inchangés** : le classifieur se trompera aussi de temps en temps, c'est le bocal qui absorbe ces erreurs |
 
-L'**entraînement** se fait sur un **PC**. Le Pi ne fait qu'**utiliser** le modèle entraîné.
+**Pas de modèle « de zéro »** (réseau de neurones sur les images) : il faudrait des milliers d'images de dizaines de personnes, **stocker des images** pour l'entraîner (contraire à la règle « aucune image »), un GPU, et on perdrait ce que MoveNet a déjà appris.
 
-### Pourquoi pas maintenant ?
+### 9.2 Quel modèle
 
-1. **Il faut d'abord des données** : les exemples étiquetés de l'étape 4.
-2. **Les règles simples suffisent peut-être.** Pour un POC, des règles compréhensibles et justifiables valent mieux qu'un modèle « boîte noire ».
-3. **Les mêmes données servent aux deux.** En enregistrant les exemples pour régler les seuils, on prépare déjà un éventuel entraînement : rien n'est perdu.
+| Modèle (scikit-learn) | Rôle |
+|---|---|
+| **Arbre de décision**, profondeur 3 ou 4 | **explicable** : on le dessine et on le compare à l'arbre écrit à la main (retrouve-t-il les mêmes seuils ? d'autres questions ?) |
+| **Forêt aléatoire** (~200 arbres) | **candidat principal** : en général le plus précis sur des tableaux de chiffres avec peu de données ; donne aussi l'importance de chaque angle |
+| *(option)* petit réseau de neurones (MLP) sur les angles | pour comparer ; avec peu de données, il fera probablement moins bien |
+
+Arbres et forêts sont les plus adaptés ici : données en tableau (des angles), **peu d'exemples**, modèle de quelques Ko, prédiction en quelques millisecondes sur le Pi.
+
+### 9.3 Les données
+
+**Seulement les enregistrements étiquetés** d'`enregistrer.py` (`resultats/P??_*.csv`) : chaque image y a les 17 points, les angles **et** la posture demandée (`etiquette`). Les sessions de `poc.py` ne servent pas : elles n'ont pas d'étiquette, et prendre la sortie des règles comme étiquette ferait apprendre les règles, avec leurs erreurs.
+
+État au 14/10/2026 (4 volontaires) :
+
+| Étiquette | Images | Utilisation |
+|---|---|---|
+| GOOD | 993 | ✅ |
+| FORWARD_HEAD | 531 | ✅ |
+| TRUNK_FORWARD | 531 | ✅ |
+| TRUNK_BACKWARD | 531 | ✅ ⚠️ jusqu'à P04, consigne « avachissez-vous » (avachi **léger**), pas « allongé » |
+| NECK_FLEXION | 75 | ❌ 1 seule personne |
+| CALIBRATION | 2 421 | ❌ travail normal, pas forcément une bonne posture (tête à 48–51° chez P01) |
+| TRANSITION | 720 | ❌ changement de posture, étiquette fausse |
+
+Limites à dire dans le rapport : **4 personnes** seulement ; l'étiquette est la **consigne**, pas la vérité (P03 a fait « tête en avant » calé au dossier) ; postures **jouées** 30 s.
+
+**Avant d'entraîner pour de bon : au moins 10 volontaires**, enregistrés au vrai poste, avec en plus les postures que les règles ratent : tête en avant **calée au dossier**, avachi léger et allongé franc (deux étiquettes), téléphone, bonne posture droite **et** calée au dossier (s'appuyer n'est pas une faute). Datasets publics possibles en complément : MultiPosture (Zenodo, 13 personnes, tronc seulement, points à convertir), Sitting Posture (Roboflow, images sur lesquelles passer MoveNet ; licence CC BY 4.0). Écarté : KandenAi (images générées par IA).
+
+**Entrées** : `tete`, `tronc`, `cou`, `tete_tronc`, `ecart_epaules` ; en option, positions du nez et de l'oreille par rapport à l'épaule **divisées par la longueur du tronc**. Pas `longueur_tronc` en pixels : elle dépend de la distance à la caméra (le modèle apprendrait « P02 était plus loin »). **Sortie** : l'étiquette.
+
+### 9.4 Évaluer honnêtement
+
+- **Une personne laissée de côté** à chaque tour (`LeaveOneGroupOut`) : entraîner sur toutes les autres, tester sur elle. Sinon le modèle reconnaît des images presque identiques de la même personne et le score est faux.
+- **Comparer aux règles sur les mêmes images**, avec la même mesure qu'`outils/evaluer.py` : F1 « mauvaise posture contre GOOD » (règles : **0,82**, précision 0,97).
+- Regarder aussi la **matrice de confusion** (la cause est-elle plus souvent juste ? règles : 66 à 85 %) et le résultat **personne par personne**.
+
+Ce qu'on peut raisonnablement attendre : une cause plus souvent juste et une partie des têtes en avant calées au dossier retrouvées ; la précision de 0,97 sera difficile à battre. Les deux conclusions sont valables : « le modèle fait mieux, de combien » ou « avec peu de données, des règles appuyées sur la littérature suffisent ».
+
+### 9.5 Mise en place
+
+**1. Dépendance.** scikit-learn (version figée) dans une nouvelle option `ia` de `pyproject.toml`, pour ne pas alourdir le reste ; sur le Pi : `pip install -e ".[pi,dev,ia]"`.
+
+**2. Script `outils/classifieur.py`**, lancé sur le Pi (les CSV y sont déjà, ils ne doivent pas être copiés sur GitHub ; l'entraînement prend quelques secondes) :
+
+```python
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import LeaveOneGroupOut, cross_val_predict
+from sklearn.metrics import f1_score, confusion_matrix
+
+X = donnees[["tete", "tronc", "cou", "tete_tronc", "ecart_epaules"]]
+y = donnees["etiquette"]          # GOOD, FORWARD_HEAD, TRUNK_FORWARD, TRUNK_BACKWARD
+personnes = donnees["personne"]   # P01… (les fichiers essai1_P01 et P01_* = la même personne)
+
+foret = RandomForestClassifier(n_estimators=200, max_depth=5, class_weight="balanced")
+predit = cross_val_predict(foret, X, y, groups=personnes, cv=LeaveOneGroupOut())
+print("F1 forêt :", f1_score(y != "GOOD", predit != "GOOD"))   # règles : 0,82
+print(confusion_matrix(y, predit))
+
+foret.fit(X, y)                   # modèle final, sur tout le monde
+```
+
+Le script affiche, pour les règles, l'arbre et la forêt : F1 global, F1 par personne, matrice de confusion, l'arbre appris (`sklearn.tree.export_text`) et l'importance des angles. Le modèle final est enregistré dans `models/classifieur.joblib`, **jamais commité** (appris sur des données personnelles) : ajouter `models/*.joblib` à `.gitignore`.
+
+**3. Brancher dans le code.** Un module `posture/classifieur.py` charge le modèle et renvoie **exactement le même format** que `postures()` (`{posture: (mauvaise ?, règle)}`), pour que rien d'autre ne change. Dans `poc.py`, une option `--classifieur` choisit la source du verdict :
+
+```python
+regles = classifieur.postures(a) if args.classifieur else postures(a)
+```
+
+On garde les règles par défaut et comme secours. La forêt donne une **probabilité** par posture : compter l'image comme mauvaise seulement au-dessus de ~60 %, et la traiter comme ignorée quand le modèle hésite, réduit les fausses alertes. Hors entraînement, **scikit-learn n'est importé que par `posture/classifieur.py`** (comme OpenCV pour `camera.py`), pour que les tests et les autres modules n'en dépendent pas.
+
+**4. Tests** (`tests/test_classifieur.py`, avec un petit modèle entraîné sur des points de `aide.personne()`) : même format de sortie que `postures()`, verdict cohérent sur des cas évidents, image ignorée si le modèle hésite.
+
+**5. Valider en vraie session** avec les mêmes critères que les règles : moins d'**1 fausse alerte par heure** (T5), alertes justes, délai inchangé. Garder le classifieur seulement s'il fait mieux (E16) ; sinon, garder les règles et écrire pourquoi.
+
+### 9.6 Plus tard : des étiquettes en vraie vie
+
+Pour vérifier en conditions réelles, il faudra des étiquettes hors des postures jouées : un bouton **« alerte juste / fausse »** dans l'app (n'apprend que des moments où une alerte a sonné), une **question ponctuelle** « comment êtes-vous assis ? » 2 à 3 fois par jour (couvre aussi les postures ratées), ou l'**annotation par l'admin** sur le squelette (sans image, consigne « annoter les données »). Uniquement en **session d'annotation consentie** (points envoyés avec un identifiant pseudonyme, conservation limitée) ; en session normale, les points ne quittent pas le Pi ([audit](Audit_technique_final_Fil_Rouge_Master_UHA_4_0_v3.md) §7.2).
 
 ---
 
@@ -719,4 +789,4 @@ L'**entraînement** se fait sur un **PC**. Le Pi ne fait qu'**utiliser** le mod�
 | 6 | **Enregistrer des exemples** (étape 4) | ajouter les touches `0` à `3` dans `live.py` | les données |
 | 7 | **Ajuster les seuils** (étape 5) | `evaluer.py` : distributions et score F1 | les seuils définitifs |
 | 8 | **`poc.py`** | la vraie session ([poc-raspberry.md](poc-raspberry.md) §5.5) | la chaîne complète |
-| 9 | *(option)* **Entraîner un modèle** | scikit-learn ou TensorFlow | si les règles ne suffisent pas |
+| 9 | *(itération 2)* **Classifieur appris** (§9) | arbre de décision et forêt aléatoire (scikit-learn), une personne laissée de côté, comparés aux règles | un modèle appris fait-il mieux que les règles (E16) ? |
