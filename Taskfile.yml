@@ -5,6 +5,12 @@
 #   task test:edge        # tests de l'algorithme de posture (edge/, Python)
 version: "3"
 
+includes:
+  desktop:
+    taskfile: desktop/Taskfile.yml
+    dir: desktop
+    internal: true
+
 vars:
   COMPOSE: docker compose --env-file .env.dev -f compose.yaml -f compose.dev.yaml
 
@@ -97,6 +103,48 @@ tasks:
     cmds:
       - task: lint
       - task: build
+
+  # --- Desktop (Electron, optionnel pour le développement web) -------------
+
+  install:desktop:
+    desc: Installe les dépendances de l'application desktop
+    cmds:
+      - task: desktop:install
+
+  dev:desktop:
+    desc: Lance l'application desktop en développement
+    cmds:
+      - task: desktop:dev
+
+  build:desktop:
+    desc: Compile l'application desktop
+    cmds:
+      - task: desktop:build
+
+  test:desktop:
+    desc: Tests unitaires JavaScript du desktop (sans webcam)
+    cmds:
+      - task: desktop:test
+
+  check:desktop:
+    desc: Tests unitaires et compilation du desktop
+    cmds:
+      - task: desktop:check
+
+  smoke:desktop:
+    desc: Vérifie le lancement Electron sans webcam
+    cmds:
+      - task: desktop:smoke
+
+  smoke:desktop:models:
+    desc: Vérifie Electron et le chargement des trois détecteurs
+    cmds:
+      - task: desktop:smoke:models
+
+  dist:desktop:
+    desc: Crée l'installateur Windows du desktop
+    cmds:
+      - task: desktop:dist
 
   # --- Edge (Raspberry Pi, Python) -----------------------------------------
   # Pas dans setup ni check : seuls ceux qui travaillent sur edge/ ont besoin de Python.
