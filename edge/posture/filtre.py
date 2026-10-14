@@ -25,8 +25,8 @@ class Bocal:
 
     Une image bonne donne une bille sans cause, une image mauvaise une bille avec sa cause ; une
     image ignorée ne donne pas de bille. L'alerte porte le nom de la cause la plus fréquente ; si
-    une autre cause devient la plus fréquente pendant toute une confirmation, l'alerte change de nom
-    (fin de l'ancienne, début de la nouvelle).
+    une autre cause devient la plus fréquente, avec au moins 70 % d'images mauvaises, pendant toute
+    une confirmation, l'alerte change de nom (fin de l'ancienne, début de la nouvelle).
     regroupement : {cause: nom d'alerte} pour donner un seul nom à des causes que la caméra confond.
     """
 
@@ -106,7 +106,11 @@ class Bocal:
             return []
         if taux < TAUX_FIN:
             return self.terminer(instant)
-        if principale == self.alerte:
+        # Changement de nom : la nouvelle cause doit être la plus fréquente ET confirmée comme une
+        # alerte (taux >= 70 %) pendant toute une confirmation. Sans le taux, le 13/10 à 16:17, une
+        # personne déjà presque redressée a reçu « tête baissée » 12 s, et l'anti-rafale ainsi armé a
+        # bloqué sa vraie tête baissée de 16:24 (2 min 30) : alerte ratée.
+        if principale == self.alerte or taux < TAUX_ALERTE:
             self.autre = None
         elif self.autre is None or self.autre[0] != principale:
             self.autre = (principale, instant)
