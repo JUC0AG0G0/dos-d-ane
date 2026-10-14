@@ -30,7 +30,8 @@ export function useEnregistrementSession() {
         ? { debut: debut.current, fin, secondes: Math.round(session.secondes) }
         : undefined;
     if (!liste.length && !enregistree) return Promise.resolve();
-    return enregistrer(liste, enregistree);
+    // Échec possible si la session a expiré entre-temps : rien à sauver alors.
+    return enregistrer(liste, enregistree).catch(() => undefined);
   }, []);
 
   useEffect(() => {

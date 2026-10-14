@@ -1,6 +1,7 @@
 import { Link } from 'expo-router';
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 
+import { useDeconnexion } from '@/auth/hooks';
 import { AnneauScore } from '@/composants/AnneauScore';
 import { CarteDemarrer } from '@/composants/CarteDemarrer';
 import { Ecran, EnTete } from '@/composants/Ecran';
@@ -18,6 +19,14 @@ import { couleurs, polices, rayons } from '@/theme';
 
 export default function Accueil() {
   const [etat, recharger] = useChargement(chargerAccueil);
+  const deconnexion = useDeconnexion();
+
+  function seDeconnecter() {
+    Alert.alert('Se déconnecter ?', 'Tes données restent sur ce téléphone, liées à ton compte.', [
+      { text: 'Annuler', style: 'cancel' },
+      { text: 'Se déconnecter', style: 'destructive', onPress: () => void deconnexion() },
+    ]);
+  }
 
   function demo() {
     Alert.alert(
@@ -60,7 +69,12 @@ export default function Accueil() {
 
   return (
     <Ecran>
-      <EnTete surTitre={`Bonjour ${nomAffiche}`} titre="Prêt à bien vous tenir ?" />
+      <View style={styles.entete}>
+        <EnTete surTitre={`Bonjour ${nomAffiche}`} titre="Prêt à bien vous tenir ?" />
+        <Text style={styles.deconnexion} onPress={seDeconnecter} accessibilityRole="button">
+          Se déconnecter
+        </Text>
+      </View>
 
       <CarteDemarrer />
 
@@ -130,6 +144,13 @@ const styles = StyleSheet.create({
   texteConseil: { flex: 1, gap: 3 },
   petitLibelle: { fontFamily: polices.medium, fontSize: 12, color: couleurs.texteSecondaire },
   conseil: { fontFamily: polices.semiBold, fontSize: 14, color: couleurs.texte },
+  entete: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  deconnexion: {
+    fontFamily: polices.semiBold,
+    fontSize: 13,
+    color: couleurs.vertFonce,
+    paddingVertical: 4,
+  },
   outils: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', columnGap: 18 },
   lienTest: {
     paddingVertical: 12,

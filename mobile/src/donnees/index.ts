@@ -2,9 +2,10 @@
  * Point d'entrée unique des données. Les écrans n'appellent que ces fonctions :
  * passer de l'historique local au serveur ne changera que ce fichier.
  */
+import { utilisateurActuel } from '@/auth/session';
+
 import { genererDemo } from './demo';
 import { conseilDuJour, exercicesRecommandes, resumeSituation, type Filtre } from './exercices';
-import { accueilSimule } from './simule';
 import { resumer, situation, type Periode } from './statistiques';
 import { chargerHistorique, effacerHistorique, remplacerHistorique } from './stockage';
 import type { DonneesAccueil } from './types';
@@ -16,8 +17,8 @@ export async function chargerAccueil(): Promise<DonneesAccueil> {
   const maintenant = new Date();
   const jour = resumer(historique.tranches, 'jour', maintenant);
   return {
-    // À remplacer par GET /api/auth/me à l'étape connexion.
-    nomAffiche: accueilSimule.nomAffiche,
+    // Nom du compte connecté (rafraîchi par GET /api/auth/me au lancement).
+    nomAffiche: utilisateurActuel()?.displayName ?? '',
     scoreDuJour: jour.score,
     ecartVeille: jour.ecart,
     conseilDuJour: conseilDuJour(situation(historique, maintenant)),
