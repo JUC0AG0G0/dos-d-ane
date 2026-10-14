@@ -5,3 +5,10 @@ if ! command -v task >/dev/null 2>&1; then
   exit 1
 fi
 task lint
+
+# Un contrôleur ou un DTO du serveur change : ROUTES.md et openapi.json sont
+# régénérés et ajoutés au même commit.
+if git diff --cached --name-only --diff-filter=ACMRD | grep -Eq '^server/src/.*\.(controller|dto)\.ts$'; then
+  task --silent api:docs
+  git add server/ROUTES.md server/openapi.json
+fi

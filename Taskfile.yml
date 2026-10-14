@@ -78,6 +78,16 @@ tasks:
       - task: build:app
         vars: { APP: client }
 
+  check:app:
+    desc: Lint + compilation d'une seule app (`task check:app APP=client`, utilisé par la CI)
+    requires:
+      vars: [APP]
+    cmds:
+      - task: lint:app
+        vars: { APP: "{{.APP}}" }
+      - task: build:app
+        vars: { APP: "{{.APP}}" }
+
   lint:app:
     internal: true
     deps: [install]
@@ -97,6 +107,14 @@ tasks:
     cmds:
       - task: lint
       - task: build
+
+  api:docs:
+    desc: Régénère server/ROUTES.md et server/openapi.json depuis les contrôleurs (`-- --check` pour vérifier seulement)
+    deps: [install:server]
+    dir: server
+    cmds:
+      - npm run --silent build
+      - node dist/api-docs.js {{.CLI_ARGS}}
 
   # --- Edge (Raspberry Pi, Python) -----------------------------------------
   # Pas dans setup ni check : seuls ceux qui travaillent sur edge/ ont besoin de Python.

@@ -1,0 +1,806 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/health": {
+      "get": {
+        "operationId": "HealthController_check",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "L'API répond et la base est joignable"
+          },
+          "503": {
+            "description": "La base est injoignable"
+          }
+        },
+        "summary": "État de l'API et de la base, version déployée",
+        "tags": [
+          "health"
+        ],
+        "x-public": true
+      }
+    },
+    "/api/devices/{id}": {
+      "patch": {
+        "operationId": "DevicesController_rename",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameDeviceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDeviceDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Nom invalide"
+          },
+          "401": {
+            "description": "Non connecté"
+          },
+          "404": {
+            "description": "Appareil introuvable"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Renomme un de ses appareils",
+        "tags": [
+          "devices"
+        ]
+      }
+    },
+    "/api/auth/register": {
+      "post": {
+        "description": "Ne connecte pas : appeler ensuite /api/auth/login.",
+        "operationId": "AuthController_register",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Champs invalides"
+          },
+          "409": {
+            "description": "Email ou nom affiché déjà utilisé"
+          }
+        },
+        "summary": "Crée un compte (rôle user)",
+        "tags": [
+          "auth"
+        ],
+        "x-public": true
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "description": "Ouvre une session sur l’appareil et ferme celle qui y était encore ouverte. Le nom et le modèle de l’appareil sont déduits du User-Agent, l’adresse IP est enregistrée avec la session.",
+        "operationId": "AuthController_login",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Champs invalides"
+          },
+          "401": {
+            "description": "Email ou mot de passe incorrect"
+          }
+        },
+        "summary": "Connexion par email et mot de passe",
+        "tags": [
+          "auth"
+        ],
+        "x-public": true
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "operationId": "AuthController_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non connecté"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Utilisateur connecté",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "operationId": "AuthController_logout",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Non connecté"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Déconnecte la session en cours",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/sessions": {
+      "get": {
+        "description": "Les 100 plus récentes, la plus récente en premier.",
+        "operationId": "AuthController_sessions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SessionDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non connecté"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Sessions de l’utilisateur, actives et passées",
+        "tags": [
+          "auth"
+        ]
+      },
+      "delete": {
+        "operationId": "AuthController_revokeOtherSessions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "revoked": {
+                      "type": "integer",
+                      "example": 2
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non connecté"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Déconnecte tous les autres appareils",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/sessions/{id}": {
+      "delete": {
+        "operationId": "AuthController_revokeSession",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Non connecté"
+          },
+          "404": {
+            "description": "Session introuvable"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Déconnecte une session (cet appareil ou un autre)",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/users": {
+      "get": {
+        "operationId": "UsersController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminUserDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non connecté"
+          },
+          "403": {
+            "description": "Réservé aux administrateurs"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Liste tous les utilisateurs (emails masqués)",
+        "tags": [
+          "users"
+        ],
+        "x-roles": [
+          "admin"
+        ]
+      }
+    },
+    "/api/users/{id}/email": {
+      "get": {
+        "description": "Un seul compte par requête.",
+        "operationId": "UsersController_revealEmail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserEmailDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non connecté"
+          },
+          "403": {
+            "description": "Réservé aux administrateurs"
+          },
+          "404": {
+            "description": "Utilisateur introuvable"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Affiche l'email d'un utilisateur",
+        "tags": [
+          "users"
+        ],
+        "x-roles": [
+          "admin"
+        ]
+      }
+    },
+    "/api/users/role": {
+      "patch": {
+        "description": "Il reste toujours au moins un administrateur.",
+        "operationId": "UsersController_updateRoles",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRolesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminUserDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rôle ou identifiants invalides"
+          },
+          "401": {
+            "description": "Non connecté"
+          },
+          "403": {
+            "description": "Réservé aux administrateurs"
+          },
+          "404": {
+            "description": "Utilisateur introuvable"
+          },
+          "409": {
+            "description": "Dernier administrateur"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Change le rôle d'un ou plusieurs utilisateurs",
+        "tags": [
+          "users"
+        ],
+        "x-roles": [
+          "admin"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Dos d'âne API",
+    "description": "",
+    "version": "dev",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http",
+        "description": "accessToken renvoyé par /api/auth/login"
+      }
+    },
+    "schemas": {
+      "RenameDeviceDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "PC du bureau",
+            "minLength": 2,
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "SessionDeviceDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "example": "Firefox sur Linux"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "web",
+              "mobile",
+              "camera"
+            ],
+            "example": "web"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type",
+          "model"
+        ]
+      },
+      "RegisterDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "jules@example.com",
+            "description": "Unique"
+          },
+          "password": {
+            "type": "string",
+            "example": "admin1234",
+            "minLength": 8
+          },
+          "displayName": {
+            "type": "string",
+            "example": "Jules",
+            "minLength": 2,
+            "maxLength": 50,
+            "description": "Unique, sans tenir compte des majuscules"
+          }
+        },
+        "required": [
+          "email",
+          "password",
+          "displayName"
+        ]
+      },
+      "Role": {
+        "type": "string",
+        "enum": [
+          "user",
+          "admin"
+        ]
+      },
+      "UserDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "example": "jules@example.com"
+          },
+          "displayName": {
+            "type": "string",
+            "example": "Jules"
+          },
+          "role": {
+            "example": "user",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Role"
+              }
+            ]
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "displayName",
+          "role",
+          "createdAt"
+        ]
+      },
+      "DeviceInputDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Appareil déjà connu (deviceId renvoyé à la connexion)"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "web",
+              "mobile"
+            ],
+            "default": "web",
+            "description": "mobile pour l’application mobile, web sinon"
+          }
+        }
+      },
+      "LoginDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "jules@example.com"
+          },
+          "password": {
+            "type": "string",
+            "example": "admin1234"
+          },
+          "device": {
+            "description": "Facultatif : sans lui, la connexion est enregistrée comme un navigateur web. Nom et modèle sont déduits du User-Agent.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DeviceInputDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ]
+      },
+      "LoginResponseDto": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "description": "JWT à envoyer dans Authorization: Bearer <token>"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Expiration de la session, repoussée à chaque requête (en-tête X-Session-Expires-At)"
+          },
+          "sessionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "deviceId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "À garder côté client et renvoyer à la prochaine connexion"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserDto"
+          }
+        },
+        "required": [
+          "accessToken",
+          "expiresAt",
+          "sessionId",
+          "deviceId",
+          "user"
+        ]
+      },
+      "SessionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "device": {
+            "$ref": "#/components/schemas/SessionDeviceDto"
+          },
+          "active": {
+            "type": "boolean",
+            "description": "Ni révoquée ni expirée"
+          },
+          "current": {
+            "type": "boolean",
+            "description": "Session de la requête en cours"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Date de connexion"
+          },
+          "lastUsedAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Dernière requête (à la minute près)"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Prolongée à chaque requête de cette session"
+          },
+          "ipAddress": {
+            "type": "string",
+            "nullable": true,
+            "example": "203.0.113.7",
+            "description": "Adresse IP à la connexion"
+          },
+          "revokedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "Date de déconnexion"
+          }
+        },
+        "required": [
+          "id",
+          "device",
+          "active",
+          "current",
+          "createdAt",
+          "lastUsedAt",
+          "expiresAt",
+          "ipAddress",
+          "revokedAt"
+        ]
+      },
+      "AdminUserDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "maskedEmail": {
+            "type": "string",
+            "example": "j***@example.com",
+            "description": "Email masqué ; GET /api/users/{id}/email pour le voir"
+          },
+          "displayName": {
+            "type": "string",
+            "example": "Jules"
+          },
+          "role": {
+            "example": "user",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Role"
+              }
+            ]
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "maskedEmail",
+          "displayName",
+          "role",
+          "createdAt"
+        ]
+      },
+      "UserEmailDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "jules@example.com"
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "UpdateRolesDto": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "role": {
+            "example": "admin",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Role"
+              }
+            ]
+          }
+        },
+        "required": [
+          "ids",
+          "role"
+        ]
+      }
+    }
+  }
+}

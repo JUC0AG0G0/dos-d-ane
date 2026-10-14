@@ -1,15 +1,15 @@
 #!/bin/sh
-# Lancé sur le serveur par le runner GitHub Actions (job deploy de la CI),
-# depuis <dossier>/next qui contient le code et .env.prod. Construit les images
-# d'abord : si la compilation échoue, la version en ligne n'est pas touchée.
-#   sh next/scripts/deploy.sh <version>
+# Lancé sur le serveur par le runner GitHub Actions (job deploy de release.yml),
+# depuis <dossier>/next qui contient les fichiers compose et .env.prod (avec
+# SERVER_TAG et CLIENT_TAG). Télécharge d'abord les images : si une image
+# manque, la version en ligne n'est pas touchée.
+#   sh next/scripts/deploy.sh
 set -eu
 cd "$(dirname "$0")/.."
 compose() { docker compose --env-file .env.prod -f compose.yaml -f compose.prod.yaml "$@"; }
 
-APP_VERSION=${1:-prod}
-export APP_VERSION
-compose build --pull
+versions=$(grep -E '^(SERVER|CLIENT)_TAG=' .env.prod | tr '\n' ' ')
+compose pull --quiet
 
 cd ..
 rm -rf previous
@@ -23,4 +23,4 @@ if ! compose up -d --wait --wait-timeout 300 --remove-orphans; then
   exit 1
 fi
 docker image prune -f > /dev/null
-echo "✓ Version $APP_VERSION en ligne"
+echo "✓ En ligne : $versions"

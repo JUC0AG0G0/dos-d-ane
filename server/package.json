@@ -14,7 +14,8 @@
     "format:check": "prettier --check \"src/**/*.ts\"",
     "typecheck": "prisma generate && tsc --noEmit",
     "db:generate": "prisma migrate dev --create-only",
-    "db:migrate": "prisma migrate deploy"
+    "db:migrate": "prisma migrate deploy",
+    "api:docs": "npm run build && node dist/api-docs.js"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

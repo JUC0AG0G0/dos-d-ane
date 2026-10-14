@@ -4,14 +4,16 @@
 #   SECRETS='{...}' sh scripts/prod-secrets.sh write <fichier>
 # SECRETS = ${{ toJSON(secrets) }} dans GitHub Actions.
 # Attendus : les variables de .env.prod.example. Celles de compose.prod.yaml
-# sans valeur par défaut doivent y être (nouvelle variable = nouveau secret).
+# sans valeur par défaut doivent y être (nouvelle variable = nouveau secret),
+# sauf les versions des images (DEPLOY_VARS), fournies par la CI.
 set -eu
 cd "$(dirname "$0")/.."
 
 : "${SECRETS:?SECRETS manquant}"
 example=$(grep -E '^[A-Z0-9_]+=' .env.prod.example | cut -d= -f1 | sort -u)
+DEPLOY_VARS='["SERVER_TAG","CLIENT_TAG"]'
 compose=$(docker compose -f compose.yaml -f compose.prod.yaml config --variables --format json |
-  jq -r '.[] | select(.Required or .DefaultValue == "") | .Name' | sort -u)
+  jq -r --argjson skip "$DEPLOY_VARS" '.[] | select(.Required or .DefaultValue == "") | .Name | select(IN($skip[]) | not)' | sort -u)
 secret() { printf '%s' "$SECRETS" | jq -r --arg k "$1" '.[$k] // ""'; }
 
 errors=""
