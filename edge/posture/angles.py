@@ -1,4 +1,4 @@
-"""Des points aux angles : tête, tronc, cou (contrôle C3 « de profil » compris)."""
+"""Des points aux angles : tête, tronc, cou (contrôles C3 « de profil » et « angles possibles » compris)."""
 
 import math
 
@@ -7,6 +7,10 @@ import numpy as np
 from posture.points import CONF_MIN, COTES, cote_vu
 
 ECART_EPAULES_MAX = 0.35   # écart des 2 épaules ÷ tronc ; au-delà, la personne n'est pas de profil
+# Angles possibles pour une personne assise. Hors de ces bornes, ce sont des points fantômes : le 14/10,
+# devant une chaise vide, MoveNet donnait tête −55°, tronc −77° ou un tronc de 33 à 41 px. Sur 13 519
+# images réelles (12–14/10) : tête 2° à 162°, tronc −56° à +46°, tronc d'au moins 108 px (en 640×480).
+TETE_MIN, TRONC_MAX, LONGUEUR_TRONC_MIN = 0, 70, 80
 
 
 def ecart_epaules(pts, cote=None):
@@ -65,5 +69,7 @@ def angles(pts, cote=None):
     # du même angle en sens inverse, la somme reste la même.
     tete_tronc = 90 + tete + tronc
     longueur_tronc = float(np.linalg.norm(epaule - hanche))
+    if tete < TETE_MIN or abs(tronc) > TRONC_MAX or longueur_tronc < LONGUEUR_TRONC_MIN:
+        return None                                    # angles impossibles : points fantômes (UNKNOWN)
     return {"cote": cote, "tete": tete, "tronc": tronc, "tete_tronc": tete_tronc, "cou": angle_cou(pts, cote),
             "longueur_tronc": longueur_tronc, "ecart_epaules": ecart}

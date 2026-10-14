@@ -14,7 +14,7 @@ Documentation de référence : `docs/poc-raspberry.md` (plan, installation, briq
 
 | Fichier | Rôle |
 |---|---|
-| `posture/` | **le cœur, commun à tous** (paquet) : `camera`, `movenet`, `points` (côté, point complété), `angles`, `regles` (`SEUILS`, `postures()`), `filtre` (`Bocal`, `TempsAssis`), `score` (`Resume`), `mesures` (CSV), `chemins`, `pi` |
+| `posture/` | **le cœur, commun à tous** (paquet) : `camera`, `movenet`, `points` (côté, point complété, présence), `angles`, `regles` (`SEUILS`, `postures()`), `filtre` (`Bocal`, `TempsAssis`), `score` (`Resume`), `mesures` (CSV), `chemins`, `pi` |
 | `poc.py` | la vraie session (§5.5) : bocaux, cadence adaptative, événements (sans fenêtre) |
 | `live.py` | outil de debug avec fenêtre (pas utilisé en session) |
 | `outils/` | outils de mesure sur le Pi : `t2_camera.py`, `t4_modeles.py`, `enregistrer.py` (volontaires), `evaluer.py` (F1), `confiance.py` (images ignorées) ; puis `t1_vitesse.py` |

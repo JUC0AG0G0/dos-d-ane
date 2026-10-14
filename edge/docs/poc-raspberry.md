@@ -454,7 +454,7 @@ Le code est dans le paquet `posture/` (il n'est pas recopié ici, pour ne pas av
 | ignorer les points peu sûrs | `points.py` : `CONF_MIN` |
 | calculer tête, tronc et oreille–épaule–hanche | `angles.py` : `angles()` |
 | calculer le cou (oreille → nez) et appliquer les règles (tête < 50°, tronc > 20°, cou > 42°, tronc < −30°, seuils fixes) | `angles.py` : `angle_cou()` ; `regles.py` : `postures()`, `SEUILS` |
-| filtre dans le temps (bocal), temps assis, absence | `filtre.py` : `Bocal`, `TempsAssis` ; `points.py` : `personne_vue()` ; boucle et cadence dans `poc.py` |
+| filtre dans le temps (bocal), temps assis, absence | `filtre.py` : `Bocal`, `TempsAssis` ; `points.py` : `Presence` ; boucle et cadence dans `poc.py` |
 | score de 0 à 100 (% du temps en bonne posture) et résumé de 5 min | `score.py` : `Resume` ; résumé écrit par `poc.py` |
 
 **Mode rapide pour les tests** (`python poc.py --rapide`) : fenêtre de 10 s, confirmation de 10 s, anti-rafale de 1 min, « Levez-vous » après 1 min (pause de 15 s), pour ne pas attendre des minutes.
@@ -484,6 +484,7 @@ Démarrer (depuis l'app)
 │ 8. attendre avant l'image suivante :                       │
 │      tout va bien          → 10 s                          │
 │      ≥ 20 % de mauvaises   →  2 s                          │
+│      image ignorée         →  2 s                          │
 │      personne absente      → 30 s                          │
 └────────────────────────────────────────────────────────────┘
 ```
@@ -612,6 +613,9 @@ L'écran « session en cours » de l'app n'est donc pas une vidéo : la silhouet
 | T5 cou penché, 2ᵉ personne | 12/10/2026 | 1 volontaire, `live.py` : posture normale (en bougeant un peu) puis 30 s à regarder son téléphone | cou +24° en bonne posture, **+51°** téléphone (tête à 56° : « tête en avant » ne l'aurait pas vu) ; cou > 45° : **87 %** reconnu, **0 %** de fausses alertes, 100 % annoncé « cou penché », F1 0,93 | ≥ 0,80 | ✅ | seuil de 45° gardé, vérifié sur 2 personnes |
 | `poc.py --rapide` | 12/10/2026 | P01, 3 essais de ~2 min : bonne posture, dos penché, allongé, téléphone, Ctrl+C | alertes dos penché, allongé (hanche visible, tronc −32° à −46°) et « levez-vous » déclenchées puis terminées ; 0 fausse alerte ; Pi 57–59 °C, `0x0`. Corrigé : anti-rafale par cause, changement de nom d'alerte, alertes fermées au Ctrl+C. Téléphone tenu haut (nez +41–53°) : 64 % des images à 45°, pas d'alerte | — | ✅ | seuil du cou abaissé à **42°** (91 %, 0 à 4 % en bonne posture) |
 | `poc.py --rapide`, cou à 42° | 12/10/2026 | P01, ~1 min 30 : tête en avant / téléphone, allongé, bonne posture | alertes déclenchées puis terminées, 0 fausse alerte ; mais nom « tête en avant » / « cou penché » qui change d'une image à l'autre (tête 40–48°, cou 38–49° dans les deux cas) ; allongé à −20/−37° : pas d'alerte (autour du seuil) | — | ⚠️ | tête en avant et cou penché regroupés en une alerte « Tête en avant ou baissée », part de chacun dans l'événement (`detail`) |
+| Allongé, `poc.py` | 14/10/2026 | P01, 2 sessions de 1 à 2 min : presque droit (calé au dossier, tronc −27°), allongé, redressé | tronc allongé **−34° à −56°**, 100 % des images « allongé » ; alerte **60 s** après le passage à 70 % (~1 min 05 après le début), fin **36 s** après le redressement ; 0 fausse alerte ; hanche vue à 0,37–0,50 ; Pi 46 °C max, `0x0` | — | ✅ pour 1 pers. | calé au dossier, le tronc est déjà à −27/−28°, près du seuil de −30° : à vérifier en travail normal |
+| Absence (chaise vide), `poc.py` | 14/10/2026 | P01 assis, puis part ~1 min | ancienne règle : **36 s « ignorée »** (MoveNet voit un corps dans la chaise vide : oreilles et épaules 0,12–0,73), une image fantôme jugée « dos penché », « absent » après **38 s** ; temps assis qui continue | absent < 15 s | ❌ | nouvelle règle `Presence` (6 images sans angles et peu nettes) : rejouée, absent en 12 s, 0 fausse absence sur les sessions du 12–14/10. À revérifier en vrai avec 5 min d'absence |
+| Caméra vide, `poc.py` (ancien code) | 14/10/2026 | personne devant la caméra pendant 1 min 30 | **jamais « absent »** : 31 images « ignorée », 13 images avec des angles fantômes absurdes (tête −55°, tronc −77°, tronc de 33–41 px) jugées « dos penché » / « tête en avant » | absent < 15 s | ❌ | contrôle C4 « angles possibles » ajouté : rejoué avec `Presence`, absent dès la 6ᵉ image, plus aucune image jugée |
 | T5 assis trop longtemps | | `poc.py --rapide` | détectée : oui / non | oui | | |
 | T5 fausses alertes | | ___ h de test | ___ / h | < 1 / h | | |
 | T7 cadence | | fixe 2 s vs adaptative | ___ captures vs ___, délai ___ s | délai < 1 min | | |
