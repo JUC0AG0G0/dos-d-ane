@@ -1,4 +1,4 @@
-// DOS-D'ÂNE : schéma de la base (develop, 2026-10-12)
+// DOS-D'ÂNE : schéma de la base (add-services-route-to-add-picture, 2026-10-14)
 // Généré depuis server/prisma/schema.prisma et ses migrations.
 // PostgreSQL 18, id en UUID v7 (uuidv7()), dates en timestamptz(3).
 
@@ -45,7 +45,7 @@ Table devices {
   id uuidv7 [pk, default: `uuidv7()`]
   userId uuidv7 [not null]
   name string [not null]
-  type string [not null, note: 'web, mobile, camera...']
+  type string [not null, note: 'web, mobile, desktop, raspberry ; seul web ne capture pas']
   model string
   captureEligible boolean [not null, default: false, note: 'Toujours false pour web']
   captureStatus string [note: 'active / inactive si éligible, null sinon']
@@ -77,7 +77,7 @@ Table authSessions {
 Table analysisSessions {
   id uuidv7 [pk, default: `uuidv7()`]
   userId uuidv7 [not null]
-  startedAt timestamptz [not null]
+  startedAt timestamptz [note: 'null : en préparation ; endedAt null : en cours ; sinon terminée']
   endedAt timestamptz
   createdAt timestamptz [not null, default: `now()`]
   updatedAt timestamptz [not null, default: `now()`]
@@ -91,12 +91,13 @@ Table deviceSessions {
   id uuidv7 [pk, default: `uuidv7()`]
   analysisSessionId uuidv7 [not null]
   deviceId uuidv7 [not null]
-  startedAt timestamptz [not null]
+  startedAt timestamptz [not null, note: 'Ajout à la session']
   endedAt timestamptz
   createdAt timestamptz [not null, default: `now()`]
 
   indexes {
     (analysisSessionId, deviceId) [unique]
+    deviceId [unique, name: 'deviceSessions_deviceId_open_key', note: 'Partiel : WHERE endedAt IS NULL (une seule session ouverte par appareil)']
     deviceId
   }
 }

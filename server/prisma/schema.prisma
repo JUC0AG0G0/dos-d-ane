@@ -92,11 +92,13 @@ model AuthSession {
 }
 
 /// Session d'analyse générale d'un utilisateur, sur un ou plusieurs appareils.
+/// État déduit des dates : en préparation (startedAt null), en cours (endedAt
+/// null) puis terminée.
 model AnalysisSession {
   id             String          @id @default(dbgenerated("uuidv7()")) @db.Uuid
   userId         String          @db.Uuid
   user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  startedAt      DateTime        @db.Timestamptz(3)
+  startedAt      DateTime?       @db.Timestamptz(3)
   endedAt        DateTime?       @db.Timestamptz(3)
   deviceSessions DeviceSession[]
   createdAt      DateTime        @default(now()) @db.Timestamptz(3)
@@ -107,6 +109,9 @@ model AnalysisSession {
 }
 
 /// Participation d'un appareil éligible à une session d'analyse.
+/// endedAt null : l'appareil est dans une session en préparation ou en cours.
+/// Un appareil n'est que dans une seule session à la fois : index unique
+/// partiel sur deviceId (endedAt null) ajouté à la main dans la migration.
 /// Supprimer un appareil supprime ses sessions et leurs captures. Un Restrict
 /// bloquerait la suppression d'un utilisateur (droit à l'effacement), car
 /// PostgreSQL supprime ses appareils avant ses sessions d'analyse.
