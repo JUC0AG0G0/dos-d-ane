@@ -1,0 +1,125 @@
+# Peut aussi être utilisé directement depuis desktop/ : task --list.
+version: "3"
+
+vars:
+  PYTHON: '{{default "python" .PYTHON}}'
+  BENCHMARK_PYTHON: '{{if eq OS "windows"}}.venv-benchmark/Scripts/python.exe{{else}}.venv-benchmark/bin/python{{end}}'
+
+tasks:
+  default:
+    silent: true
+    cmd: task --list
+
+  install:
+    desc: Installe les dépendances JavaScript du desktop
+    cmd: npm ci --no-audit --no-fund
+    sources: [package.json, package-lock.json]
+    generates: [node_modules/.package-lock.json]
+
+  dev:
+    desc: Lance Vite et Electron
+    deps: [install]
+    cmd: npm run dev
+
+  dev:web:
+    desc: Lance l'interface desktop dans le navigateur
+    deps: [install]
+    cmd: npm run dev:web
+
+  build:
+    desc: Prépare les modèles et compile l'interface
+    deps: [install]
+    cmd: npm run build
+
+  test:
+    desc: Tests unitaires JavaScript sans caméra ni téléchargement de modèles
+    deps: [install]
+    cmd: npm test
+
+  check:
+    desc: Tests unitaires JavaScript et compilation
+    deps: [install]
+    cmd: npm run check
+
+  smoke:
+    desc: Compile et vérifie le lancement Electron sans webcam
+    deps: [install]
+    cmd: npm run smoke
+
+  smoke:models:
+    desc: Compile et vérifie Electron et ses trois détecteurs
+    deps: [install]
+    cmd: npm run smoke:models
+
+  dist:
+    desc: Crée l'installateur Windows dans release/
+    platforms: [windows]
+    deps: [install]
+    cmd: npm run dist:win
+
+  test:benchmark:
+    desc: Tests des métriques Python du benchmark (Python 3.10+)
+    cmd: '{{.PYTHON}} tests/benchmark-metrics.test.py'
+
+  benchmark:download:
+    desc: Télécharge les 120 images du benchmark pilote dans output/
+    cmd: '{{.PYTHON}} scripts/download-posture-benchmark.py'
+
+  benchmark:serve:
+    desc: Sert l'interface et les images du benchmark pilote
+    deps: [install]
+    cmds:
+      - npm run model:yolo
+      - npm run prepare:assets
+      - npx --no-install vite --config vite.benchmark.config.js
+
+  benchmark:run:
+    desc: Lance les mesures du pilote (benchmark:serve doit être actif)
+    deps: [install]
+    cmd: npx --no-install electron scripts/run-posture-benchmark.cjs
+
+  benchmark:summarize:
+    desc: Calcule les métriques et archive le benchmark pilote
+    cmds:
+      - '{{.PYTHON}} scripts/summarize-posture-benchmark.py'
+      - '{{.PYTHON}} scripts/package-posture-benchmark.py'
+
+  benchmark:full:install:
+    desc: Installe les outils du benchmark complet dans .venv-benchmark/
+    cmds:
+      - '{{.PYTHON}} -m venv .venv-benchmark'
+      - '{{.BENCHMARK_PYTHON}} -m pip install pyarrow huggingface_hub Pillow numpy'
+
+  benchmark:full:download:
+    desc: Télécharge les 52 500 images du benchmark complet dans output/
+    cmd: '{{.BENCHMARK_PYTHON}} scripts/download-full-posture.py'
+
+  benchmark:full:serve:
+    desc: Sert l'interface et les images du benchmark complet
+    deps: [install]
+    cmds:
+      - npm run model:yolo
+      - npm run prepare:assets
+      - npx --no-install vite --config vite.full-benchmark.config.js
+
+  benchmark:full:run:
+    desc: Mesures complètes (-- --model=mediapipe, movenet ou yolo)
+    deps: [install]
+    cmd: npx --no-install electron scripts/run-full-posture.cjs {{.CLI_ARGS}}
+
+  benchmark:full:monitor:
+    desc: Suit les trois processus du benchmark complet
+    cmd: '{{.BENCHMARK_PYTHON}} scripts/monitor-full-posture.py'
+
+  benchmark:full:timing:
+    desc: Mesure les temps séquentiels (benchmark:full:serve doit être actif)
+    deps: [install]
+    cmds:
+      - '{{.BENCHMARK_PYTHON}} scripts/prepare-full-timing.py'
+      - npx --no-install electron scripts/run-full-timing.cjs
+
+  benchmark:full:summarize:
+    desc: Calcule les métriques et archive le benchmark complet
+    cmds:
+      - '{{.BENCHMARK_PYTHON}} scripts/summarize-full-posture.py'
+      - '{{.BENCHMARK_PYTHON}} scripts/package-full-posture.py'
