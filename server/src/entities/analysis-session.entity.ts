@@ -7,6 +7,6 @@ export class AnalysisSession
   implements AnalysisSessionRow
 {
   userId: string;
-  startedAt: Date;
+  startedAt: Date | null;
   endedAt: Date | null;
 }

@@ -2,7 +2,7 @@
 
 import pytest
 
-from posture.points import CONF_MIN, Completeur, CoteStable, personne_vue
+from posture.points import CONF_MIN, Completeur, CoteStable, Presence, points_nets
 from tests.aide import personne
 
 
@@ -110,10 +110,53 @@ class TestCompleteur:
         assert Completeur().maj(pts, "gauche", instant=0.0) == (pts, None)
 
 
-def test_personne_vue():
-    assert personne_vue(personne())
-    pts = personne()
-    pts[:, 2] = 0.1
-    assert not personne_vue(pts)
-    pts[4, 2] = CONF_MIN                                   # une seule oreille suffit
-    assert personne_vue(pts)
+def chaise_vide():
+    """Points d'une chaise vide (14/10) : MoveNet y voit un corps, avec des confiances de 0,1 à 0,4."""
+    pts = personne(conf=0.37)
+    pts[3, 2] = 0.73                                       # parfois une oreille fantôme bien notée
+    return pts
+
+
+class TestPresence:
+    def absente(self):
+        p = Presence()
+        for _ in range(Presence.IMAGES_ABSENT):
+            p.maj(chaise_vide(), jugee=False)
+        return p
+
+    def test_personne_nette_presente(self):
+        assert points_nets(personne()) >= Presence.POINTS_NETS
+        assert Presence().maj(personne(), jugee=True)
+
+    def test_chaise_vide_absente_apres_quelques_images(self):
+        p = Presence()
+        for _ in range(Presence.IMAGES_ABSENT - 1):
+            assert p.maj(chaise_vide(), jugee=False)       # pas encore : peut-être une personne mal vue
+        assert not p.maj(chaise_vide(), jugee=False)
+
+    def test_image_fantome_jugee_ne_fait_pas_revenir(self):
+        # 14/10 à 08:46:52 : la chaise vide a donné des angles (« dos penché ») une fois sur 19
+        p = self.absente()
+        assert not p.maj(chaise_vide(), jugee=True)
+
+    def test_retour_sur_une_image_jugee_et_nette(self):
+        p = self.absente()
+        assert p.maj(personne(), jugee=True)
+
+    def test_personne_mal_vue_mais_jugee_reste_presente(self):
+        # 13/10 à 16:05 : allongée, 4 points nets seulement, mais des angles à chaque image
+        p = Presence()
+        for _ in range(3 * Presence.IMAGES_ABSENT):
+            assert p.maj(chaise_vide(), jugee=True)
+
+    def test_hanche_cachee_mais_personne_nette_reste_presente(self):
+        p = Presence()
+        for _ in range(3 * Presence.IMAGES_ABSENT):
+            assert p.maj(personne(), jugee=False)
+
+    def test_images_non_jugees_isolees_ne_font_pas_partir(self):
+        p = Presence()
+        for _ in range(3):
+            for _ in range(Presence.IMAGES_ABSENT - 1):
+                p.maj(chaise_vide(), jugee=False)
+            assert p.maj(chaise_vide(), jugee=True)

@@ -9,7 +9,8 @@ Boucle : capture → MoveNet → l'image est oubliée → angles → règles →
 - Résumé toutes les 5 min : score (% du temps en bonne posture), temps vert / orange / rouge,
   temps ignoré (image mal vue) et absent.
 - Cadence adaptative : 10 s si tout va bien, 2 s tant qu'au moins 20 % des images de la fenêtre sont
-  mauvaises (Bocal.en_doute), 30 s si personne n'est vu sur 3 images d'affilée.
+  mauvaises (Bocal.en_doute) ou après une image non jugée (absence vue en ~12 s), 30 s si personne
+  n'est là (posture.points.Presence).
 Aucune calibration : les règles utilisent des seuils fixes (algo-posture.md).
 
 Écrit dans resultats/ (chiffres seulement, jamais d'image) :
@@ -37,12 +38,11 @@ from posture.filtre import Bocal, TempsAssis
 from posture.mesures import COLONNES_CSV, ligne_csv
 from posture.movenet import MoveNet
 from posture.pi import temperature_pi, throttled_pi
-from posture.points import Completeur, CoteStable, personne_vue
+from posture.points import Completeur, CoteStable, Presence
 from posture.regles import postures
 from posture.score import DUREE_RESUME, Resume
 
 CADENCE_CALME, CADENCE_DOUTE, CADENCE_ABSENT = 10, 2, 30     # s entre deux images
-IMAGES_ABSENT = 3                                             # images d'affilée sans personne = absent
 ECHECS_REOUVERTURE = 5                                        # captures ratées d'affilée avant de rouvrir la webcam
 VERS_L_AVANT = ("Dos penche", "Cou penche", "Tete en avant")  # une seule cause par image, dans cet ordre
 ALLONGE = "Allonge dans la chaise"
@@ -139,7 +139,7 @@ def main():
     if not cam.isOpened():
         print("ÉCHEC : impossible d'ouvrir la webcam")
         return
-    movenet, cote_stable, completeur = MoveNet(), CoteStable(), Completeur()
+    movenet, cote_stable, completeur, presence = MoveNet(), CoteStable(), Completeur(), Presence()
     DOSSIER_RESULTATS.mkdir(exist_ok=True)
     base = DOSSIER_RESULTATS / f"poc_{datetime.now():%Y-%m-%d_%H%M%S}"
     session = Session(base)
@@ -150,7 +150,7 @@ def main():
     print(f"Session {session.id}{' (mode rapide)' if args.rapide else ''} : Ctrl+C pour terminer")
     print(f"Mesures : {base}.csv   Événements et résumés : {base}_evenements.csv, _resumes.csv")
     temp_debut, debut_session = temperature_pi(), time.monotonic()
-    images, absent_de_suite, echecs = 0, 0, 0
+    images, echecs = 0, 0
     resume, total = Resume(), Resume()
     debut_resume, debut_resume_heure = debut_session, datetime.now()
     precedente = None                 # (instant, état, bonne) de l'image précédente, pour les durées
@@ -174,8 +174,9 @@ def main():
             cote = cote_stable.maj(pts)
             pts_c, complete = completeur.maj(pts, cote)
             a = angles(pts_c, cote)
-            vue = personne_vue(pts)
-            absent_de_suite = 0 if vue else absent_de_suite + 1
+            vue = presence.maj(pts, a is not None)
+            if not vue:
+                a = None                                     # image fantôme sur la chaise vide : pas jugée
             ecrivain.writerow(ligne_csv("SESSION", pts, cote, a, None, complete))
 
             instant = time.monotonic()
@@ -189,7 +190,7 @@ def main():
             else:                                            # fenêtre vide : l'alerte en cours se termine
                 evenements.append((avant.elaguer(instant), avant))
                 evenements.append((allonge.elaguer(instant), allonge))
-                posture = "absent" if absent_de_suite >= IMAGES_ABSENT else "ignorée"
+                posture = "ignorée" if vue else "absent"
             for liste, bocal in evenements:
                 for phase, nom in liste:
                     session.envoyer_evenement(nom, phase, bocal.moyennes(), bocal.detail())
@@ -200,7 +201,7 @@ def main():
             # État en direct (plus tard envoyé à l'app à chaque image, audit §7.2)
             couleur = "rouge" if "rouge" in (avant.couleur(), allonge.couleur()) else \
                 "orange" if "orange" in (avant.couleur(), allonge.couleur()) else "vert"
-            etat = couleur if a else "absent" if absent_de_suite >= IMAGES_ABSENT else "ignore"
+            etat = couleur if a else "ignore" if vue else "absent"
             if precedente:                # l'image précédente compte jusqu'à celle-ci
                 for r in (resume, total):
                     r.ajouter(instant - precedente[0], *precedente[1:])
@@ -214,9 +215,9 @@ def main():
 
             if args.cadence_fixe:
                 cadence = args.cadence_fixe
-            elif absent_de_suite >= IMAGES_ABSENT:
+            elif not vue:
                 cadence = CADENCE_ABSENT
-            elif avant.en_doute() or allonge.en_doute():
+            elif not a or avant.en_doute() or allonge.en_doute():
                 cadence = CADENCE_DOUTE
             else:
                 cadence = CADENCE_CALME

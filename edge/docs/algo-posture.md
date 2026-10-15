@@ -1,6 +1,6 @@
 # Comment l'algorithme détecte la posture
 
-> Explication simple de l'algorithme du POC edge : les points, les axes, les angles, les seuils, et la possibilité d'entraîner un modèle plus tard.
+> Explication simple de l'algorithme du POC edge : les points, les axes, les angles, les seuils, et et le plan pour entraîner un classifieur à la place des règles (§9).
 > Détails techniques et code : [poc-raspberry.md](poc-raspberry.md) §5. Choix, RGPD et messages vers le serveur : [audit technique](Audit_technique_final_Fil_Rouge_Master_UHA_4_0_v3.md) §7 et §15.
 
 ---
@@ -15,7 +15,7 @@ Les seuils de posture sont vérifiés sur 4 volontaires (T5) ; les autres valeur
                 17 points)     exploitable ?)  CETTE image)          70 % / 40 %)
 ```
 
-**① Capture.** Une image en mémoire seulement (jamais écrite, jamais envoyée). Cadence adaptative : 10 s si la posture est bonne ; **2 s dès que 20 % des images des 60 dernières secondes sont mauvaises** (à 10 s : 2 images sur 6), pour confirmer vite (la fenêtre contient alors ~30 images au lieu de 6) ; retour à 10 s sous 20 %. Au départ, c'était 2 s dès la première image mauvaise : en session réelle (13/10, 67 min), des images isolées (cou à 43°, tête à 49°) gardaient le Pi à 2 s 82 % du temps sans jamais mener à une alerte ; à 20 %, 57 % sur les mêmes données ; 30 s si personne n'est détecté.
+**① Capture.** Une image en mémoire seulement (jamais écrite, jamais envoyée). Cadence adaptative : 10 s si la posture est bonne ; **2 s dès que 20 % des images des 60 dernières secondes sont mauvaises** (à 10 s : 2 images sur 6), pour confirmer vite (la fenêtre contient alors ~30 images au lieu de 6) ; retour à 10 s sous 20 %. Au départ, c'était 2 s dès la première image mauvaise : en session réelle (13/10, 67 min), des images isolées (cou à 43°, tête à 49°) gardaient le Pi à 2 s 82 % du temps sans jamais mener à une alerte ; à 20 %, 57 % sur les mêmes données ; 2 s aussi après une image ignorée, pour voir vite si la personne est partie ; 30 s si personne n'est là.
 
 **② Squelette.** MoveNet donne 17 points (x, y, confiance). On n'en garde que 3, du côté visible : **oreille, épaule, hanche**.
 
@@ -27,6 +27,7 @@ Les seuils de posture sont vérifiés sur 4 volontaires (T5) ; les autres valeur
 | C2 | Points fiables | confiance de l'oreille, de l'épaule **et** de la hanche ≥ 0,20 | `CONF_MIN` |
 | C2 bis | Trou court | si **un seul** point est sous 0,20 et qu'il était bien vu il y a **≤ 2,5 s** (une image à la cadence de 2 s, avec la marge du temps de capture), on reprend sa dernière position au lieu d'ignorer l'image | `Completeur` |
 | C3 | De profil | écart des 2 épaules ÷ longueur du tronc ≤ 0,35 (jamais complété) | `ECART_EPAULES_MAX` |
+| C4 | Angles possibles | tête ≥ 0°, tronc entre −70° et +70°, tronc d'au moins 80 px (en 640×480). Le 14/10, devant une caméra vide, MoveNet plaçait un corps fantôme aux angles absurdes (tête −55°, tronc −77°, tronc de 33 à 41 px) sur près d'1 image sur 3. Sur 13 519 images réelles des 12–14/10 : tête 2° à 162°, tronc −56° à +46°, tronc d'au moins 108 px ; 3 images seulement écartées | `TETE_MIN`, `TRONC_MAX`, `LONGUEUR_TRONC_MIN` |
 
 La caméra peut être à gauche ou à droite : C1 choisit le côté, et le calcul des angles tient compte du sens du regard, donc les angles ont le même sens des deux côtés.
 
@@ -69,7 +70,7 @@ Pourquoi un bocal commun : tête, cou et dos avancent souvent ensemble, et la ca
 | Fin d'alerte | < 40 % (l'écart 70 / 40 évite une alerte qui clignote) |
 | Fenêtre vide | plus aucune image jugée depuis 60 s (personne partie, ou mal vue) : l'alerte en cours se termine et le compte de la confirmation repart de zéro. Sans cela, une alerte restait ouverte pendant toute l'absence, et une seule image penchée en se rasseyant déclenchait l'alerte (bug trouvé le 13/10 en simulation) |
 | Assis trop longtemps | 50 min devant la caméra ; une absence d'au moins 1 min (la personne s'est levée) remet le compteur à zéro. L'idée de départ (points presque immobiles, déplacement médian < 0,02 du tronc) ne marche pas : mesuré le 12/10, les points tremblent déjà de 0,025 d'une image à l'autre en travail normal (erreurs de MoveNet, respiration, mains), donc personne n'était jamais « immobile » |
-| Absence | personne vue sur aucune des 3 dernières images (ni oreille ni épaule fiable) → cadence de 30 s |
+| Absence | **6 images d'affilée sans angles et peu nettes** (moins de 5 points sur 17 à une confiance ≥ 0,5) → absente, cadence de 30 s ; de retour sur une image **avec angles et nette**. MoveNet ne dit jamais « personne » : il place toujours 17 points. Le 14/10, sur une chaise vide, il voyait un corps (oreilles et épaules de 0,12 à 0,50, parfois 0,73), et l'ancienne règle (une oreille ou une épaule ≥ 0,2 sur l'une des 3 dernières images) a mis 38 s à voir l'absence ; une image fantôme a même été jugée « dos penché ». Un seuil de confiance seul ne marche pas : une personne mal vue (allongée, mal éclairée) a les mêmes confiances (« 5 points ≥ 0,5 » donnait 6 fausses absences le 13/10). Ce qui les sépare : la chaise vide ne donne presque jamais d'angles **possibles** (1 image sur 19 le matin du 14/10 ; l'après-midi, 13 sur 45 donnaient des angles, tous absurdes et écartés par C4). Rejoué sur toutes les sessions des 12–14/10 : chaise vide vue absente en **12 s** (2 essais), **aucune fausse absence**. Une image fantôme pendant l'absence n'est pas jugée. Réglé sur 1 personne et 1 chaise vide : à revérifier avec un autre fond (`Presence`) |
 | Anti-rafale | après la fin d'une alerte, pas de nouvelle alerte de la **même cause** avant 10 min (un « cou penché » juste après un « dos penché » reste signalé) |
 
 
@@ -86,7 +87,7 @@ Pourquoi un bocal commun : tête, cou et dos avancent souvent ensemble, et la ca
 | Les angles bougent dans le bon sens pour chaque posture | ✅ vérifié dans `live.py` |
 | Vérifier les seuils sur des volontaires (étapes 4 et 5, T5) | ✅ **4 volontaires** : tête en avant / dos penché F1 0,82 ensemble (ci-dessous) ; « allongé » ✅ sur 1 personne |
 | `poc.py` : filtre dans le temps, cadence, temps assis, événements | ✅ écrit (12/10) ; ⏳ à tester en vraie session (fausses alertes par heure, T7) |
-| (Plus tard, optionnel) entraîner un modèle | ⬜ |
+| (Itération 2) classifieur appris à la place des règles, plan au §9 | ⬜ |
 
 **T5 : 4 volontaires (12/10, Thunder, `outils/enregistrer.py`, 2 min de calibration puis chaque posture 30 s)** — détail dans [poc-raspberry.md](poc-raspberry.md) §7. Score F1 image par image, une posture contre la bonne posture :
 
@@ -668,42 +669,113 @@ Le format exact des trois messages et leur transport (WebSocket, HTTPS, SSE, not
 | **Points qui tremblent** d'une image à l'autre | verdict qui change autour du seuil | MoveNet **Thunder** au lieu de Lightning (tête 2,9° d'écart-type au lieu de 4,9°, T4) ; le reste est absorbé par le filtre dans le temps (70 % sur 1 min, confirmé pendant 1 min) |
 | **Dossier incliné : « appuyé » ou « avachi » ?** | les deux penchent le tronc en arrière ; la différence (dos arrondi, bassin qui bascule) est invisible avec 3 points. Mesuré le 12/10 : tronc −11° appuyé contre −18° avachi, hanche immobile, longueur du tronc −7 % mais trop variable | **seul l'avachi prononcé est détecté** (« allongé », tronc < −30°) ; l'avachi léger ne l'est pas : T5 sur 4 volontaires, F1 0,64 (tronc avachi −20° à −30° contre −12° à −18° calé au dossier ; la tête monte chez l'un, descend chez l'autre). **Allongé, la hanche passe sous le bureau** : MoveNet la devine (confiance 0,27 contre 0,4–0,7 assis) et le tronc mesuré reste vers −10/−20° même bien allongé ; une caméra posée sur le bureau ne peut pas la voir. L'épaule qui descend (+7 à +25 % du tronc) chevauche la bonne posture (jusqu'à +12 %). Pistes pour plus tard : modèle avec des points sur la colonne, modèle entraîné (§9) |
 | **Tête en avant en restant calé au dossier** | le buste penché en arrière compense : l'angle de la tête (par rapport à l'horizontale) ne baisse pas. T5 : moitié des images ratées chez P03 et P04 | limite acceptée ; l'angle oreille–épaule–hanche (F1 0,73) ne la règle pas. Piste : modèle entraîné (§9) |
+| **Chaise vide prise pour une personne** | MoveNet place toujours 17 points ; sur une chaise vide, des points fantômes avec des confiances basses | ✅ traité (§⑤, « Absence ») : absence = 6 images d'affilée sans angles et peu nettes. Piste plus propre : un modèle qui dit s'il y a une personne (MoveNet MultiPose, MediaPipe Pose ou un détecteur de personnes) |
 | **Une autre personne dans le cadre** | MoveNet ne suit qu'une personne : il peut sauter de l'une à l'autre ou mélanger leurs points | cadrer serré sur la personne ; piste : recadrer l'image autour de la personne suivie |
 
 ---
 
-## 9. « Entraîner l'IA » : oui, mais plus tard et en option
+## 9. Entraîner un classifieur à la place des règles (itération 2)
 
-### Ce qu'on n'entraîne pas
+> Plan prêt, **pas encore fait**. Objectif : vérifier si un modèle appris décide mieux que les règles écrites à la main (hypothèse E16 de l'[audit](Audit_technique_final_Fil_Rouge_Master_UHA_4_0_v3.md) §16 et §21), et c'est la partie « IA entraînée » du projet.
 
-**MoveNet**, qui trouve les points, est **déjà entraîné par Google** sur des milliers d'images. On ne le modifie pas.
+### 9.1 Ce qui change, ce qui ne change pas
 
-### Ce qu'on pourrait entraîner plus tard
-
-Au lieu d'écrire les règles à la main (« si tête < 50° »), un **petit modèle** pourrait apprendre la règle à partir des exemples étiquetés :
+Le classifieur remplace **une seule étape** : le verdict d'une image (`posture.regles.postures()`). Les règles actuelles sont déjà un **arbre de décision écrit à la main** (tronc > 20° ? → dos penché ; sinon cou > 42° ? → cou penché ; sinon tête < 50° ? → tête en avant ; tronc < −30° ? → allongé). Le classifieur apprend ces questions et ces seuils à partir d'exemples étiquetés.
 
 ```text
-ENTRÉE : angles (tête, tronc) + éventuellement les points
-SORTIE : « bonne », « tête en avant », « dos penché », « avachi »
-APPRIS À PARTIR DE : des centaines d'exemples étiquetés (étape 4)
+image → MoveNet → points → contrôles (présence, profil, angles possibles) → angles
+      → [ VERDICT DE L'IMAGE : règles aujourd'hui, classifieur demain ]
+      → bocal (70 % pendant 1 min, fin sous 40 %, anti-rafale) → alerte
 ```
 
-C'est utile si les règles simples ne suffisent pas, par exemple pour le dos en « C », qu'aucun angle seul ne capte bien.
-
-### Avec quoi ?
-
-| Outil | Quand |
+| Partie | Avec le classifieur |
 |---|---|
-| **scikit-learn** (arbre de décision, régression logistique) | **premier choix** : simple, rapide, et la décision reste **explicable** |
-| **TensorFlow / Keras** (petit réseau de neurones) | si scikit-learn ne suffit pas. Le modèle s'exporte en **`.tflite`** et tourne sur le Pi avec `ai-edge-litert`, **le même moteur que MoveNet** : rien de nouveau à installer sur le Pi |
+| MoveNet, côté stable, point complété, présence, contrôles C1 à C4, angles | **inchangés** : MoveNet reste pré-entraîné, on ne le réentraîne pas |
+| Verdict d'une image | **remplacé** |
+| Bocal, temps assis, cadence, événements, résumés, score | **inchangés** : le classifieur se trompera aussi de temps en temps, c'est le bocal qui absorbe ces erreurs |
 
-L'**entraînement** se fait sur un **PC**. Le Pi ne fait qu'**utiliser** le modèle entraîné.
+**Pas de modèle « de zéro »** (réseau de neurones sur les images) : il faudrait des milliers d'images de dizaines de personnes, **stocker des images** pour l'entraîner (contraire à la règle « aucune image »), un GPU, et on perdrait ce que MoveNet a déjà appris.
 
-### Pourquoi pas maintenant ?
+### 9.2 Quel modèle
 
-1. **Il faut d'abord des données** : les exemples étiquetés de l'étape 4.
-2. **Les règles simples suffisent peut-être.** Pour un POC, des règles compréhensibles et justifiables valent mieux qu'un modèle « boîte noire ».
-3. **Les mêmes données servent aux deux.** En enregistrant les exemples pour régler les seuils, on prépare déjà un éventuel entraînement : rien n'est perdu.
+| Modèle (scikit-learn) | Rôle |
+|---|---|
+| **Arbre de décision**, profondeur 3 ou 4 | **explicable** : on le dessine et on le compare à l'arbre écrit à la main (retrouve-t-il les mêmes seuils ? d'autres questions ?) |
+| **Forêt aléatoire** (~200 arbres) | **candidat principal** : en général le plus précis sur des tableaux de chiffres avec peu de données ; donne aussi l'importance de chaque angle |
+| *(option)* petit réseau de neurones (MLP) sur les angles | pour comparer ; avec peu de données, il fera probablement moins bien |
+
+Arbres et forêts sont les plus adaptés ici : données en tableau (des angles), **peu d'exemples**, modèle de quelques Ko, prédiction en quelques millisecondes sur le Pi.
+
+### 9.3 Les données
+
+**Seulement les enregistrements étiquetés** d'`enregistrer.py` (`resultats/P??_*.csv`) : chaque image y a les 17 points, les angles **et** la posture demandée (`etiquette`). Les sessions de `poc.py` ne servent pas : elles n'ont pas d'étiquette, et prendre la sortie des règles comme étiquette ferait apprendre les règles, avec leurs erreurs.
+
+État au 14/10/2026 (4 volontaires) :
+
+| Étiquette | Images | Utilisation |
+|---|---|---|
+| GOOD | 993 | ✅ |
+| FORWARD_HEAD | 531 | ✅ |
+| TRUNK_FORWARD | 531 | ✅ |
+| TRUNK_BACKWARD | 531 | ✅ ⚠️ jusqu'à P04, consigne « avachissez-vous » (avachi **léger**), pas « allongé » |
+| NECK_FLEXION | 75 | ❌ 1 seule personne |
+| CALIBRATION | 2 421 | ❌ travail normal, pas forcément une bonne posture (tête à 48–51° chez P01) |
+| TRANSITION | 720 | ❌ changement de posture, étiquette fausse |
+
+Limites à dire dans le rapport : **4 personnes** seulement ; l'étiquette est la **consigne**, pas la vérité (P03 a fait « tête en avant » calé au dossier) ; postures **jouées** 30 s.
+
+**Avant d'entraîner pour de bon : au moins 10 volontaires**, enregistrés au vrai poste, avec en plus les postures que les règles ratent : tête en avant **calée au dossier**, avachi léger et allongé franc (deux étiquettes), téléphone, bonne posture droite **et** calée au dossier (s'appuyer n'est pas une faute). Datasets publics possibles en complément : MultiPosture (Zenodo, 13 personnes, tronc seulement, points à convertir), Sitting Posture (Roboflow, images sur lesquelles passer MoveNet ; licence CC BY 4.0). Écarté : KandenAi (images générées par IA).
+
+**Entrées** : `tete`, `tronc`, `cou`, `tete_tronc`, `ecart_epaules` ; en option, positions du nez et de l'oreille par rapport à l'épaule **divisées par la longueur du tronc**. Pas `longueur_tronc` en pixels : elle dépend de la distance à la caméra (le modèle apprendrait « P02 était plus loin »). **Sortie** : l'étiquette.
+
+### 9.4 Évaluer honnêtement
+
+- **Une personne laissée de côté** à chaque tour (`LeaveOneGroupOut`) : entraîner sur toutes les autres, tester sur elle. Sinon le modèle reconnaît des images presque identiques de la même personne et le score est faux.
+- **Comparer aux règles sur les mêmes images**, avec la même mesure qu'`outils/evaluer.py` : F1 « mauvaise posture contre GOOD » (règles : **0,82**, précision 0,97).
+- Regarder aussi la **matrice de confusion** (la cause est-elle plus souvent juste ? règles : 66 à 85 %) et le résultat **personne par personne**.
+
+Ce qu'on peut raisonnablement attendre : une cause plus souvent juste et une partie des têtes en avant calées au dossier retrouvées ; la précision de 0,97 sera difficile à battre. Les deux conclusions sont valables : « le modèle fait mieux, de combien » ou « avec peu de données, des règles appuyées sur la littérature suffisent ».
+
+### 9.5 Mise en place
+
+**1. Dépendance.** scikit-learn (version figée) dans une nouvelle option `ia` de `pyproject.toml`, pour ne pas alourdir le reste ; sur le Pi : `pip install -e ".[pi,dev,ia]"`.
+
+**2. Script `outils/classifieur.py`**, lancé sur le Pi (les CSV y sont déjà, ils ne doivent pas être copiés sur GitHub ; l'entraînement prend quelques secondes) :
+
+```python
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import LeaveOneGroupOut, cross_val_predict
+from sklearn.metrics import f1_score, confusion_matrix
+
+X = donnees[["tete", "tronc", "cou", "tete_tronc", "ecart_epaules"]]
+y = donnees["etiquette"]          # GOOD, FORWARD_HEAD, TRUNK_FORWARD, TRUNK_BACKWARD
+personnes = donnees["personne"]   # P01… (les fichiers essai1_P01 et P01_* = la même personne)
+
+foret = RandomForestClassifier(n_estimators=200, max_depth=5, class_weight="balanced")
+predit = cross_val_predict(foret, X, y, groups=personnes, cv=LeaveOneGroupOut())
+print("F1 forêt :", f1_score(y != "GOOD", predit != "GOOD"))   # règles : 0,82
+print(confusion_matrix(y, predit))
+
+foret.fit(X, y)                   # modèle final, sur tout le monde
+```
+
+Le script affiche, pour les règles, l'arbre et la forêt : F1 global, F1 par personne, matrice de confusion, l'arbre appris (`sklearn.tree.export_text`) et l'importance des angles. Le modèle final est enregistré dans `models/classifieur.joblib`, **jamais commité** (appris sur des données personnelles) : ajouter `models/*.joblib` à `.gitignore`.
+
+**3. Brancher dans le code.** Un module `posture/classifieur.py` charge le modèle et renvoie **exactement le même format** que `postures()` (`{posture: (mauvaise ?, règle)}`), pour que rien d'autre ne change. Dans `poc.py`, une option `--classifieur` choisit la source du verdict :
+
+```python
+regles = classifieur.postures(a) if args.classifieur else postures(a)
+```
+
+On garde les règles par défaut et comme secours. La forêt donne une **probabilité** par posture : compter l'image comme mauvaise seulement au-dessus de ~60 %, et la traiter comme ignorée quand le modèle hésite, réduit les fausses alertes. Hors entraînement, **scikit-learn n'est importé que par `posture/classifieur.py`** (comme OpenCV pour `camera.py`), pour que les tests et les autres modules n'en dépendent pas.
+
+**4. Tests** (`tests/test_classifieur.py`, avec un petit modèle entraîné sur des points de `aide.personne()`) : même format de sortie que `postures()`, verdict cohérent sur des cas évidents, image ignorée si le modèle hésite.
+
+**5. Valider en vraie session** avec les mêmes critères que les règles : moins d'**1 fausse alerte par heure** (T5), alertes justes, délai inchangé. Garder le classifieur seulement s'il fait mieux (E16) ; sinon, garder les règles et écrire pourquoi.
+
+### 9.6 Plus tard : des étiquettes en vraie vie
+
+Pour vérifier en conditions réelles, il faudra des étiquettes hors des postures jouées : un bouton **« alerte juste / fausse »** dans l'app (n'apprend que des moments où une alerte a sonné), une **question ponctuelle** « comment êtes-vous assis ? » 2 à 3 fois par jour (couvre aussi les postures ratées), ou l'**annotation par l'admin** sur le squelette (sans image, consigne « annoter les données »). Uniquement en **session d'annotation consentie** (points envoyés avec un identifiant pseudonyme, conservation limitée) ; en session normale, les points ne quittent pas le Pi ([audit](Audit_technique_final_Fil_Rouge_Master_UHA_4_0_v3.md) §7.2).
 
 ---
 
@@ -719,4 +791,4 @@ L'**entraînement** se fait sur un **PC**. Le Pi ne fait qu'**utiliser** le mod�
 | 6 | **Enregistrer des exemples** (étape 4) | ajouter les touches `0` à `3` dans `live.py` | les données |
 | 7 | **Ajuster les seuils** (étape 5) | `evaluer.py` : distributions et score F1 | les seuils définitifs |
 | 8 | **`poc.py`** | la vraie session ([poc-raspberry.md](poc-raspberry.md) §5.5) | la chaîne complète |
-| 9 | *(option)* **Entraîner un modèle** | scikit-learn ou TensorFlow | si les règles ne suffisent pas |
+| 9 | *(itération 2)* **Classifieur appris** (§9) | arbre de décision et forêt aléatoire (scikit-learn), une personne laissée de côté, comparés aux règles | un modèle appris fait-il mieux que les règles (E16) ? |

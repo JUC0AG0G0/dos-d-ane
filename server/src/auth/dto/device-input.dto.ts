@@ -3,7 +3,12 @@ import { IsIn, IsOptional, IsUUID } from 'class-validator';
 import { DeviceType } from '../../entities/index.js';
 
 /** Appareils depuis lesquels on peut se connecter. */
-export const LOGIN_DEVICE_TYPES = [DeviceType.Web, DeviceType.Mobile] as const;
+export const LOGIN_DEVICE_TYPES = [
+  DeviceType.Web,
+  DeviceType.Mobile,
+  DeviceType.Desktop,
+  DeviceType.Raspberry,
+] as const;
 export type LoginDeviceType = (typeof LOGIN_DEVICE_TYPES)[number];
 
 /**
@@ -23,7 +28,8 @@ export class DeviceInputDto {
   @ApiPropertyOptional({
     enum: LOGIN_DEVICE_TYPES,
     default: DeviceType.Web,
-    description: 'mobile pour l’application mobile, web sinon',
+    description:
+      'mobile (application mobile), desktop (application Electron), raspberry (programme sur Raspberry Pi), web sinon. Seul web ne peut pas envoyer de captures.',
   })
   @IsOptional()
   @IsIn(LOGIN_DEVICE_TYPES)

@@ -64,3 +64,16 @@ def test_ecart_epaules_relatif_au_tronc():
 def test_angle_cou_positif_quand_on_regarde_vers_le_bas():
     assert angle_cou(personne(cou=55), "gauche") == pytest.approx(55, abs=0.5)
     assert angle_cou(personne(cou=-10), "gauche") == pytest.approx(-10, abs=0.5)
+
+
+@pytest.mark.parametrize("fantome", [dict(tete=-55, tronc=40), dict(tete=40, tronc=-77),
+                                     dict(tete=98, tronc=0, longueur_tronc=36)])
+def test_angles_impossibles_ignores(fantome):
+    # 14/10, caméra devant une chaise vide : MoveNet place quand même un corps, aux angles absurdes
+    assert angles(personne(**fantome), "gauche") is None
+
+
+def test_angles_extremes_mais_possibles_gardes():
+    # bornes des 13 519 images réelles du 12–14/10 : tête 2°, tronc −56° et +46°, tronc de 108 px
+    for p in (dict(tete=2), dict(tronc=-56), dict(tronc=46), dict(longueur_tronc=108)):
+        assert angles(personne(**p), "gauche") is not None

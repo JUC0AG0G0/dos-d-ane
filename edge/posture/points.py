@@ -1,4 +1,4 @@
-"""Points MoveNet : côté vu, point mal vu complété, personne présente (contrôles C1, C2 bis)."""
+"""Points MoveNet : côté vu, point mal vu complété, personne présente ou absente (contrôles C1, C2 bis)."""
 
 import time
 
@@ -102,6 +102,40 @@ class Completeur:
         return pts, self.NOMS[indices.index(i)]
 
 
-def personne_vue(pts):
-    """Quelqu'un est-il devant la caméra ? (une oreille ou une épaule bien vue, même si l'image est ignorée)"""
-    return float(pts[[3, 4, 5, 6], 2].max()) >= CONF_MIN
+def points_nets(pts):
+    """Nombre de points (sur 17) vus avec une confiance d'au moins Presence.CONF_NETTE."""
+    return int((pts[:, 2] >= Presence.CONF_NETTE).sum())
+
+
+class Presence:
+    """Quelqu'un est-il devant la caméra ? MoveNet ne le dit pas : il place toujours 17 points.
+
+    Le 14/10, sur une chaise vide, il « voyait » une personne (oreilles et épaules entre 0,12 et 0,50,
+    parfois 0,73) : l'ancienne règle (une oreille ou une épaule ≥ 0,2) a mis 38 s à voir l'absence.
+    Un seuil de confiance ne suffit pas : une personne mal vue (allongée, mal éclairée) a les mêmes
+    confiances. Ce qui les sépare : la chaise vide ne donne presque jamais d'angles (1 image sur 19).
+    - Absente après IMAGES_ABSENT images d'affilée sans angles et peu nettes (moins de POINTS_NETS
+      points ≥ CONF_NETTE ; une personne nette dont la hanche est cachée reste présente).
+    - De retour seulement sur une image avec angles ET nette : une image fantôme isolée ne compte pas.
+    Rejoué sur les sessions des 12–14/10 : chaise vide vue absente en 12 s, aucune fausse absence
+    (15 avec 3 images d'affilée). Une personne revenue a 8 à 13 points nets, la chaise vide 4 au plus.
+    """
+
+    IMAGES_ABSENT = 6
+    POINTS_NETS = 5
+    CONF_NETTE = 0.5
+
+    def __init__(self):
+        self.absente = False
+        self.sans_angles = 0       # images d'affilée sans angles et peu nettes
+
+    def maj(self, pts, jugee):
+        """jugee : l'image a donné des angles. Renvoie True si quelqu'un est devant la caméra."""
+        nette = points_nets(pts) >= self.POINTS_NETS
+        if self.absente:
+            if jugee and nette:
+                self.absente, self.sans_angles = False, 0
+        else:
+            self.sans_angles = 0 if jugee or nette else self.sans_angles + 1
+            self.absente = self.sans_angles >= self.IMAGES_ABSENT
+        return not self.absente
