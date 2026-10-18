@@ -1,6 +1,9 @@
 import {
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Header,
   Param,
   ParseUUIDPipe,
@@ -14,9 +17,11 @@ import {
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
+  ApiConflictResponse,
   ApiConsumes,
   ApiCreatedResponse,
   ApiForbiddenResponse,
+  ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -27,7 +32,7 @@ import {
 import type { AuthContext } from '../auth/auth.guard.js';
 import { CurrentAuth, Roles } from '../auth/decorators.js';
 import { Role } from '../entities/index.js';
-import { MediaDto, MediaUploadDto } from './dto/media.dto.js';
+import { AdminMediaDto, MediaDto, MediaUploadDto } from './dto/media.dto.js';
 import {
   MEDIA_MAX_BYTES,
   type UploadedFile as UploadedMediaFile,
@@ -64,6 +69,26 @@ export class MediaController {
 @Controller('admin/advice/media')
 export class AdminMediaController {
   constructor(private readonly media: MediaService) {}
+
+  @Get()
+  @ApiOperation({
+    summary:
+      'Liste tous les médias stockés, avec les contenus qui les utilisent',
+  })
+  @ApiOkResponse({ type: [AdminMediaDto] })
+  list(): Promise<AdminMediaDto[]> {
+    return this.media.list();
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Supprime un média inutilisé (fichier compris)' })
+  @ApiNoContentResponse({ description: 'Média supprimé' })
+  @ApiNotFoundResponse({ description: 'Média introuvable' })
+  @ApiConflictResponse({ description: 'Média encore utilisé' })
+  remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    return this.media.remove(id);
+  }
 
   @Post()
   @UseInterceptors(

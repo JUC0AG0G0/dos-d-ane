@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
   StreamableFile,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import type { MediaDto } from './dto/media.dto.js';
+import type { AdminMediaDto, MediaDto } from './dto/media.dto.js';
 import { MediaStorageService } from './media-storage.service.js';
 import {
   MEDIA_EXTENSIONS,
@@ -54,6 +55,41 @@ export class MediaService {
       },
       select: mediaSelect,
     });
+  }
+
+  /** Tous les médias stockés, les plus récents d'abord, avec leurs usages. */
+  async list(): Promise<AdminMediaDto[]> {
+    const rows = await this.prisma.media.findMany({
+      select: {
+        ...mediaSelect,
+        createdAt: true,
+        uploadedBy: { select: { displayName: true } },
+        exercises: { select: { id: true, title: true } },
+        postureTips: { select: { id: true, title: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return rows.map(({ uploadedBy, ...media }) => ({
+      ...media,
+      uploadedBy: uploadedBy?.displayName ?? null,
+    }));
+  }
+
+  /** Supprime un média inutilisé (fichier et ligne). */
+  async remove(id: string): Promise<void> {
+    const media = await this.prisma.media.findUnique({
+      where: { id },
+      select: {
+        _count: { select: { exercises: true, postureTips: true } },
+      },
+    });
+    if (!media) throw new NotFoundException('Média introuvable');
+    if (media._count.exercises || media._count.postureTips) {
+      throw new ConflictException(
+        'Ce média est encore utilisé : retirez-le d’abord de l’exercice',
+      );
+    }
+    await this.removeIfUnused(id);
   }
 
   async stream(id: string): Promise<StreamableFile> {

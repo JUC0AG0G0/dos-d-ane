@@ -1,6 +1,7 @@
 import { http } from '@/services';
 import type {
   AdminExercise,
+  AdminMedia,
   AdminPainZone,
   AdminPainZones,
   AdminPostureTip,
@@ -39,4 +40,6 @@ export const adminAdviceService = {
     http.put<{ text: string }>(ROUTES.whenToSeeDoctor, { text }),
 
   uploadMedia: (file: File) => http.upload<UploadedMedia>(ROUTES.media, file),
+  media: () => http.get<AdminMedia[]>(ROUTES.media),
+  deleteMedia: (id: string) => http.delete<void>(ROUTES.mediaItem(id)),
 };

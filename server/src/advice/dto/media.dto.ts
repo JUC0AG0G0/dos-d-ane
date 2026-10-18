@@ -25,6 +25,34 @@ export class MediaDto {
   height: number | null;
 }
 
+export class MediaUsageDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ example: 'Rentrer le menton' })
+  title: string;
+}
+
+/** Média stocké, avec les contenus qui l'utilisent (page Administration › Médias). */
+export class AdminMediaDto extends MediaDto {
+  @ApiProperty()
+  createdAt: Date;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'Nom d’affichage de l’admin qui l’a envoyé ; null si son compte a été supprimé',
+  })
+  uploadedBy: string | null;
+
+  @ApiProperty({ type: [MediaUsageDto] })
+  exercises: MediaUsageDto[];
+
+  @ApiProperty({ type: [MediaUsageDto] })
+  postureTips: MediaUsageDto[];
+}
+
 export class MediaUploadDto {
   @ApiProperty({
     type: 'string',

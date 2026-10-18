@@ -65,6 +65,7 @@ export const NAV_SECTIONS: NavSection[] = [
         children: [
           { to: '/admin/utilisateurs', label: 'Utilisateurs' },
           { to: '/admin/conseils', label: 'Conseils et exercices' },
+          { to: '/admin/medias', label: 'Médias' },
         ],
       },
     ],

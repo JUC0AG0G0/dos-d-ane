@@ -10,6 +10,7 @@ export { POSTURE_TIP_ELEMENTS } from './components/posture-tip-elements';
 export { PostureSchema } from './components/PostureSchema';
 export { SourceLink } from './components/SourceLink';
 export { useApi } from './hooks/useApi';
+export { useMediaUrl } from './hooks/useMediaUrl';
 export { adviceService } from './services/advice.service';
 export { formatDuration } from './utils';
 export * from './types/advice.types';

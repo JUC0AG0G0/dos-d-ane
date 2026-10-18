@@ -76,3 +76,11 @@ export interface PainZoneInput {
   exerciseIds: string[];
   status: ContentStatus;
 }
+
+/** Média stocké (page Administration › Médias). */
+export interface AdminMedia extends UploadedMedia {
+  createdAt: string;
+  uploadedBy: string | null;
+  exercises: { id: string; title: string }[];
+  postureTips: { id: string; title: string }[];
+}

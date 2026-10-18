@@ -13,4 +13,5 @@ export const ADMIN_ADVICE_ROUTES = {
   painZone: (zoneId: string) => `/admin/advice/pain-zones/${id(zoneId)}`,
   whenToSeeDoctor: '/admin/advice/settings/when-to-see-doctor',
   media: '/admin/advice/media',
+  mediaItem: (mediaId: string) => `/admin/advice/media/${id(mediaId)}`,
 } as const;
