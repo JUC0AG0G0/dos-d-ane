@@ -50,7 +50,8 @@ export class ExercisesService {
       this.prisma.exercise.findMany({
         where: { ...base, ...typeWhere(type) },
         select: exerciseSummarySelect,
-        orderBy: { createdAt: 'asc' },
+        // Même date pour le contenu initial : l'id (UUID v7) garde l'ordre d'insertion.
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       }),
       this.prisma.exercise.count({ where: base }),
       this.prisma.exercise.count({ where: { ...base, isPreventive: true } }),
@@ -93,7 +94,8 @@ export class ExercisesService {
         ...(search && { title: { contains: search, mode: 'insensitive' } }),
       },
       select: exerciseSelect,
-      orderBy: { createdAt: 'asc' },
+      // Même date pour le contenu initial : l'id (UUID v7) garde l'ordre d'insertion.
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     });
     return rows.map(toAdminExercise);
   }

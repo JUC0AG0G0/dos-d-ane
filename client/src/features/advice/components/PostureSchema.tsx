@@ -32,8 +32,13 @@ interface PostureSchemaProps {
    * Sans liste, le dessin n'a pas de repère.
    */
   markers?: PostureTipKey[];
-  /** Élément entouré (étape du tuto). */
-  highlight?: PostureTipKey;
+  /** Élément entouré en pointillés animés (étape du tuto, réglage survolé). */
+  highlight?: PostureTipKey | null;
+  /**
+   * Survol d'un élément du dessin (repère ou zone) : la page met en évidence
+   * le réglage correspondant. null quand la souris quitte l'élément.
+   */
+  onHover?: (key: PostureTipKey | null) => void;
   className?: string;
 }
 
@@ -46,6 +51,7 @@ interface PostureSchemaProps {
 export function PostureSchema({
   markers,
   highlight,
+  onHover,
   className,
 }: PostureSchemaProps) {
   const line = { stroke: LINE, strokeLinecap: 'round' as const };
@@ -152,13 +158,50 @@ export function PostureSchema({
           stroke="var(--primary)"
           strokeWidth="3"
           strokeDasharray="6 5"
-        />
+        >
+          {/* Pointillés qui défilent autour de l'élément. */}
+          <animate
+            attributeName="stroke-dashoffset"
+            from="0"
+            to="-22"
+            dur="0.8s"
+            repeatCount="indefinite"
+          />
+        </rect>
       )}
+      {/* Zones de survol (invisibles) des réglages qui ont un repère. */}
+      {onHover &&
+        markers?.map((key) => {
+          const [x, y, width, height] = HIGHLIGHTS[key];
+          return (
+            <rect
+              key={key}
+              x={x}
+              y={y}
+              width={width}
+              height={height}
+              fill="transparent"
+              className="cursor-pointer"
+              onMouseEnter={() => onHover(key)}
+              onMouseLeave={() => onHover(null)}
+            />
+          );
+        })}
       {markers?.map((key, index) => {
         const [x, y] = MARKERS[key];
         return (
-          <g key={key}>
-            <circle cx={x} cy={y} r="11" fill="var(--primary)" />
+          <g
+            key={key}
+            className={onHover ? 'cursor-pointer' : undefined}
+            onMouseEnter={onHover && (() => onHover(key))}
+            onMouseLeave={onHover && (() => onHover(null))}
+          >
+            <circle
+              cx={x}
+              cy={y}
+              r={key === highlight ? 13 : 11}
+              fill="var(--primary)"
+            />
             <text
               x={x}
               y={y}

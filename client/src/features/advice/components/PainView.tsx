@@ -23,7 +23,6 @@ import type { PainZone } from '../types/advice.types';
 import { formatDuration } from '../utils';
 import { ExerciseDetailDialog } from './ExerciseDetailDialog';
 import { ExerciseMedia } from './ExerciseMedia';
-import { ExerciseTypeBadges } from './ExerciseTypeBadges';
 import { LoadState } from './LoadState';
 import { PageHeader } from './PageHeader';
 import { SourceLink } from './SourceLink';
@@ -48,7 +47,6 @@ export function PainView() {
   const zones = data?.zones ?? [];
   const zone = zones.find(({ id }) => id === params.get('zone')) ?? zones[0];
   const exercises = zone?.exercises ?? [];
-  const openIndex = exercises.findIndex(({ id }) => id === openId);
 
   return (
     <section className="grid gap-6">
@@ -92,7 +90,7 @@ export function PainView() {
                 ))}
               </div>
 
-              <div className="grid items-start gap-6 xl:grid-cols-[1fr_460px]">
+              <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
                 <Card>
                   <CardHeader>
                     <CardTitle>{zone.name}</CardTitle>
@@ -148,14 +146,13 @@ export function PainView() {
                   </CardContent>
                 </Card>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Exercices conseillés</CardTitle>
-                    <CardDescription>
-                      Pour soulager : {zone.name.toLowerCase()}.
-                    </CardDescription>
+                <Card className="gap-3 py-4">
+                  <CardHeader className="px-4">
+                    <CardTitle className="text-sm">
+                      Exercices conseillés
+                    </CardTitle>
                     <CardAction>
-                      <Button variant="ghost" size="sm" asChild>
+                      <Button variant="ghost" size="xs" asChild>
                         <Link to={allExercisesLink(zone)}>
                           Tous les exercices
                           <ArrowRight />
@@ -163,7 +160,7 @@ export function PainView() {
                       </Button>
                     </CardAction>
                   </CardHeader>
-                  <CardContent className="grid">
+                  <CardContent className="grid px-2">
                     {exercises.length === 0 && (
                       <p className="text-sm text-muted-foreground">
                         Pas encore d’exercice conseillé pour cette zone.
@@ -175,20 +172,19 @@ export function PainView() {
                         <button
                           type="button"
                           onClick={() => setOpenId(exercise.id)}
-                          className="flex items-center gap-3.5 rounded-md py-3 text-left hover:bg-muted/60"
+                          className="flex items-center gap-3 rounded-md px-2 py-2 text-left hover:bg-muted/60"
                         >
                           <ExerciseMedia
                             media={exercise.media}
                             title={exercise.title}
-                            className="size-16 shrink-0 rounded-md"
+                            className="size-11 shrink-0 rounded-md [&_svg]:size-5"
                           />
-                          <div className="grid flex-1 gap-1.5">
-                            <span className="text-sm font-medium">
+                          <div className="grid flex-1 gap-1">
+                            <span className="text-sm leading-tight font-medium">
                               {exercise.title}
                             </span>
-                            <span className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+                            <span className="text-xs text-muted-foreground">
                               {formatDuration(exercise.durationSeconds)}
-                              <ExerciseTypeBadges exercise={exercise} />
                             </span>
                           </div>
                           <ChevronRight
@@ -208,8 +204,6 @@ export function PainView() {
 
       <ExerciseDetailDialog
         exerciseId={openId}
-        previousId={openIndex > 0 ? exercises[openIndex - 1].id : null}
-        onNavigate={setOpenId}
         onClose={() => setOpenId(null)}
       />
     </section>

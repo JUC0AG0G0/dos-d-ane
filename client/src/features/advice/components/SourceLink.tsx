@@ -1,4 +1,5 @@
 import { ExternalLink } from 'lucide-react';
+import type { MouseEventHandler } from 'react';
 import { cn } from '@/utils/cn';
 import type { Source } from '../types/advice.types';
 
@@ -7,13 +8,18 @@ export function SourceLink({
   sourceLabel,
   sourceUrl,
   className,
-}: Source & { className?: string }) {
+  onClick,
+}: Source & {
+  className?: string;
+  onClick?: MouseEventHandler<HTMLAnchorElement>;
+}) {
   if (!sourceLabel || !sourceUrl) return null;
   return (
     <a
       href={sourceUrl}
       target="_blank"
       rel="noopener noreferrer"
+      onClick={onClick}
       className={cn(
         'inline-flex items-center gap-1 text-xs font-medium text-primary underline underline-offset-2 hover:text-primary/80',
         className,

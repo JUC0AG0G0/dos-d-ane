@@ -1,4 +1,5 @@
-import { ChevronLeft, Timer, TriangleAlert } from 'lucide-react';
+import { Timer, TriangleAlert } from 'lucide-react';
+import { useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,22 +17,18 @@ import { adviceService } from '../services/advice.service';
 import { ZONE_LABELS } from '../types/advice.types';
 import { formatDuration, formatDurationLong } from '../utils';
 import { ExerciseMedia } from './ExerciseMedia';
+import { ExerciseTimer } from './ExerciseTimer';
 import { ExerciseTypeBadges } from './ExerciseTypeBadges';
 import { NumberMarker } from './NumberMarker';
 
 interface ExerciseDetailDialogProps {
   /** Exercice affiché ; null ferme la fenêtre. */
   exerciseId: string | null;
-  /** Exercice précédent dans la liste d'où l'on vient, s'il y en a un. */
-  previousId?: string | null;
-  onNavigate: (id: string) => void;
   onClose: () => void;
 }
 
 export function ExerciseDetailDialog({
   exerciseId,
-  previousId,
-  onNavigate,
   onClose,
 }: ExerciseDetailDialogProps) {
   return (
@@ -40,28 +37,14 @@ export function ExerciseDetailDialog({
       onOpenChange={(open) => !open && onClose()}
     >
       <DialogContent className="sm:max-w-3xl">
-        {exerciseId && (
-          <ExerciseDetail
-            key={exerciseId}
-            id={exerciseId}
-            previousId={previousId}
-            onNavigate={onNavigate}
-          />
-        )}
+        {exerciseId && <ExerciseDetail key={exerciseId} id={exerciseId} />}
       </DialogContent>
     </Dialog>
   );
 }
 
-function ExerciseDetail({
-  id,
-  previousId,
-  onNavigate,
-}: {
-  id: string;
-  previousId?: string | null;
-  onNavigate: (id: string) => void;
-}) {
+function ExerciseDetail({ id }: { id: string }) {
+  const [started, setStarted] = useState(false);
   const { data: exercise, error } = useApi(
     () => adviceService.exercise(id),
     [id],
@@ -100,12 +83,19 @@ function ExerciseDetail({
       </DialogHeader>
 
       <div className="grid gap-6 sm:grid-cols-[320px_1fr]">
-        <ExerciseMedia
-          media={exercise.media}
-          title={exercise.title}
-          className="aspect-square w-full rounded-lg border sm:size-80"
-          playable
-        />
+        {started ? (
+          <ExerciseTimer
+            durationSeconds={exercise.durationSeconds}
+            onStop={() => setStarted(false)}
+          />
+        ) : (
+          <ExerciseMedia
+            media={exercise.media}
+            title={exercise.title}
+            className="aspect-square w-full rounded-lg border sm:size-80"
+            playable
+          />
+        )}
         <div className="grid content-start gap-3.5">
           <h3 className="text-[15px] font-semibold">Comment faire</h3>
           <ol className="grid gap-3.5">
@@ -126,27 +116,14 @@ function ExerciseDetail({
         </div>
       </div>
 
-      <DialogFooter className="sm:justify-between">
-        <Button
-          variant="ghost"
-          disabled={!previousId}
-          onClick={() => previousId && onNavigate(previousId)}
-        >
-          <ChevronLeft />
-          Exercice précédent
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button variant="outline">Fermer</Button>
+        </DialogClose>
+        <Button disabled={started} onClick={() => setStarted(true)}>
+          <Timer />
+          Démarrer · {formatDuration(exercise.durationSeconds)}
         </Button>
-        <div className="flex flex-col-reverse gap-2 sm:flex-row">
-          <DialogClose asChild>
-            <Button variant="outline">Fermer</Button>
-          </DialogClose>
-          {/* Pas de minuteur dans cette version (hors périmètre de la spec). */}
-          <span title="Le minuteur arrive dans une prochaine version">
-            <Button disabled className="w-full">
-              <Timer />
-              Démarrer · {formatDuration(exercise.durationSeconds)}
-            </Button>
-          </span>
-        </div>
       </DialogFooter>
     </>
   );

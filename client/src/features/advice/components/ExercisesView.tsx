@@ -45,7 +45,6 @@ export function ExercisesView() {
     );
 
   const items = data?.items ?? [];
-  const openIndex = items.findIndex(({ id }) => id === openId);
 
   return (
     <section className="grid gap-6">
@@ -115,8 +114,6 @@ export function ExercisesView() {
 
       <ExerciseDetailDialog
         exerciseId={openId}
-        previousId={openIndex > 0 ? items[openIndex - 1].id : null}
-        onNavigate={setOpenId}
         onClose={() => setOpenId(null)}
       />
     </section>
