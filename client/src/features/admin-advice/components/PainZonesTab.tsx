@@ -318,7 +318,11 @@ function DoctorMessageDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={(value) => !value && onClose()}>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent
+        // Pas de curseur placé d’office dans un champ : on clique pour modifier.
+        onOpenAutoFocus={(event) => event.preventDefault()}
+        className="sm:max-w-xl"
+      >
         {open && (
           <DoctorMessageForm text={text} onClose={onClose} onSaved={onSaved} />
         )}

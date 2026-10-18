@@ -42,7 +42,11 @@ export function PostureTipEditDialog({
 }: PostureTipEditDialogProps) {
   return (
     <Dialog open={tip !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-3xl">
+      <DialogContent
+        // Pas de curseur placé d’office dans un champ : on clique pour modifier.
+        onOpenAutoFocus={(event) => event.preventDefault()}
+        className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-3xl"
+      >
         {tip && (
           <TipForm
             key={tip.id}

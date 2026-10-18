@@ -65,7 +65,7 @@ export function ExercisePicker({
       </div>
 
       {selected.length > 0 && (
-        <div className="divide-y rounded-lg border">
+        <div className="divide-y overflow-hidden rounded-xl border">
           <SortableList
             ids={selected.map((e) => e.id)}
             onMove={(from, to) => onChange(move(selected, from, to))}
