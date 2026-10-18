@@ -10,9 +10,9 @@ PostgreSQL 18 et [Prisma 7](https://www.prisma.io/docs). Le schéma est dans `se
 | `task db:migrate` | applique les migrations pas encore appliquées, et seulement celles-là |
 | `task db:restore` | annule la dernière migration appliquée |
 | `task db:restore -- migration` | revient à cette migration : elle reste appliquée, les suivantes sont annulées |
-| `task db:restore -- dump` | remplace la base par le dump le plus récent de `dumps/` |
+| `task db:restore -- dump` | remplace la base (et les médias, si le dump en a) par le dump le plus récent de `dumps/` |
 | `task db:restore -- fichier.sql` | remplace la base par ce dump |
-| `task db:dump` | exporte la base dans `dumps/<date>.sql` |
+| `task db:dump` | exporte la base dans `dumps/<date>.sql` et les médias du S3 local dans `dumps/<date>.media.tar.gz` |
 | `task dev:restore` | relance la stack avec les données d'un dump (le plus récent, ou `-- fichier.sql`) |
 | `task clean` | arrête la stack et **supprime** toutes les données |
 

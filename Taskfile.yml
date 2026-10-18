@@ -128,7 +128,7 @@ tasks:
     cmd: "{{.COMPOSE}} exec server npm run db:migrate"
 
   db:dump:
-    desc: Exporte la base dans dumps/<date>.sql (stack lancée ; dossier ignoré par Git)
+    desc: Exporte la base et les médias dans dumps/<date>.sql et .media.tar.gz (stack lancée ; dossier ignoré par Git)
     cmd: sh scripts/db-dump.sh
 
   db:restore:

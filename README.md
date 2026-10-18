@@ -81,7 +81,7 @@ Le rechargement à chaud est toujours actif : chaque modification de `client/src
 | `task test:edge` | tests de l'algorithme de posture du Raspberry Pi (`edge/`, Python, sans webcam) |
 | `task db:generate` | crée une migration depuis `server/prisma/schema.prisma`, sans l'appliquer |
 | `task db:migrate` | applique les migrations pas encore appliquées |
-| `task db:dump` | exporte la base dans `dumps/<date>.sql` (ignoré par Git, à ne pas partager) |
+| `task db:dump` | exporte la base dans `dumps/<date>.sql` et les médias dans `dumps/<date>.media.tar.gz` (ignorés par Git, à ne pas partager) |
 | `task db:restore` | annule la dernière migration, revient à une migration ou charge un dump |
 | `task` | liste toutes les commandes |
 
