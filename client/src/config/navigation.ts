@@ -36,7 +36,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { to: '/', label: 'Accueil', icon: House },
       {
         to: '/conseils',
-        label: 'Conseils',
+        label: 'Conseils et exercices',
         icon: BookOpen,
         children: [
           { to: '/conseils/installation', label: 'Bien s’installer' },
