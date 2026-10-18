@@ -3,7 +3,7 @@ import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ExerciseMedia, type MediaRef } from '@/features/advice';
 import { adminAdviceService } from '../services/admin-advice.service';
-import { errorMessage } from '../utils';
+import { apiErrorMessage } from '@/utils/api-error';
 
 const ACCEPT = 'image/gif,image/png,video/mp4';
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -37,7 +37,7 @@ export function MediaField({
       const { id, mimeType } = await adminAdviceService.uploadMedia(file);
       onChange({ id, mimeType });
     } catch (e) {
-      setError(errorMessage(e, 'L’envoi du fichier a échoué.'));
+      setError(apiErrorMessage(e, 'L’envoi du fichier a échoué.'));
     } finally {
       setUploading(false);
       if (input.current) input.current.value = '';

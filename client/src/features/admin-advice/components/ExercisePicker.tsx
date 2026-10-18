@@ -22,8 +22,8 @@ import {
   type ExerciseSummary,
 } from '@/features/advice';
 import { cn } from '@/utils/cn';
-import { move } from '../utils';
-import { SortableItem, SortableList } from './Sortable';
+import { move } from '@/utils/list';
+import { SortableItem, SortableList } from '@/components/Sortable';
 
 const MAX = 3;
 

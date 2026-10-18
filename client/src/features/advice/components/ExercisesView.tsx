@@ -11,8 +11,8 @@ import {
 } from '../types/advice.types';
 import { ExerciseCard } from './ExerciseCard';
 import { ExerciseDetailDialog } from './ExerciseDetailDialog';
-import { LoadState } from './LoadState';
-import { PageHeader } from './PageHeader';
+import { LoadState } from '@/components/LoadState';
+import { PageHeader } from '@/components/PageHeader';
 
 /** Filtre type dans l'URL (?type=prevention|douleur) → type de l'API. */
 const URL_TYPES: Record<string, ExerciseType> = {

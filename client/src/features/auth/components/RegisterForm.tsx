@@ -1,13 +1,13 @@
-import { CircleAlert } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { Alert, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { PasswordInput } from '@/components/PasswordInput';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useRegister } from '../hooks/useRegister';
+import { ErrorAlert } from '@/components/ErrorAlert';
+import { FormField } from '@/components/FormField';
 
 export function RegisterForm() {
   const [displayName, setDisplayName] = useState('');
@@ -23,14 +23,8 @@ export function RegisterForm() {
 
   return (
     <form onSubmit={onSubmit} className="grid gap-5">
-      {error && (
-        <Alert variant="destructive">
-          <CircleAlert />
-          <AlertTitle>{error}</AlertTitle>
-        </Alert>
-      )}
-      <div className="grid gap-2">
-        <Label htmlFor="displayName">Nom affiché</Label>
+      <ErrorAlert message={error} />
+      <FormField label="Nom affiché" htmlFor="displayName">
         <Input
           id="displayName"
           autoComplete="nickname"
@@ -41,9 +35,8 @@ export function RegisterForm() {
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
         />
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor="email">Email</Label>
+      </FormField>
+      <FormField label="Email" htmlFor="email">
         <Input
           id="email"
           type="email"
@@ -53,9 +46,8 @@ export function RegisterForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor="password">Mot de passe</Label>
+      </FormField>
+      <FormField label="Mot de passe" htmlFor="password">
         <PasswordInput
           id="password"
           autoComplete="new-password"
@@ -69,7 +61,7 @@ export function RegisterForm() {
         <p id="password-hint" className="text-sm text-muted-foreground">
           8 caractères minimum.
         </p>
-      </div>
+      </FormField>
       <div className="flex items-start gap-3">
         <Checkbox
           id="consent"

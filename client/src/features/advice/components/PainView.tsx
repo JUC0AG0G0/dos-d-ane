@@ -23,8 +23,8 @@ import type { PainZone } from '../types/advice.types';
 import { formatDuration } from '../utils';
 import { ExerciseDetailDialog } from './ExerciseDetailDialog';
 import { ExerciseMedia } from './ExerciseMedia';
-import { LoadState } from './LoadState';
-import { PageHeader } from './PageHeader';
+import { LoadState } from '@/components/LoadState';
+import { PageHeader } from '@/components/PageHeader';
 import { SourceLink } from './SourceLink';
 
 /**

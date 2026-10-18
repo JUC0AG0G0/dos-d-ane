@@ -11,9 +11,9 @@ import {
 import { cn } from '@/utils/cn';
 import { usePostureTips } from '../hooks/useAdvice';
 import type { PostureTipKey } from '../types/advice.types';
-import { LoadState } from './LoadState';
-import { NumberMarker } from './NumberMarker';
-import { PageHeader } from './PageHeader';
+import { LoadState } from '@/components/LoadState';
+import { NumberMarker } from '@/components/NumberMarker';
+import { PageHeader } from '@/components/PageHeader';
 import { POSTURE_TIP_ELEMENTS } from './posture-tip-elements';
 import { PostureSchema } from './PostureSchema';
 import { SourceLink } from './SourceLink';

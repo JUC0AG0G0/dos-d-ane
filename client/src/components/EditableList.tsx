@@ -1,8 +1,8 @@
 import { Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { NumberMarker } from '@/features/advice';
-import { localId, move, type EditableItem } from '../utils';
+import { NumberMarker } from './NumberMarker';
+import { localId, move, type EditableItem } from '@/utils/list';
 import { SortableItem, SortableList } from './Sortable';
 
 /**

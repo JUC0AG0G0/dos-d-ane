@@ -26,18 +26,16 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  ExerciseMedia,
-  LoadState,
-  PageHeader,
-  useApi,
-  useMediaUrl,
-} from '@/features/advice';
+import { ExerciseMedia, useMediaUrl } from '@/features/advice';
+import { LoadState } from '@/components/LoadState';
+import { PageHeader } from '@/components/PageHeader';
+import { useApi } from '@/hooks/useApi';
 import { adminAdviceService } from '../services/admin-advice.service';
 import type { AdminMedia } from '../types/admin-advice.types';
-import { errorMessage, formatShortDate } from '../utils';
-import { ConfirmDelete } from './ConfirmDelete';
-import { ErrorAlert } from './ErrorAlert';
+import { apiErrorMessage } from '@/utils/api-error';
+import { formatShortDate } from '@/utils/format';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { ErrorAlert } from '@/components/ErrorAlert';
 
 const TYPE_LABELS: Record<AdminMedia['mimeType'], string> = {
   'image/gif': 'GIF',
@@ -86,7 +84,7 @@ export function MediaLibraryView() {
       await adminAdviceService.deleteMedia(item.id);
       reload();
     } catch (e) {
-      setActionError(errorMessage(e, 'La suppression a échoué.'));
+      setActionError(apiErrorMessage(e, 'La suppression a échoué.'));
     }
   }
 
@@ -270,11 +268,12 @@ export function MediaLibraryView() {
         </DialogContent>
       </Dialog>
 
-      <ConfirmDelete
+      <ConfirmDialog
+        confirmLabel="Supprimer"
         open={deleting !== null}
         title="Supprimer ce média ?"
         description="Le fichier est effacé du stockage. Cette action est définitive."
-        onCancel={() => setDeleting(null)}
+        onClose={() => setDeleting(null)}
         onConfirm={() => deleting && void remove(deleting)}
       />
     </section>

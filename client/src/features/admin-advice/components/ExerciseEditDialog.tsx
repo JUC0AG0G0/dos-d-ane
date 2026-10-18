@@ -33,11 +33,12 @@ import {
   type AdminExercise,
   type ExerciseInput,
 } from '../types/admin-advice.types';
-import { errorMessage, toItems, toTexts, type EditableItem } from '../utils';
-import { ConfirmDelete } from './ConfirmDelete';
-import { EditableList } from './EditableList';
-import { ErrorAlert } from './ErrorAlert';
-import { Field } from './Field';
+import { apiErrorMessage } from '@/utils/api-error';
+import { toItems, toTexts, type EditableItem } from '@/utils/list';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { EditableList } from '@/components/EditableList';
+import { ErrorAlert } from '@/components/ErrorAlert';
+import { FormField } from '@/components/FormField';
 import { MediaField } from './MediaField';
 
 interface ExerciseEditDialogProps {
@@ -133,7 +134,7 @@ function ExerciseForm({
       onSaved();
       onClose();
     } catch (e) {
-      setError(errorMessage(e, 'L’enregistrement a échoué.'));
+      setError(apiErrorMessage(e, 'L’enregistrement a échoué.'));
     } finally {
       setSaving(false);
     }
@@ -147,7 +148,7 @@ function ExerciseForm({
       onClose();
     } catch (e) {
       setConfirmDelete(false);
-      setError(errorMessage(e, 'La suppression a échoué.'));
+      setError(apiErrorMessage(e, 'La suppression a échoué.'));
     }
   }
 
@@ -165,7 +166,7 @@ function ExerciseForm({
 
       <div className="grid gap-6 md:grid-cols-[1fr_280px]">
         <div className="grid content-start gap-4">
-          <Field label="Titre" htmlFor="exercise-title">
+          <FormField label="Titre" htmlFor="exercise-title">
             <Input
               id="exercise-title"
               value={title}
@@ -173,9 +174,9 @@ function ExerciseForm({
               maxLength={120}
               onChange={(event) => setTitle(event.target.value)}
             />
-          </Field>
+          </FormField>
           <div className="grid gap-3 sm:grid-cols-3">
-            <Field label="Partie du corps">
+            <FormField label="Partie du corps">
               <Select
                 value={zone}
                 onValueChange={(value) => setZone(value as ExerciseZone)}
@@ -191,8 +192,8 @@ function ExerciseForm({
                   ))}
                 </SelectContent>
               </Select>
-            </Field>
-            <Field label="Durée (secondes)" htmlFor="exercise-duration">
+            </FormField>
+            <FormField label="Durée (secondes)" htmlFor="exercise-duration">
               <Input
                 id="exercise-duration"
                 type="number"
@@ -202,8 +203,8 @@ function ExerciseForm({
                 value={duration}
                 onChange={(event) => setDuration(event.target.value)}
               />
-            </Field>
-            <Field label="Position">
+            </FormField>
+            <FormField label="Position">
               <Select value={posture} onValueChange={setPosture}>
                 <SelectTrigger className="w-full">
                   <SelectValue />
@@ -216,9 +217,9 @@ function ExerciseForm({
                   ))}
                 </SelectContent>
               </Select>
-            </Field>
+            </FormField>
           </div>
-          <Field
+          <FormField
             label="Type"
             hint="Un exercice peut être à la fois préventif et utile en cas de douleur."
           >
@@ -238,8 +239,8 @@ function ExerciseForm({
                 En cas de douleur
               </Label>
             </div>
-          </Field>
-          <Field
+          </FormField>
+          <FormField
             label="Étapes"
             hint="Glissez une étape pour changer l’ordre. Au moins une pour publier."
           >
@@ -250,25 +251,25 @@ function ExerciseForm({
               placeholder="Décrivez le mouvement"
               numbered
             />
-          </Field>
-          <Field label="Précautions" htmlFor="exercise-precautions">
+          </FormField>
+          <FormField label="Précautions" htmlFor="exercise-precautions">
             <Textarea
               id="exercise-precautions"
               value={precautions}
               maxLength={1000}
               onChange={(event) => setPrecautions(event.target.value)}
             />
-          </Field>
+          </FormField>
         </div>
 
         <div className="grid content-start gap-4">
-          <Field
+          <FormField
             label="Image ou GIF"
             hint="GIF, PNG ou MP4, 5 Mo max. Évitez les visages reconnaissables, ou obtenez l’accord écrit de la personne filmée. Les métadonnées (EXIF) sont retirées à l’envoi."
           >
             <MediaField media={media} title={title} onChange={setMedia} />
-          </Field>
-          <Field
+          </FormField>
+          <FormField
             label="Statut"
             hint="Publié : visible par tous les utilisateurs dans Conseils."
           >
@@ -276,7 +277,7 @@ function ExerciseForm({
               <Switch checked={published} onCheckedChange={setPublished} />
               Publié
             </Label>
-          </Field>
+          </FormField>
         </div>
       </div>
 
@@ -306,11 +307,12 @@ function ExerciseForm({
         </div>
       </DialogFooter>
 
-      <ConfirmDelete
+      <ConfirmDialog
+        confirmLabel="Supprimer"
         open={confirmDelete}
         title={`Supprimer « ${exercise?.title} » ?`}
         description="L’exercice disparaît de Conseils et des zones de douleur, avec son média. Cette action est définitive."
-        onCancel={() => setConfirmDelete(false)}
+        onClose={() => setConfirmDelete(false)}
         onConfirm={() => void remove()}
       />
     </form>

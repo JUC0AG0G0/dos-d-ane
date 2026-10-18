@@ -49,9 +49,10 @@ import {
 } from '@/features/advice';
 import { adminAdviceService } from '../services/admin-advice.service';
 import type { AdminExercise } from '../types/admin-advice.types';
-import { errorMessage, formatShortDate } from '../utils';
-import { ConfirmDelete } from './ConfirmDelete';
-import { ErrorAlert } from './ErrorAlert';
+import { apiErrorMessage } from '@/utils/api-error';
+import { formatShortDate } from '@/utils/format';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { ErrorAlert } from '@/components/ErrorAlert';
 import { ExerciseEditDialog } from './ExerciseEditDialog';
 import { StatusBadge } from './StatusBadge';
 
@@ -99,7 +100,7 @@ export function ExercisesTab({
       });
       reload();
     } catch (e) {
-      setError(errorMessage(e, 'Le changement de statut a échoué.'));
+      setError(apiErrorMessage(e, 'Le changement de statut a échoué.'));
     }
   }
 
@@ -110,7 +111,7 @@ export function ExercisesTab({
       await adminAdviceService.deleteExercise(exercise.id);
       reload();
     } catch (e) {
-      setError(errorMessage(e, 'La suppression a échoué.'));
+      setError(apiErrorMessage(e, 'La suppression a échoué.'));
     }
   }
 
@@ -315,11 +316,12 @@ export function ExercisesTab({
         }}
         onSaved={reload}
       />
-      <ConfirmDelete
+      <ConfirmDialog
+        confirmLabel="Supprimer"
         open={deleting !== null}
         title={`Supprimer « ${deleting?.title} » ?`}
         description="L’exercice disparaît de Conseils et des zones de douleur, avec son média. Cette action est définitive."
-        onCancel={() => setDeleting(null)}
+        onClose={() => setDeleting(null)}
         onConfirm={() => deleting && void remove(deleting)}
       />
     </div>

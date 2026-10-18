@@ -12,14 +12,14 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useApi } from '../hooks/useApi';
+import { useApi } from '@/hooks/useApi';
 import { adviceService } from '../services/advice.service';
 import { ZONE_LABELS } from '../types/advice.types';
 import { formatDuration, formatDurationLong } from '../utils';
 import { ExerciseMedia } from './ExerciseMedia';
 import { ExerciseTimer } from './ExerciseTimer';
 import { ExerciseTypeBadges } from './ExerciseTypeBadges';
-import { NumberMarker } from './NumberMarker';
+import { NumberMarker } from '@/components/NumberMarker';
 
 interface ExerciseDetailDialogProps {
   /** Exercice affiché ; null ferme la fenêtre. */

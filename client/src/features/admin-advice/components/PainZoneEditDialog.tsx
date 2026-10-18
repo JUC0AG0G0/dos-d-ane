@@ -16,12 +16,14 @@ import { Textarea } from '@/components/ui/textarea';
 import type { ExerciseSummary } from '@/features/advice';
 import { adminAdviceService } from '../services/admin-advice.service';
 import type { AdminPainZone, PainZoneInput } from '../types/admin-advice.types';
-import { errorMessage, sourceInput, toItems, toTexts } from '../utils';
-import { ConfirmDelete } from './ConfirmDelete';
-import { EditableList } from './EditableList';
-import { ErrorAlert } from './ErrorAlert';
+import { apiErrorMessage } from '@/utils/api-error';
+import { toItems, toTexts } from '@/utils/list';
+import { sourceInput } from '../utils';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { EditableList } from '@/components/EditableList';
+import { ErrorAlert } from '@/components/ErrorAlert';
 import { ExercisePicker } from './ExercisePicker';
-import { Field } from './Field';
+import { FormField } from '@/components/FormField';
 import { SourceFields } from './SourceFields';
 
 interface PainZoneEditDialogProps {
@@ -107,7 +109,7 @@ function ZoneForm({
       onSaved();
       onClose();
     } catch (e) {
-      setError(errorMessage(e, 'L’enregistrement a échoué.'));
+      setError(apiErrorMessage(e, 'L’enregistrement a échoué.'));
     } finally {
       setSaving(false);
     }
@@ -121,7 +123,7 @@ function ZoneForm({
       onClose();
     } catch (e) {
       setConfirmDelete(false);
-      setError(errorMessage(e, 'La suppression a échoué.'));
+      setError(apiErrorMessage(e, 'La suppression a échoué.'));
     }
   }
 
@@ -138,7 +140,7 @@ function ZoneForm({
 
       <div className="grid gap-6 md:grid-cols-[1fr_360px]">
         <div className="grid content-start gap-4">
-          <Field label="Zone" htmlFor="zone-name">
+          <FormField label="Zone" htmlFor="zone-name">
             <Input
               id="zone-name"
               value={name}
@@ -146,29 +148,29 @@ function ZoneForm({
               maxLength={60}
               onChange={(event) => setName(event.target.value)}
             />
-          </Field>
-          <Field label="Introduction" htmlFor="zone-intro">
+          </FormField>
+          <FormField label="Introduction" htmlFor="zone-intro">
             <Textarea
               id="zone-intro"
               value={intro}
               maxLength={500}
               onChange={(event) => setIntro(event.target.value)}
             />
-          </Field>
-          <Field label="Ce qui aide">
+          </FormField>
+          <FormField label="Ce qui aide">
             <EditableList
               items={helps}
               onChange={setHelps}
               addLabel="Ajouter un point"
             />
-          </Field>
-          <Field label="À éviter">
+          </FormField>
+          <FormField label="À éviter">
             <EditableList
               items={avoid}
               onChange={setAvoid}
               addLabel="Ajouter un point"
             />
-          </Field>
+          </FormField>
           <SourceFields
             label={source.label}
             url={source.url}
@@ -177,7 +179,7 @@ function ZoneForm({
         </div>
 
         <div className="grid content-start gap-4">
-          <Field
+          <FormField
             label="Exercices conseillés"
             hint="3 au maximum. Une fois 3 choisis, retirez-en un pour en ajouter un autre. Les brouillons n’apparaissent pas."
           >
@@ -186,13 +188,13 @@ function ZoneForm({
               published={published}
               onChange={setExercises}
             />
-          </Field>
-          <Field label="Statut">
+          </FormField>
+          <FormField label="Statut">
             <Label className="font-medium">
               <Switch checked={isPublished} onCheckedChange={setPublished} />
               Publié
             </Label>
-          </Field>
+          </FormField>
         </div>
       </div>
 
@@ -222,11 +224,12 @@ function ZoneForm({
         </div>
       </DialogFooter>
 
-      <ConfirmDelete
+      <ConfirmDialog
+        confirmLabel="Supprimer"
         open={confirmDelete}
         title={`Supprimer la zone « ${zone?.name} » ?`}
         description="La zone et ses conseils disparaissent de la page En cas de douleur. Les exercices ne sont pas supprimés. Cette action est définitive."
-        onCancel={() => setConfirmDelete(false)}
+        onClose={() => setConfirmDelete(false)}
         onConfirm={() => void remove()}
       />
     </form>

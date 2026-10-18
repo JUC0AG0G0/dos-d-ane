@@ -41,11 +41,13 @@ import type {
   AdminPainZone,
   AdminPainZones,
 } from '../types/admin-advice.types';
-import { errorMessage, formatShortDate, move } from '../utils';
-import { ConfirmDelete } from './ConfirmDelete';
-import { ErrorAlert } from './ErrorAlert';
+import { apiErrorMessage } from '@/utils/api-error';
+import { formatShortDate } from '@/utils/format';
+import { move } from '@/utils/list';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { ErrorAlert } from '@/components/ErrorAlert';
 import { PainZoneEditDialog } from './PainZoneEditDialog';
-import { SortableItem, SortableList } from './Sortable';
+import { SortableItem, SortableList } from '@/components/Sortable';
 import { StatusBadge } from './StatusBadge';
 
 interface PainZonesTabProps {
@@ -84,7 +86,7 @@ export function PainZonesTab({
       onChange(await adminAdviceService.orderPainZones(next.map((z) => z.id)));
     } catch (e) {
       onChange(previous);
-      setError(errorMessage(e, 'Le nouvel ordre n’a pas été enregistré.'));
+      setError(apiErrorMessage(e, 'Le nouvel ordre n’a pas été enregistré.'));
     }
   }
 
@@ -95,7 +97,7 @@ export function PainZonesTab({
       await adminAdviceService.deletePainZone(zone.id);
       reload();
     } catch (e) {
-      setError(errorMessage(e, 'La suppression a échoué.'));
+      setError(apiErrorMessage(e, 'La suppression a échoué.'));
     }
   }
 
@@ -187,11 +189,12 @@ export function PainZonesTab({
         published={published}
         onSaved={reload}
       />
-      <ConfirmDelete
+      <ConfirmDialog
+        confirmLabel="Supprimer"
         open={deleting !== null}
         title={`Supprimer la zone « ${deleting?.name} » ?`}
         description="La zone et ses conseils disparaissent de la page En cas de douleur. Les exercices ne sont pas supprimés. Cette action est définitive."
-        onCancel={() => setDeleting(null)}
+        onClose={() => setDeleting(null)}
         onConfirm={() => deleting && void remove(deleting)}
       />
       <DoctorMessageDialog
@@ -351,7 +354,7 @@ function DoctorMessageForm({
       onSaved(saved.text);
       onClose();
     } catch (e) {
-      setError(errorMessage(e, 'L’enregistrement a échoué.'));
+      setError(apiErrorMessage(e, 'L’enregistrement a échoué.'));
     }
   }
 

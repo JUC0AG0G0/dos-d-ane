@@ -1,6 +1,6 @@
 import { adviceService } from '../services/advice.service';
 import type { ExerciseType, ExerciseZone } from '../types/advice.types';
-import { useApi } from './useApi';
+import { useApi } from '@/hooks/useApi';
 
 export const usePostureTips = () =>
   useApi(

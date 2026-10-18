@@ -20,9 +20,10 @@ import {
 } from '@/features/advice';
 import { adminAdviceService } from '../services/admin-advice.service';
 import type { AdminPostureTip } from '../types/admin-advice.types';
-import { errorMessage, sourceInput } from '../utils';
-import { ErrorAlert } from './ErrorAlert';
-import { Field } from './Field';
+import { apiErrorMessage } from '@/utils/api-error';
+import { sourceInput } from '../utils';
+import { ErrorAlert } from '@/components/ErrorAlert';
+import { FormField } from '@/components/FormField';
 import { SourceFields } from './SourceFields';
 
 interface PostureTipEditDialogProps {
@@ -100,7 +101,7 @@ function TipForm({
       );
       onClose();
     } catch (e) {
-      setError(errorMessage(e, 'L’enregistrement a échoué.'));
+      setError(apiErrorMessage(e, 'L’enregistrement a échoué.'));
     } finally {
       setSaving(false);
     }
@@ -117,7 +118,7 @@ function TipForm({
       onSaved(saved);
     } catch (e) {
       setError(
-        errorMessage(e, 'Les textes par défaut n’ont pas été rétablis.'),
+        apiErrorMessage(e, 'Les textes par défaut n’ont pas été rétablis.'),
       );
     }
   }
@@ -133,7 +134,7 @@ function TipForm({
 
       <div className="grid gap-6 md:grid-cols-[1fr_300px]">
         <div className="grid content-start gap-4">
-          <Field
+          <FormField
             label="Élément"
             hint="L’élément, son icône et son repère sur le schéma ne se changent pas."
           >
@@ -146,8 +147,8 @@ function TipForm({
               </span>
               <Badge variant="outline">Fixe</Badge>
             </div>
-          </Field>
-          <Field label="Titre" htmlFor="tip-title">
+          </FormField>
+          <FormField label="Titre" htmlFor="tip-title">
             <Input
               id="tip-title"
               value={title}
@@ -155,8 +156,8 @@ function TipForm({
               maxLength={120}
               onChange={(event) => setTitle(event.target.value)}
             />
-          </Field>
-          <Field
+          </FormField>
+          <FormField
             label="Texte court"
             htmlFor="tip-short"
             hint="Affiché dans la liste de la page Bien s’installer."
@@ -168,8 +169,8 @@ function TipForm({
               maxLength={300}
               onChange={(event) => setShortText(event.target.value)}
             />
-          </Field>
-          <Field label="Texte du tuto" htmlFor="tip-tutorial">
+          </FormField>
+          <FormField label="Texte du tuto" htmlFor="tip-tutorial">
             <Textarea
               id="tip-tutorial"
               value={tutorialText}
@@ -178,7 +179,7 @@ function TipForm({
               className="min-h-24"
               onChange={(event) => setTutorialText(event.target.value)}
             />
-          </Field>
+          </FormField>
           <SourceFields
             label={source.label}
             url={source.url}
@@ -187,7 +188,7 @@ function TipForm({
         </div>
 
         <div className="grid content-start gap-4">
-          <Field
+          <FormField
             label="Repère sur le schéma"
             hint={
               number
@@ -198,8 +199,8 @@ function TipForm({
             <div className="rounded-md bg-muted px-3 py-2.5">
               <PostureSchema markers={markers} highlight={tip.key} />
             </div>
-          </Field>
-          <Field
+          </FormField>
+          <FormField
             label="Affichage"
             hint="Masqué, il disparaît de la page, du schéma et du tuto."
           >
@@ -207,7 +208,7 @@ function TipForm({
               <Switch checked={isVisible} onCheckedChange={setVisible} />
               Affiché
             </Label>
-          </Field>
+          </FormField>
         </div>
       </div>
 

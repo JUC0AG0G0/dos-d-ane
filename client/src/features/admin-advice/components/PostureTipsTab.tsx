@@ -26,10 +26,11 @@ import {
 import { cn } from '@/utils/cn';
 import { adminAdviceService } from '../services/admin-advice.service';
 import type { AdminPostureTip } from '../types/admin-advice.types';
-import { errorMessage, move } from '../utils';
-import { ErrorAlert } from './ErrorAlert';
+import { apiErrorMessage } from '@/utils/api-error';
+import { move } from '@/utils/list';
+import { ErrorAlert } from '@/components/ErrorAlert';
 import { PostureTipEditDialog } from './PostureTipEditDialog';
-import { SortableItem, SortableList } from './Sortable';
+import { SortableItem, SortableList } from '@/components/Sortable';
 
 interface PostureTipsTabProps {
   tips: AdminPostureTip[];
@@ -57,7 +58,7 @@ export function PostureTipsTab({ tips, onChange }: PostureTipsTabProps) {
       );
     } catch (e) {
       onChange(previous);
-      setError(errorMessage(e, 'Le nouvel ordre n’a pas été enregistré.'));
+      setError(apiErrorMessage(e, 'Le nouvel ordre n’a pas été enregistré.'));
     }
   }
 
@@ -69,7 +70,7 @@ export function PostureTipsTab({ tips, onChange }: PostureTipsTabProps) {
       });
       onChange(tips.map((t) => (t.id === saved.id ? saved : t)));
     } catch (e) {
-      setError(errorMessage(e, 'Le changement n’a pas été enregistré.'));
+      setError(apiErrorMessage(e, 'Le changement n’a pas été enregistré.'));
     }
   }
 

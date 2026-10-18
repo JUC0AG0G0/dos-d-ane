@@ -1,5 +1,5 @@
 import { Input } from '@/components/ui/input';
-import { Field } from './Field';
+import { FormField } from '@/components/FormField';
 
 /** Source : libellé + lien https://, à remplir ensemble ou pas du tout. */
 export function SourceFields({
@@ -13,15 +13,15 @@ export function SourceFields({
 }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
-      <Field label="Source · libellé" htmlFor="source-label">
+      <FormField label="Source · libellé" htmlFor="source-label">
         <Input
           id="source-label"
           value={label}
           placeholder="INRS · Le travail sur écran"
           onChange={(event) => onChange({ label: event.target.value, url })}
         />
-      </Field>
-      <Field
+      </FormField>
+      <FormField
         label="Source · lien"
         htmlFor="source-url"
         hint="Ouvert dans un nouvel onglet."
@@ -33,7 +33,7 @@ export function SourceFields({
           placeholder="https://"
           onChange={(event) => onChange({ label, url: event.target.value })}
         />
-      </Field>
+      </FormField>
     </div>
   );
 }
