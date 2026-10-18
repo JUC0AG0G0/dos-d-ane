@@ -8,6 +8,7 @@ import { AuthLayout } from '@/components/layouts/AuthLayout';
 import { CenteredLayout } from '@/components/layouts/CenteredLayout';
 import { LegalLayout } from '@/components/layouts/LegalLayout';
 import { RedirectIfSignedIn, RequireAdmin, RequireAuth } from '@/features/auth';
+import { AdminAdvicePage } from '@/pages/AdminAdvicePage';
 import { AdminUsersPage } from '@/pages/AdminUsersPage';
 import { AdviceExercisesPage } from '@/pages/AdviceExercisesPage';
 import { AdviceInstallationPage } from '@/pages/AdviceInstallationPage';
@@ -49,6 +50,7 @@ const router = createBrowserRouter([
                 element: <Navigate to="/admin/utilisateurs" replace />,
               },
               { path: '/admin/utilisateurs', element: <AdminUsersPage /> },
+              { path: '/admin/conseils/:tab?', element: <AdminAdvicePage /> },
             ],
           },
         ],
