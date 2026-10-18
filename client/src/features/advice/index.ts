@@ -6,6 +6,7 @@ export { PainView } from './components/PainView';
 export { POSTURE_TIP_ELEMENTS } from './components/posture-tip-elements';
 export { PostureSchema } from './components/PostureSchema';
 export { SourceLink } from './components/SourceLink';
+export { usePostureTips } from './hooks/useAdvice';
 export { useMediaUrl } from './hooks/useMediaUrl';
 export { adviceService } from './services/advice.service';
 export { formatDuration } from './utils';
