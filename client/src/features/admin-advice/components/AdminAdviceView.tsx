@@ -9,12 +9,13 @@ import { ExercisesTab } from './ExercisesTab';
 import { PainZonesTab } from './PainZonesTab';
 import { PostureTipsTab } from './PostureTipsTab';
 
-const TABS = ['exercices', 'reglages', 'douleur'] as const;
+// Mêmes noms et même ordre que les pages Conseils côté utilisateur.
+const TABS = ['installation', 'exercices', 'douleur'] as const;
 type Tab = (typeof TABS)[number];
 
 /**
  * Administration › Conseils et exercices. L'onglet est dans l'URL :
- * /admin/conseils/exercices, /reglages, /douleur.
+ * /admin/conseils/installation, /exercices, /douleur.
  */
 export function AdminAdviceView() {
   const { tab } = useParams();
@@ -25,7 +26,7 @@ export function AdminAdviceView() {
   const [creating, setCreating] = useState<Tab | null>(null);
 
   if (!TABS.includes(tab as Tab)) {
-    return <Navigate to="/admin/conseils/exercices" replace />;
+    return <Navigate to="/admin/conseils/installation" replace />;
   }
 
   const action =
@@ -63,17 +64,24 @@ export function AdminAdviceView() {
         onValueChange={(value) => navigate(`/admin/conseils/${value}`)}
       >
         <TabsList>
+          <TabsTrigger value="installation">
+            Bien s’installer{count(tips.data?.length)}
+          </TabsTrigger>
           <TabsTrigger value="exercices">
             Exercices{count(exercises.data?.length)}
           </TabsTrigger>
-          <TabsTrigger value="reglages">
-            Réglages du poste{count(tips.data?.length)}
-          </TabsTrigger>
           <TabsTrigger value="douleur">
-            Repères douleur{count(zones.data?.zones.length)}
+            En cas de douleur{count(zones.data?.zones.length)}
           </TabsTrigger>
         </TabsList>
 
+        <TabsContent value="installation" className="mt-4">
+          {tips.data ? (
+            <PostureTipsTab tips={tips.data} onChange={tips.setData} />
+          ) : (
+            <LoadState error={tips.error} />
+          )}
+        </TabsContent>
         <TabsContent value="exercices" className="mt-4">
           {exercises.data ? (
             <ExercisesTab
@@ -86,13 +94,6 @@ export function AdminAdviceView() {
             />
           ) : (
             <LoadState error={exercises.error} />
-          )}
-        </TabsContent>
-        <TabsContent value="reglages" className="mt-4">
-          {tips.data ? (
-            <PostureTipsTab tips={tips.data} onChange={tips.setData} />
-          ) : (
-            <LoadState error={tips.error} />
           )}
         </TabsContent>
         <TabsContent value="douleur" className="mt-4">

@@ -70,9 +70,10 @@ export const NAV_SECTIONS: NavSection[] = [
             to: '/admin/conseils',
             label: 'Conseils et exercices',
             children: [
+              // Mêmes noms et même ordre que Conseils côté utilisateur.
+              { to: '/admin/conseils/installation', label: 'Bien s’installer' },
               { to: '/admin/conseils/exercices', label: 'Exercices' },
-              { to: '/admin/conseils/reglages', label: 'Réglages du poste' },
-              { to: '/admin/conseils/douleur', label: 'Repères douleur' },
+              { to: '/admin/conseils/douleur', label: 'En cas de douleur' },
             ],
           },
           { to: '/admin/medias', label: 'Médias' },

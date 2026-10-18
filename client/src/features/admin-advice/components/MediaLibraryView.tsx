@@ -194,7 +194,7 @@ export function MediaLibraryView() {
                               <Link
                                 onClick={(event) => event.stopPropagation()}
                                 key={t.id}
-                                to="/admin/conseils/reglages"
+                                to="/admin/conseils/installation"
                                 className="text-primary underline-offset-2 hover:underline"
                               >
                                 Réglage · {t.title}

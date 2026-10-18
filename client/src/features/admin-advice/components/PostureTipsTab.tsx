@@ -37,7 +37,7 @@ interface PostureTipsTabProps {
 }
 
 /**
- * Onglet Réglages du poste : les 6 éléments sont fixes (ni création ni
+ * Onglet Bien s'installer (réglages du poste) : les 6 éléments sont fixes (ni création ni
  * suppression). L'ordre se change par glisser-déposer, enregistré au dépôt ;
  * le schéma est renuméroté en direct.
  */

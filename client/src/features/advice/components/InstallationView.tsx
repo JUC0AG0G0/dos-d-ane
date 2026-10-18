@@ -1,6 +1,5 @@
 import { Play } from 'lucide-react';
 import { useState } from 'react';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -43,9 +42,6 @@ export function InstallationView() {
         <>
           <div className="flex flex-wrap items-center gap-x-8 gap-y-4 rounded-xl border bg-accent px-7 py-5 text-accent-foreground">
             <div className="grid flex-1 justify-items-start gap-2">
-              <Badge variant="outline" className="bg-card">
-                Tuto · 3 minutes
-              </Badge>
               <h2 className="text-xl font-semibold">
                 Réglez votre poste pas à pas
               </h2>

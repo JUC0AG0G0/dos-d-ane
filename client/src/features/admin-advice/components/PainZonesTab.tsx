@@ -60,7 +60,7 @@ interface PainZonesTabProps {
 
 const points = (count: number) => `${count} point${count > 1 ? 's' : ''}`;
 
-/** Onglet Repères douleur : message « Quand consulter » et zones ordonnées. */
+/** Onglet En cas de douleur : message « Quand consulter » et zones ordonnées. */
 export function PainZonesTab({
   data,
   onChange,
