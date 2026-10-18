@@ -19,7 +19,7 @@ if [ ! -f .env.dev ]; then
   exit 0
 fi
 
-missing=$(grep -E '^[A-Z_]+=' .env.dev.example | while IFS= read -r line; do
+missing=$(grep -E '^[A-Z0-9_]+=' .env.dev.example | while IFS= read -r line; do
   grep -q "^${line%%=*}=" .env.dev || echo "$line"
 done)
 [ -z "$missing" ] && exit 0
