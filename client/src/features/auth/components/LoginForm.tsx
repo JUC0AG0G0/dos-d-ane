@@ -1,12 +1,13 @@
-import { CircleAlert, CircleCheck } from 'lucide-react';
+import { CircleCheck } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Alert, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { PasswordInput } from '@/components/PasswordInput';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useLogin } from '../hooks/useLogin';
+import { ErrorAlert } from '@/components/ErrorAlert';
+import { FormField } from '@/components/FormField';
 
 export function LoginForm() {
   const registeredEmail: string | undefined =
@@ -28,14 +29,8 @@ export function LoginForm() {
           <AlertTitle>Compte créé, tu peux te connecter.</AlertTitle>
         </Alert>
       )}
-      {error && (
-        <Alert variant="destructive">
-          <CircleAlert />
-          <AlertTitle>{error}</AlertTitle>
-        </Alert>
-      )}
-      <div className="grid gap-2">
-        <Label htmlFor="email">Email</Label>
+      <ErrorAlert message={error} />
+      <FormField label="Email" htmlFor="email">
         <Input
           id="email"
           type="email"
@@ -45,9 +40,8 @@ export function LoginForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor="password">Mot de passe</Label>
+      </FormField>
+      <FormField label="Mot de passe" htmlFor="password">
         <PasswordInput
           id="password"
           autoComplete="current-password"
@@ -56,7 +50,7 @@ export function LoginForm() {
           onChange={(e) => setPassword(e.target.value)}
           aria-invalid={error ? true : undefined}
         />
-      </div>
+      </FormField>
       <Button type="submit" className="w-full" disabled={pending}>
         {pending ? 'Connexion…' : 'Se connecter'}
       </Button>

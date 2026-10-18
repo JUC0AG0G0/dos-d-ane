@@ -10,10 +10,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { ApiError } from '@/services';
 import { settingsService } from '../services/settings.service';
 import type { SessionDevice } from '../types/settings.types';
+import { FormField } from '@/components/FormField';
 
 interface RenameDeviceDialogProps {
   device: SessionDevice | null;
@@ -68,8 +68,7 @@ function RenameForm({
           Un nom qui t'aide à le reconnaître, par exemple « PC du bureau ».
         </DialogDescription>
       </DialogHeader>
-      <div className="grid gap-2">
-        <Label htmlFor="device-name">Nom</Label>
+      <FormField label="Nom" htmlFor="device-name">
         <Input
           id="device-name"
           required
@@ -88,7 +87,7 @@ function RenameForm({
         >
           {error ?? '2 caractères minimum.'}
         </p>
-      </div>
+      </FormField>
       <DialogFooter>
         <DialogClose asChild>
           <Button type="button" variant="outline">

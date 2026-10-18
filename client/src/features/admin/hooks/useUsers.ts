@@ -1,37 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useApi } from '@/hooks/useApi';
 import { adminService } from '../services/admin.service';
-import type { AdminUser } from '../types/admin.types';
 
-const LOAD_ERROR = 'Impossible de charger les utilisateurs.';
-
+/** Liste des utilisateurs, rechargeable après un changement de rôle. */
 export function useUsers() {
-  const [users, setUsers] = useState<AdminUser[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const reload = useCallback(async () => {
-    try {
-      setUsers(await adminService.users());
-      setError(null);
-    } catch {
-      setError(LOAD_ERROR);
-    }
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    adminService
-      .users()
-      .then((list) => !cancelled && setUsers(list))
-      .catch(() => !cancelled && setError(LOAD_ERROR));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return {
-    users: users ?? [],
-    loading: users === null && error === null,
-    error,
-    reload,
-  };
+  const { data, loading, error, reload } = useApi(
+    adminService.users,
+    [],
+    'Impossible de charger les utilisateurs.',
+  );
+  return { users: data ?? [], loading, error, reload };
 }

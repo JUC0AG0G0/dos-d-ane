@@ -36,6 +36,18 @@ export function validateEnv(
     );
   }
 
+  // Stockage S3 local des médias (service s3 de compose.yaml).
+  for (const key of [
+    'S3_ENDPOINT',
+    'S3_BUCKET',
+    'S3_ACCESS_KEY',
+    'S3_SECRET_KEY',
+  ]) {
+    if (typeof config[key] !== 'string' || !config[key]) {
+      errors.push(`${key} manquante (voir .env.dev.example)`);
+    }
+  }
+
   // En production, le compte admin est créé au démarrage depuis ces valeurs.
   if (appEnv === 'production') {
     if (typeof config.ADMIN_EMAIL !== 'string' || !config.ADMIN_EMAIL.trim()) {

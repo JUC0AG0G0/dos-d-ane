@@ -1,0 +1,12 @@
+export { ExerciseMedia } from './components/ExerciseMedia';
+export { ExercisesView } from './components/ExercisesView';
+export { ExerciseTypeBadges } from './components/ExerciseTypeBadges';
+export { InstallationView } from './components/InstallationView';
+export { PainView } from './components/PainView';
+export { POSTURE_TIP_ELEMENTS } from './components/posture-tip-elements';
+export { PostureSchema } from './components/PostureSchema';
+export { SourceLink } from './components/SourceLink';
+export { useMediaUrl } from './hooks/useMediaUrl';
+export { adviceService } from './services/advice.service';
+export { formatDuration } from './utils';
+export * from './types/advice.types';

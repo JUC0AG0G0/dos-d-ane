@@ -1,4 +1,4 @@
-import { CircleAlert, Info, Monitor, Smartphone } from 'lucide-react';
+import { Info, Monitor, Smartphone } from 'lucide-react';
 import { useState } from 'react';
 import { Alert, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -23,9 +23,10 @@ import { useLogout } from '@/features/auth';
 import { settingsService } from '../services/settings.service';
 import type { Session, SessionDevice } from '../types/settings.types';
 import { formatDateTime } from '@/utils/format';
-import { ConfirmDialog } from './ConfirmDialog';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { RenameDeviceDialog } from './RenameDeviceDialog';
 import { useSessions } from '../hooks/useSessions';
+import { ErrorAlert } from '@/components/ErrorAlert';
 
 function DeviceIcon({ type }: { type: string }) {
   const Icon = type === 'mobile' ? Smartphone : Monitor;
@@ -47,22 +48,17 @@ export function DevicesSection() {
     setRevoking(null);
     if (session.current) return logout();
     await settingsService.revokeSession(session.id).catch(() => undefined);
-    await reload();
+    reload();
   }
 
   async function revokeOthers() {
     setRevokingOthers(false);
     await settingsService.revokeOtherSessions().catch(() => undefined);
-    await reload();
+    reload();
   }
 
   if (error) {
-    return (
-      <Alert variant="destructive">
-        <CircleAlert />
-        <AlertTitle>{error}</AlertTitle>
-      </Alert>
-    );
+    return <ErrorAlert message={error} />;
   }
 
   return (

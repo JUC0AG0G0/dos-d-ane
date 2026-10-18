@@ -76,6 +76,7 @@ Dépôt > **Settings > Secrets and variables > Actions > New repository secret**
 | `POSTGRES_PASSWORD` | `openssl rand -hex 32` |
 | `JWT_SECRET` | `openssl rand -base64 48` |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | compte admin créé au premier démarrage (8 caractères minimum) |
+| `S3_ACCESS_KEY`, `S3_SECRET_KEY` | identifiants du stockage S3 local des médias : clé en lettres et chiffres, secret `openssl rand -hex 32` |
 
 Aucune valeur n'est générée ni reprise d'un fichier d'exemple.
 

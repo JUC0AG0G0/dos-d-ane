@@ -1,4 +1,5 @@
-# Stack de Dos d'âne : client web (React), serveur (API NestJS) et base PostgreSQL.
+# Stack de Dos d'âne : client web (React), serveur (API NestJS), base PostgreSQL
+# et stockage S3 local des médias (SeaweedFS).
 # Les valeurs viennent de .env.dev (voir `task dev` et `task up`).
 name: dos-d-ane
 
@@ -30,10 +31,17 @@ services:
       # Compte admin créé au démarrage en production (APP_ENV=production).
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      # Stockage des médias des Conseils (service s3 ci-dessous).
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://s3:8333}
+      S3_BUCKET: ${S3_BUCKET:-media}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
     ports:
       - "${PORT:-3000}:3000"
     depends_on:
       db:
+        condition: service_healthy
+      s3:
         condition: service_healthy
 
   db:
@@ -53,5 +61,30 @@ services:
       timeout: 5s
       retries: 5
 
+  # Stockage compatible S3 des médias (GIF, PNG, MP4 des Conseils), en un seul
+  # processus (`weed mini`). Aucun port publié : seul le serveur y accède, par
+  # le réseau Docker, et relaie les fichiers (GET /api/advice/media/:id).
+  # Le bucket est créé au démarrage s'il n'existe pas ; les accès anonymes sont
+  # refusés.
+  s3:
+    image: chrislusf/seaweedfs:4.48
+    restart: unless-stopped
+    command: >-
+      mini -dir=/data -ip=s3 -bucket=${S3_BUCKET:-media}
+      -webdav=false -admin.ui=false -master.telemetry=false
+    environment:
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
+    volumes:
+      - s3-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8333/healthz"]
+      interval: 10s
+      timeout: 5s
+      start_period: 1m
+      start_interval: 2s
+      retries: 5
+
 volumes:
   db-data:
+  s3-data:

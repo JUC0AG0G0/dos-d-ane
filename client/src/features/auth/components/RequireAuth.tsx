@@ -17,3 +17,9 @@ export function RedirectIfSignedIn() {
   const isSignedIn = useAuthStore((state) => state.accessToken !== null);
   return isSignedIn ? <Navigate to="/" replace /> : <Outlet />;
 }
+
+/** Laisse passer les routes enfants seulement pour un administrateur. */
+export function RequireAdmin() {
+  const isAdmin = useAuthStore((state) => state.user?.role === 'admin');
+  return isAdmin ? <Outlet /> : <Navigate to="/" replace />;
+}

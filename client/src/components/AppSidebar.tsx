@@ -1,6 +1,17 @@
-import { ChevronsUpDown, Info, LogOut, Settings } from 'lucide-react';
+import {
+  ChevronRight,
+  ChevronsUpDown,
+  Info,
+  LogOut,
+  Settings,
+} from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,10 +30,13 @@ import {
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
+  SidebarMenuAction,
   SidebarMenuItem,
-  SidebarRail,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
 } from '@/components/ui/sidebar';
-import { NAV_SECTIONS } from '@/config/navigation';
+import { matches, NAV_SECTIONS } from '@/config/navigation';
 import { useLogout } from '@/features/auth';
 import { useAuthStore } from '@/store';
 
@@ -33,7 +47,7 @@ export function AppSidebar() {
   const initials = (user?.displayName ?? '?').slice(0, 2).toUpperCase();
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -62,22 +76,34 @@ export function AppSidebar() {
                     ({ roles }) =>
                       !roles || (user && roles.includes(user.role)),
                   )
-                  .map(({ to, label, icon: Icon }) => (
-                    <SidebarMenuItem key={to}>
-                      <SidebarMenuButton
-                        asChild
-                        isActive={
-                          to === '/' ? pathname === to : pathname.startsWith(to)
-                        }
-                        tooltip={label}
-                      >
-                        <NavLink to={to}>
-                          <Icon />
-                          <span>{label}</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
+                  .map((item) =>
+                    item.children ? (
+                      // Remonté quand on entre dans ses pages ou qu’on en sort : ouvert
+                      // sur ses pages, fermé ailleurs ; le chevron le replie ou le déplie.
+                      <NavGroup
+                        key={`${item.to}:${matches(pathname, item.to)}`}
+                        item={item}
+                        pathname={pathname}
+                      />
+                    ) : (
+                      <SidebarMenuItem key={item.to}>
+                        <SidebarMenuButton
+                          asChild
+                          isActive={
+                            item.to === '/'
+                              ? pathname === item.to
+                              : matches(pathname, item.to)
+                          }
+                          tooltip={item.label}
+                        >
+                          <NavLink to={item.to}>
+                            <item.icon />
+                            <span>{item.label}</span>
+                          </NavLink>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ),
+                  )}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
@@ -133,7 +159,66 @@ export function AppSidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
-      <SidebarRail />
     </Sidebar>
+  );
+}
+
+type NavItem = (typeof NAV_SECTIONS)[number]['items'][number];
+
+/** Entrée avec sous-pages : un clic ouvre la première sous-page. */
+function NavGroup({ item, pathname }: { item: NavItem; pathname: string }) {
+  const active = matches(pathname, item.to);
+  const children = item.children ?? [];
+  return (
+    <Collapsible asChild defaultOpen={active}>
+      <SidebarMenuItem>
+        <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
+          <NavLink to={children[0]?.to ?? item.to}>
+            <item.icon />
+            <span>{item.label}</span>
+          </NavLink>
+        </SidebarMenuButton>
+        <CollapsibleTrigger asChild>
+          <SidebarMenuAction className="data-[state=open]:rotate-90">
+            <ChevronRight />
+            <span className="sr-only">Afficher les sous-pages</span>
+          </SidebarMenuAction>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <SidebarMenuSub>
+            {children.map(({ to, label, children: sections }) => (
+              <SidebarMenuSubItem key={to}>
+                <SidebarMenuSubButton
+                  asChild
+                  isActive={matches(pathname, to) && !sections}
+                >
+                  <NavLink to={sections?.[0]?.to ?? to}>
+                    <span>{label}</span>
+                  </NavLink>
+                </SidebarMenuSubButton>
+                {/* Sections de la sous-page (onglets de Conseils et exercices). */}
+                {sections && (
+                  <SidebarMenuSub className="mr-0 pr-0">
+                    {sections.map((section) => (
+                      <SidebarMenuSubItem key={section.to}>
+                        <SidebarMenuSubButton
+                          asChild
+                          size="sm"
+                          isActive={matches(pathname, section.to)}
+                        >
+                          <NavLink to={section.to}>
+                            <span>{section.label}</span>
+                          </NavLink>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    ))}
+                  </SidebarMenuSub>
+                )}
+              </SidebarMenuSubItem>
+            ))}
+          </SidebarMenuSub>
+        </CollapsibleContent>
+      </SidebarMenuItem>
+    </Collapsible>
   );
 }
