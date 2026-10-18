@@ -35,7 +35,6 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
-  SidebarRail,
 } from '@/components/ui/sidebar';
 import { matches, NAV_SECTIONS } from '@/config/navigation';
 import { useLogout } from '@/features/auth';
@@ -48,7 +47,7 @@ export function AppSidebar() {
   const initials = (user?.displayName ?? '?').slice(0, 2).toUpperCase();
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -160,7 +159,6 @@ export function AppSidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
-      <SidebarRail />
     </Sidebar>
   );
 }
@@ -188,13 +186,34 @@ function NavGroup({ item, pathname }: { item: NavItem; pathname: string }) {
         </CollapsibleTrigger>
         <CollapsibleContent>
           <SidebarMenuSub>
-            {children.map(({ to, label }) => (
+            {children.map(({ to, label, children: sections }) => (
               <SidebarMenuSubItem key={to}>
-                <SidebarMenuSubButton asChild isActive={matches(pathname, to)}>
-                  <NavLink to={to}>
+                <SidebarMenuSubButton
+                  asChild
+                  isActive={matches(pathname, to) && !sections}
+                >
+                  <NavLink to={sections?.[0]?.to ?? to}>
                     <span>{label}</span>
                   </NavLink>
                 </SidebarMenuSubButton>
+                {/* Sections de la sous-page (onglets de Conseils et exercices). */}
+                {sections && (
+                  <SidebarMenuSub className="mr-0 pr-0">
+                    {sections.map((section) => (
+                      <SidebarMenuSubItem key={section.to}>
+                        <SidebarMenuSubButton
+                          asChild
+                          size="sm"
+                          isActive={matches(pathname, section.to)}
+                        >
+                          <NavLink to={section.to}>
+                            <span>{section.label}</span>
+                          </NavLink>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    ))}
+                  </SidebarMenuSub>
+                )}
               </SidebarMenuSubItem>
             ))}
           </SidebarMenuSub>

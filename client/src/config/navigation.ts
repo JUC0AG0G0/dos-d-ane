@@ -10,6 +10,8 @@ import type { Role } from '@/types/user';
 interface SubPage {
   to: string;
   label: string;
+  /** Sections de la sous-page, affichées en dessous dans la barre latérale. */
+  children?: SubPage[];
 }
 
 /** Entrée de la barre latérale. Avec des sous-pages, elle se déplie sur ses
@@ -64,7 +66,15 @@ export const NAV_SECTIONS: NavSection[] = [
         roles: ['admin'],
         children: [
           { to: '/admin/utilisateurs', label: 'Utilisateurs' },
-          { to: '/admin/conseils', label: 'Conseils et exercices' },
+          {
+            to: '/admin/conseils',
+            label: 'Conseils et exercices',
+            children: [
+              { to: '/admin/conseils/exercices', label: 'Exercices' },
+              { to: '/admin/conseils/reglages', label: 'Réglages du poste' },
+              { to: '/admin/conseils/douleur', label: 'Repères douleur' },
+            ],
+          },
           { to: '/admin/medias', label: 'Médias' },
         ],
       },
@@ -81,5 +91,7 @@ export function findBreadcrumb(pathname: string): SubPage[] {
     .sort((a, b) => b.to.length - a.to.length)[0];
   if (!item) return [];
   const child = item.children?.find(({ to }) => matches(pathname, to));
-  return child ? [item, child] : [item];
+  if (!child) return [item];
+  const section = child.children?.find(({ to }) => matches(pathname, to));
+  return section ? [item, child, section] : [item, child];
 }

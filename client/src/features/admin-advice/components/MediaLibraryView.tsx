@@ -150,7 +150,11 @@ export function MediaLibraryView() {
                     </TableRow>
                   )}
                   {shown.map((item) => (
-                    <TableRow key={item.id}>
+                    <TableRow
+                      key={item.id}
+                      className="cursor-pointer"
+                      onClick={() => setPreview(item)}
+                    >
                       <TableCell>
                         <button
                           type="button"
@@ -178,6 +182,7 @@ export function MediaLibraryView() {
                           <div className="grid gap-0.5">
                             {item.exercises.map((e) => (
                               <Link
+                                onClick={(event) => event.stopPropagation()}
                                 key={e.id}
                                 to="/admin/conseils/exercices"
                                 className="text-primary underline-offset-2 hover:underline"
@@ -187,6 +192,7 @@ export function MediaLibraryView() {
                             ))}
                             {item.postureTips.map((t) => (
                               <Link
+                                onClick={(event) => event.stopPropagation()}
                                 key={t.id}
                                 to="/admin/conseils/reglages"
                                 className="text-primary underline-offset-2 hover:underline"
@@ -206,7 +212,10 @@ export function MediaLibraryView() {
                         {formatShortDate(item.createdAt)}
                       </TableCell>
                       <TableCell>
-                        <div className="flex justify-end gap-1">
+                        <div
+                          className="flex justify-end gap-1"
+                          onClick={(event) => event.stopPropagation()}
+                        >
                           <DownloadButton media={item} />
                           <span
                             title={

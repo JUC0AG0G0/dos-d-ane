@@ -25,12 +25,14 @@ export function AppLayout() {
   useCurrentUser();
 
   return (
-    <SidebarProvider>
+    // Barre latérale toujours ouverte sur ordinateur (pas de repli) ; sur
+    // téléphone, le bouton l'ouvre par-dessus la page.
+    <SidebarProvider open onOpenChange={() => undefined}>
       <AppSidebar />
       <SidebarInset>
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4!" />
+          <SidebarTrigger className="-ml-1 md:hidden" />
+          <Separator orientation="vertical" className="mr-2 h-4! md:hidden" />
           <Breadcrumb>
             <BreadcrumbList>
               {breadcrumb.map(({ to, label }, index) => (

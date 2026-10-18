@@ -171,7 +171,7 @@ function TipRow({
   const element = POSTURE_TIP_ELEMENTS[tip.key];
   const dim = cn(!tip.isVisible && 'opacity-45');
   return (
-    <SortableItem id={tip.id} as="tr">
+    <SortableItem id={tip.id} as="tr" onClick={onEdit}>
       {(handle) => (
         <>
           <TableCell>
@@ -207,12 +207,14 @@ function TipRow({
           </TableCell>
           <TableCell className={cn('whitespace-normal', dim)}>
             <SourceLink
+              onClick={(event) => event.stopPropagation()}
               sourceLabel={tip.sourceLabel}
               sourceUrl={tip.sourceUrl}
             />
           </TableCell>
           <TableCell>
             <Switch
+              onClick={(event) => event.stopPropagation()}
               checked={tip.isVisible}
               onCheckedChange={onVisible}
               aria-label={`Afficher ${tip.title}`}

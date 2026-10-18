@@ -197,7 +197,11 @@ export function ExercisesTab({
                 </TableRow>
               )}
               {shown.map((exercise) => (
-                <TableRow key={exercise.id}>
+                <TableRow
+                  key={exercise.id}
+                  className="cursor-pointer"
+                  onClick={() => setEditing(exercise)}
+                >
                   <TableCell>
                     <ExerciseMedia
                       media={exercise.media}
@@ -245,7 +249,10 @@ export function ExercisesTab({
                     {formatShortDate(exercise.updatedAt)}
                   </TableCell>
                   <TableCell>
-                    <div className="flex justify-end gap-1">
+                    <div
+                      className="flex justify-end gap-1"
+                      onClick={(event) => event.stopPropagation()}
+                    >
                       <Button
                         variant="ghost"
                         size="icon-sm"

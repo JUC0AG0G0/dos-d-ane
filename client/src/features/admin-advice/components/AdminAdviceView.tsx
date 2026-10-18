@@ -17,7 +17,7 @@ type Tab = (typeof TABS)[number];
  * /admin/conseils/exercices, /reglages, /douleur.
  */
 export function AdminAdviceView() {
-  const { tab = 'exercices' } = useParams();
+  const { tab } = useParams();
   const navigate = useNavigate();
   const exercises = useApi(adminAdviceService.exercises, []);
   const tips = useApi(adminAdviceService.postureTips, []);

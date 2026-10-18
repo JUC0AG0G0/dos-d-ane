@@ -216,7 +216,7 @@ function ZoneRow({
   onDelete: () => void;
 }) {
   return (
-    <SortableItem id={zone.id} as="tr">
+    <SortableItem id={zone.id} as="tr" onClick={onEdit}>
       {(handle) => (
         <>
           <TableCell>
@@ -256,6 +256,7 @@ function ZoneRow({
           </TableCell>
           <TableCell className="whitespace-normal">
             <SourceLink
+              onClick={(event) => event.stopPropagation()}
               sourceLabel={zone.sourceLabel}
               sourceUrl={zone.sourceUrl}
             />
@@ -267,7 +268,10 @@ function ZoneRow({
             {formatShortDate(zone.updatedAt)}
           </TableCell>
           <TableCell>
-            <div className="flex justify-end gap-1">
+            <div
+              className="flex justify-end gap-1"
+              onClick={(event) => event.stopPropagation()}
+            >
               <Button
                 variant="ghost"
                 size="icon-sm"

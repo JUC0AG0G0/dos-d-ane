@@ -64,11 +64,14 @@ export function SortableItem({
   id,
   as = 'div',
   className,
+  onClick,
   children,
 }: {
   id: string;
   as?: 'div' | 'tr';
   className?: string;
+  /** Clic sur la ligne (hors poignée) : ouvre la modification. */
+  onClick?: () => void;
   children: (handle: ReactNode) => ReactNode;
 }) {
   const {
@@ -92,6 +95,7 @@ export function SortableItem({
       ref={setActivatorNodeRef}
       {...attributes}
       {...listeners}
+      onClick={(event) => event.stopPropagation()}
       className="flex cursor-grab touch-none items-center rounded p-0.5 text-muted-foreground hover:text-foreground active:cursor-grabbing"
       aria-label="Déplacer"
     >
@@ -101,7 +105,12 @@ export function SortableItem({
   const props = {
     ref: setNodeRef,
     style,
-    className: cn(className, isDragging && 'bg-muted shadow-sm'),
+    className: cn(
+      className,
+      onClick && 'cursor-pointer',
+      isDragging && 'bg-muted shadow-sm',
+    ),
+    onClick,
   };
   return as === 'tr' ? (
     <TableRow {...props}>{children(handle)}</TableRow>
