@@ -3,12 +3,15 @@ import {
   Navigate,
   RouterProvider,
 } from 'react-router-dom';
-import { AdminPage } from '@/pages/AdminPage';
 import { AppLayout } from '@/components/layouts/AppLayout';
 import { AuthLayout } from '@/components/layouts/AuthLayout';
 import { CenteredLayout } from '@/components/layouts/CenteredLayout';
 import { LegalLayout } from '@/components/layouts/LegalLayout';
-import { RedirectIfSignedIn, RequireAuth } from '@/features/auth';
+import { RedirectIfSignedIn, RequireAdmin, RequireAuth } from '@/features/auth';
+import { AdminUsersPage } from '@/pages/AdminUsersPage';
+import { AdviceExercisesPage } from '@/pages/AdviceExercisesPage';
+import { AdviceInstallationPage } from '@/pages/AdviceInstallationPage';
+import { AdvicePainPage } from '@/pages/AdvicePainPage';
 import { HomePage } from '@/pages/HomePage';
 import { LegalNoticePage } from '@/pages/LegalNoticePage';
 import { LoginPage } from '@/pages/LoginPage';
@@ -28,7 +31,26 @@ const router = createBrowserRouter([
         children: [
           { path: '/', element: <HomePage /> },
           { path: '/settings/:tab?', element: <SettingsPage /> },
-          { path: '/admin', element: <AdminPage /> },
+          {
+            path: '/conseils',
+            element: <Navigate to="/conseils/installation" replace />,
+          },
+          {
+            path: '/conseils/installation',
+            element: <AdviceInstallationPage />,
+          },
+          { path: '/conseils/exercices', element: <AdviceExercisesPage /> },
+          { path: '/conseils/douleur', element: <AdvicePainPage /> },
+          {
+            element: <RequireAdmin />,
+            children: [
+              {
+                path: '/admin',
+                element: <Navigate to="/admin/utilisateurs" replace />,
+              },
+              { path: '/admin/utilisateurs', element: <AdminUsersPage /> },
+            ],
+          },
         ],
       },
     ],

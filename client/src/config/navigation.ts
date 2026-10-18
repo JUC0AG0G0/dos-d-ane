@@ -1,4 +1,10 @@
-import { House, Settings, ShieldCheck, type LucideIcon } from 'lucide-react';
+import {
+  BookOpen,
+  House,
+  Settings,
+  ShieldCheck,
+  type LucideIcon,
+} from 'lucide-react';
 import type { Role } from '@/types/user';
 
 interface SubPage {
@@ -6,6 +12,8 @@ interface SubPage {
   label: string;
 }
 
+/** Entrée de la barre latérale. Avec des sous-pages, elle se déplie sur ses
+ * pages et un clic ouvre la première. */
 interface NavItem {
   to: string;
   label: string;
@@ -22,7 +30,19 @@ interface NavSection {
 export const NAV_SECTIONS: NavSection[] = [
   {
     label: 'Navigation',
-    items: [{ to: '/', label: 'Accueil', icon: House }],
+    items: [
+      { to: '/', label: 'Accueil', icon: House },
+      {
+        to: '/conseils',
+        label: 'Conseils',
+        icon: BookOpen,
+        children: [
+          { to: '/conseils/installation', label: 'Bien s’installer' },
+          { to: '/conseils/exercices', label: 'Exercices' },
+          { to: '/conseils/douleur', label: 'En cas de douleur' },
+        ],
+      },
+    ],
   },
   {
     label: 'Compte',
@@ -42,12 +62,16 @@ export const NAV_SECTIONS: NavSection[] = [
         label: 'Administration',
         icon: ShieldCheck,
         roles: ['admin'],
+        children: [
+          { to: '/admin/utilisateurs', label: 'Utilisateurs' },
+          { to: '/admin/conseils', label: 'Conseils et exercices' },
+        ],
       },
     ],
   },
 ];
 
-const matches = (pathname: string, to: string) =>
+export const matches = (pathname: string, to: string) =>
   pathname === to || (to !== '/' && pathname.startsWith(`${to}/`));
 
 export function findBreadcrumb(pathname: string): SubPage[] {
