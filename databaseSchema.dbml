@@ -1,4 +1,4 @@
-// DOS-D'ÂNE : schéma de la base (add-services-route-to-add-picture, 2026-10-14)
+// DOS-D'ÂNE : schéma de la base (exercices-conseils, 2026-10-18)
 // Généré depuis server/prisma/schema.prisma et ses migrations.
 // PostgreSQL 18, id en UUID v7 (uuidv7()), dates en timestamptz(3).
 
@@ -129,6 +129,104 @@ Table keypoints {
   }
 }
 
+Table exercises {
+  id uuidv7 [pk, default: `uuidv7()`]
+  title string [not null]
+  zone string [not null, note: 'nuque, epaules, dos, poignets, yeux, jambes']
+  isPreventive boolean [not null, default: false]
+  isForPain boolean [not null, default: false, note: 'Au moins un des deux types (CHECK)']
+  durationSeconds int [not null, note: '> 0']
+  posture string [not null, note: 'assis, debout, assis ou debout']
+  precautions string [not null, default: '']
+  mediaId uuidv7
+  status string [not null, default: 'draft', note: 'draft / published ; publié : au moins une étape']
+  createdAt timestamptz [not null, default: `now()`]
+  updatedAt timestamptz [not null, default: `now()`]
+
+  indexes {
+    (status, zone)
+  }
+}
+
+Table exerciseSteps {
+  id uuidv7 [pk, default: `uuidv7()`]
+  exerciseId uuidv7 [not null]
+  position int [not null]
+  text string [not null]
+
+  indexes {
+    (exerciseId, position) [unique]
+  }
+}
+
+Table postureTips {
+  id uuidv7 [pk, default: `uuidv7()`]
+  key string [not null, unique, note: 'ecran, dossier, pieds, clavier, lumiere, pauses : 6 lignes fixes']
+  position int [not null, note: 'Ordre choisi par glisser-déposer ; le numéro du repère est calculé']
+  title string [not null]
+  shortText string [not null]
+  tutorialText string [not null]
+  sourceLabel string [note: 'Avec sourceUrl (https://) ou aucun des deux']
+  sourceUrl string
+  isVisible boolean [not null, default: true]
+  mediaId uuidv7
+  createdAt timestamptz [not null, default: `now()`]
+  updatedAt timestamptz [not null, default: `now()`]
+}
+
+Table painZones {
+  id uuidv7 [pk, default: `uuidv7()`]
+  name string [not null]
+  position int [not null]
+  intro string [not null, default: '']
+  sourceLabel string [note: 'Avec sourceUrl (https://) ou aucun des deux']
+  sourceUrl string
+  status string [not null, default: 'draft', note: 'draft / published']
+  createdAt timestamptz [not null, default: `now()`]
+  updatedAt timestamptz [not null, default: `now()`]
+}
+
+Table painZoneAdvices {
+  id uuidv7 [pk, default: `uuidv7()`]
+  painZoneId uuidv7 [not null]
+  kind string [not null, note: 'helps (ce qui aide) / avoid (à éviter)']
+  position int [not null]
+  text string [not null]
+
+  indexes {
+    (painZoneId, kind, position) [unique]
+  }
+}
+
+Table painZoneExercises {
+  painZoneId uuidv7 [not null]
+  exerciseId uuidv7 [not null]
+  position int [not null, note: 'De 1 à 3 : 3 exercices conseillés au plus']
+
+  indexes {
+    (painZoneId, exerciseId) [pk]
+    (painZoneId, position) [unique]
+    exerciseId
+  }
+}
+
+Table media {
+  id uuidv7 [pk, default: `uuidv7()`]
+  storageKey string [not null, unique, note: 'Clé de l’objet dans le S3 local']
+  mimeType string [not null, note: 'image/gif, image/png, video/mp4']
+  sizeBytes int [not null, note: '5 Mo max']
+  width int
+  height int
+  uploadedById uuidv7
+  createdAt timestamptz [not null, default: `now()`]
+}
+
+Table adviceSettings {
+  key string [pk, note: 'whenToSeeDoctor']
+  text string [not null]
+  updatedAt timestamptz [not null, default: `now()`]
+}
+
 Ref: devices.userId > users.id [delete: cascade]
 Ref: authSessions.userId > users.id [delete: cascade]
 Ref: authSessions.deviceId > devices.id [delete: cascade]
@@ -137,3 +235,10 @@ Ref: deviceSessions.analysisSessionId > analysisSessions.id [delete: cascade]
 Ref: deviceSessions.deviceId > devices.id [delete: cascade]
 Ref: captures.deviceSessionId > deviceSessions.id [delete: cascade]
 Ref: keypoints.captureId > captures.id [delete: cascade]
+Ref: exercises.mediaId > media.id [delete: set null]
+Ref: exerciseSteps.exerciseId > exercises.id [delete: cascade]
+Ref: postureTips.mediaId > media.id [delete: set null]
+Ref: painZoneAdvices.painZoneId > painZones.id [delete: cascade]
+Ref: painZoneExercises.painZoneId > painZones.id [delete: cascade]
+Ref: painZoneExercises.exerciseId > exercises.id [delete: cascade]
+Ref: media.uploadedById > users.id [delete: set null]

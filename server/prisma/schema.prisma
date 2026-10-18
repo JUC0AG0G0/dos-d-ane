@@ -39,6 +39,7 @@ model User {
   devices          Device[]
   authSessions     AuthSession[]
   analysisSessions AnalysisSession[]
+  uploadedMedia    Media[]
   createdAt        DateTime          @default(now()) @db.Timestamptz(3)
   updatedAt        DateTime          @default(now()) @updatedAt @db.Timestamptz(3)
 
@@ -184,4 +185,148 @@ model Keypoint {
 
   @@unique([captureId, bodyPart])
   @@map("keypoints")
+}
+
+// --- Conseils : exercices, réglages du poste, repères douleur ---------------
+// Contenu géré par les admins (Administration › Conseils et exercices) et lu
+// par tous les utilisateurs connectés (Conseils). Les ordres sont des entiers
+// position réécrits en transaction à chaque glisser-déposer. Les valeurs fixes
+// (zone, status, kind) sont des textes vérifiés par les DTO et par des CHECK
+// ajoutés à la main dans la migration.
+
+/// Exercice proposé dans Conseils › Exercices.
+/// zone : nuque, epaules, dos, poignets, yeux, jambes ; status : draft ou
+/// published. Un exercice a au moins un type (CHECK isPreventive OR isForPain).
+/// Publié, il a aussi au moins une étape (vérifié par le service).
+model Exercise {
+  id              String             @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  title           String
+  zone            String
+  isPreventive    Boolean            @default(false)
+  isForPain       Boolean            @default(false)
+  durationSeconds Int
+  posture         String
+  precautions     String             @default("")
+  mediaId         String?            @db.Uuid
+  media           Media?             @relation(fields: [mediaId], references: [id], onDelete: SetNull)
+  status          String             @default("draft")
+  steps           ExerciseStep[]
+  painZones       PainZoneExercise[]
+  createdAt       DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime           @default(now()) @updatedAt @db.Timestamptz(3)
+
+  @@index([status, zone])
+  @@map("exercises")
+}
+
+/// Étape « Comment faire » d'un exercice, remplacées en bloc à chaque
+/// enregistrement.
+model ExerciseStep {
+  id         String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  exerciseId String   @db.Uuid
+  exercise   Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  position   Int
+  text       String
+
+  @@unique([exerciseId, position])
+  @@map("exerciseSteps")
+}
+
+/// Réglage du poste (page Bien s'installer). Exactement 6 lignes, créées par
+/// migration et jamais supprimées : key (ecran, dossier, pieds, clavier,
+/// lumiere, pauses) fixe l'icône et la place du repère sur le schéma, côté
+/// front. Le numéro du repère est calculé (rang parmi les réglages visibles).
+/// Source : libellé et lien https:// renseignés ensemble ou pas du tout.
+model PostureTip {
+  id           String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  key          String   @unique
+  position     Int
+  title        String
+  shortText    String
+  tutorialText String
+  sourceLabel  String?
+  sourceUrl    String?
+  isVisible    Boolean  @default(true)
+  mediaId      String?  @db.Uuid
+  media        Media?   @relation(fields: [mediaId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+
+  @@map("postureTips")
+}
+
+/// Zone de douleur (page En cas de douleur). status : draft ou published.
+/// Source : libellé et lien https:// renseignés ensemble ou pas du tout.
+model PainZone {
+  id          String             @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  name        String
+  position    Int
+  intro       String             @default("")
+  sourceLabel String?
+  sourceUrl   String?
+  status      String             @default("draft")
+  advices     PainZoneAdvice[]
+  exercises   PainZoneExercise[]
+  createdAt   DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime           @default(now()) @updatedAt @db.Timestamptz(3)
+
+  @@map("painZones")
+}
+
+/// Point « Ce qui aide » (kind helps) ou « À éviter » (kind avoid) d'une zone.
+model PainZoneAdvice {
+  id         String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  painZoneId String   @db.Uuid
+  painZone   PainZone @relation(fields: [painZoneId], references: [id], onDelete: Cascade)
+  kind       String
+  position   Int
+  text       String
+
+  @@unique([painZoneId, kind, position])
+  @@map("painZoneAdvices")
+}
+
+/// Exercice conseillé pour une zone : 3 au plus, position de 1 à 3 (CHECK).
+/// Seuls les exercices publiés y figurent : le service retire le lien quand
+/// un exercice repasse en brouillon.
+model PainZoneExercise {
+  painZoneId String   @db.Uuid
+  painZone   PainZone @relation(fields: [painZoneId], references: [id], onDelete: Cascade)
+  exerciseId String   @db.Uuid
+  exercise   Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  position   Int
+
+  @@id([painZoneId, exerciseId])
+  @@unique([painZoneId, position])
+  @@index([exerciseId])
+  @@map("painZoneExercises")
+}
+
+/// Fichier envoyé par un admin (GIF, PNG ou MP4, 5 Mo max). Le contenu est
+/// dans le stockage S3 local, sous la clé storageKey ; seul le serveur y
+/// accède. width et height sont null pour une vidéo.
+model Media {
+  id           String       @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  storageKey   String       @unique
+  mimeType     String
+  sizeBytes    Int
+  width        Int?
+  height       Int?
+  uploadedById String?      @db.Uuid
+  uploadedBy   User?        @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  exercises    Exercise[]
+  postureTips  PostureTip[]
+  createdAt    DateTime     @default(now()) @db.Timestamptz(3)
+
+  @@map("media")
+}
+
+/// Textes uniques des Conseils, par clé. whenToSeeDoctor : message « Quand
+/// consulter un médecin » en haut de En cas de douleur.
+model AdviceSetting {
+  key       String   @id
+  text      String
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+
+  @@map("adviceSettings")
 }
