@@ -27,7 +27,7 @@ Légende : ✅ fait · 🔜 à faire.
 
 Dans cet ordre : chaque étape s'appuie sur la précédente.
 
-### C0. WebSocket en prod 🔜
+### C0. WebSocket en prod ✅ (PR #40 ; Pi appairé et recette A + B en prod le 19/10/2026, voir [poc-raspberry.md](poc-raspberry.md) §7)
 
 Aujourd'hui le Pi ne peut se connecter qu'au serveur de dev d'un PC.
 
