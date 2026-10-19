@@ -49,6 +49,11 @@ export class DeviceConnections {
     }
   }
 
+  /** Ferme la connexion de l'appareil, s'il en a une (clé révoquée…). */
+  close(deviceId: string, code: number, reason: string) {
+    this.connections.get(deviceId)?.socket.close(code, reason);
+  }
+
   /** Envoie à l'appareil s'il est connecté ; sinon il se synchronisera par `ready`. */
   send(deviceId: string, event: string, data: unknown) {
     const connection = this.connections.get(deviceId);

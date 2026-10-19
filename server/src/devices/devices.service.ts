@@ -3,6 +3,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { DeviceConnections } from '../analysis/device-connections.js';
+import { CloseCode } from '../analysis/devices.gateway.js';
 import { hashDeviceKey, newDeviceKey } from '../auth/device-key.js';
 import { CaptureStatus, DeviceType } from '../entities/index.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -11,7 +13,10 @@ import type { DeviceKeyDto } from './dto/device-key.dto.js';
 /** Clés des Raspberry Pi : création, remplacement, révocation. */
 @Injectable()
 export class DevicesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly connections: DeviceConnections,
+  ) {}
 
   /** Ajoute un Raspberry Pi au compte et renvoie sa clé (une seule fois). */
   async createRaspberry(
@@ -51,6 +56,7 @@ export class DevicesService {
       }),
       this.revokeSessions(device.id),
     ]);
+    this.disconnect(device.id);
     return { deviceId: device.id, name: device.name, key, keyCreatedAt };
   }
 
@@ -64,6 +70,15 @@ export class DevicesService {
       }),
       this.revokeSessions(device.id),
     ]);
+    this.disconnect(device.id);
+  }
+
+  /**
+   * Le JWT n'est vérifié qu'à l'ouverture de la WebSocket : sans cela, un Pi
+   * révoqué resterait connecté. 4401 : il refait un login, refusé, et s'arrête.
+   */
+  private disconnect(deviceId: string) {
+    this.connections.close(deviceId, CloseCode.Unauthorized, 'Clé révoquée');
   }
 
   private revokeSessions(deviceId: string) {

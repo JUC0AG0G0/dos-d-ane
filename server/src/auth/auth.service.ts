@@ -14,6 +14,8 @@ import type {
   DeviceInputDto,
   LoginDeviceType,
 } from './dto/device-input.dto.js';
+import { hashDeviceKey, sameKeyHash } from './device-key.js';
+import type { DeviceLoginDto } from './dto/device-login.dto.js';
 import type { LoginDto } from './dto/login.dto.js';
 import type { RegisterDto } from './dto/register.dto.js';
 import type {
@@ -140,6 +142,34 @@ export class AuthService {
     }
     const { passwordHash: _, ...publicUser } = user;
     return this.openSession(publicUser, dto.device, client);
+  }
+
+  /**
+   * Connexion d'un Raspberry Pi par sa clé (à la place d'un mot de passe) :
+   * ouvre la même session qu'un login, sur cet appareil. Même erreur si
+   * l'appareil n'existe pas, n'a pas de clé ou si la clé est fausse.
+   */
+  async deviceLogin(
+    dto: DeviceLoginDto,
+    client: ClientInfo,
+  ): Promise<LoginResponseDto> {
+    const device = await this.prisma.device.findUnique({
+      where: { id: dto.deviceId },
+      select: { type: true, keyHash: true, user: { select: userSelect } },
+    });
+    const keyHash = hashDeviceKey(dto.key);
+    if (
+      !device?.keyHash ||
+      device.type !== DeviceType.Raspberry ||
+      !sameKeyHash(keyHash, device.keyHash)
+    ) {
+      throw new UnauthorizedException('Appareil ou clé invalide');
+    }
+    return this.openSession(
+      device.user,
+      { id: dto.deviceId, type: DeviceType.Raspberry },
+      client,
+    );
   }
 
   /**

@@ -23,5 +23,7 @@ import { PostureResultsService } from './posture-results.service.js';
     DevicesGateway,
     PostureResultsService,
   ],
+  // Pour fermer la WebSocket d'un Pi dont la clé est révoquée (DevicesService).
+  exports: [DeviceConnections],
 })
 export class AnalysisModule {}
