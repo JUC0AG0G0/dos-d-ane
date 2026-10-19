@@ -121,11 +121,11 @@ Toutes les routes exigent d'être connecté, sauf celles marquées `@Public()`. 
 
 ## Production
 
-Chaque merge sur `main` déploie l'application sur le serveur, via un runner GitHub Actions installé dessus, après une CI verte. Seul nginx est exposé (front et `/api`), la base et pgAdmin non. Mise en place du serveur et du runner, secrets GitHub et protection de `main` : [deployReadME.md](deployReadME.md).
+Chaque merge sur `develop` déploie l'application sur le VPS, via un runner GitHub Actions installé dessus, après une CI verte. Elle est servie derrière le Nginx Proxy Manager du VPS (HTTPS), la base et pgAdmin ne sont pas exposés. Mise en place du runner, du proxy et des secrets GitHub : [deployReadME.md](deployReadME.md).
 
 ## Branches
 
-`main` et `develop` ne reçoivent que des pull requests. Une branche par tâche, créée depuis `develop`.
+`develop` ne reçoit que des pull requests. Une branche par tâche, créée depuis `develop`.
 
 
 ## Licence
