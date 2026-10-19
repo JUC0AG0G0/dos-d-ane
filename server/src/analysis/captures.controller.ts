@@ -12,6 +12,7 @@ import {
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiNoContentResponse,
   ApiNotFoundResponse,
@@ -45,6 +46,9 @@ export class CapturesController {
       'Corps invalide, point en dehors de l’image ou appareil qui ne peut pas capturer (web)',
   })
   @ApiNotFoundResponse({ description: 'Appareil introuvable' })
+  @ApiConflictResponse({
+    description: 'Appareil dans une session en pause',
+  })
   create(
     @CurrentAuth() auth: AuthContext,
     @Body() dto: CreateCaptureDto,
