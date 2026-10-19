@@ -36,7 +36,7 @@ Le Pi n'a **aucun mot de passe** : il a un `deviceId` et une **clé** (`dk_` + 2
 
 | Route | Qui | Rôle |
 |---|---|---|
-| `POST /api/devices` | l'utilisateur connecté | « ajouter un Raspberry Pi » : crée l'appareil, renvoie `deviceId` et `key` **une seule fois** |
+| `POST /api/devices` | l'utilisateur connecté | « ajouter un Raspberry Pi » : crée l'appareil **avec la capture activée** (il n'a pas d'écran pour l'activer lui-même), renvoie `deviceId` et `key` **une seule fois** |
 | `POST /api/devices/:id/key` | le propriétaire | nouvelle clé (perdue, ou Pi existant) ; l'ancienne ne marche plus |
 | `DELETE /api/devices/:id/key` | le propriétaire | révoque la clé (Pi perdu, volé, donné) |
 | `POST /api/auth/device-login` | public | `{ deviceId, key }` → même réponse qu'un login (`accessToken`) |
@@ -76,12 +76,14 @@ Erreur renvoyée par le serveur : `{ "event": "exception", "data": { "status": "
 
 ### Sessions : la base fait foi
 
-`sessionId` de `ready` = la session d'analyse **en cours** à laquelle l'appareil participe (`null` sinon). Le Pi s'y aligne à chaque connexion : un Pi éteint ou déconnecté pendant un start ou un stop se remet à jour tout seul, sans file d'attente côté serveur. Ensuite, le serveur envoie :
+`sessionId` de `ready` = la session d'analyse **en cours** (lancée, ni en pause ni terminée) à laquelle l'appareil participe (`null` sinon). Le Pi s'y aligne à chaque connexion : un Pi éteint ou déconnecté pendant un start ou un stop se remet à jour tout seul, sans file d'attente côté serveur. Ensuite, le serveur envoie :
 
 | Action (REST, app ou site) | Message aux Pi de la session |
 |---|---|
 | `POST /analysis-sessions/:id/start` | `session:start` |
 | `POST /analysis-sessions/:id/stop` | `session:stop` |
+| `POST /analysis-sessions/:id/pause` | `session:stop` : le Pi termine son analyse et **éteint la webcam** |
+| `POST /analysis-sessions/:id/resume` | `session:start` : le Pi relance une analyse (nouveaux ids, nouveaux CSV) |
 | `POST /analysis-sessions/:id/devices` sur une session en cours | `session:start` au Pi ajouté |
 | `DELETE /analysis-sessions/:id/devices/:deviceId` sur une session en cours | `session:stop` au Pi retiré |
 | `DELETE /analysis-sessions/:id` sur une session en cours | `session:stop` |

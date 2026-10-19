@@ -30,9 +30,9 @@ export class DevicesService {
         userId,
         name,
         type: DeviceType.Raspberry,
-        // Comme à un login raspberry : peut capturer, coupé tant que non activé.
+        // Ajouté pour capturer, et sans écran pour activer la capture lui-même.
         captureEligible: true,
-        captureStatus: CaptureStatus.Inactive,
+        captureStatus: CaptureStatus.Active,
         keyHash: hashDeviceKey(key),
         keyCreatedAt,
       },
