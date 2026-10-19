@@ -1,6 +1,5 @@
-import { CircleAlert, Eye, EyeOff, ShieldCheck, ShieldOff } from 'lucide-react';
+import { Eye, EyeOff, ShieldCheck, ShieldOff } from 'lucide-react';
 import { useState } from 'react';
-import { Alert, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -32,6 +31,7 @@ import {
   type RoleChange,
 } from '../types/admin.types';
 import { RoleChangeDialog } from './RoleChangeDialog';
+import { ErrorAlert } from '@/components/ErrorAlert';
 
 export function UsersSection() {
   const { users, loading, error, reload } = useUsers();
@@ -95,26 +95,16 @@ export function UsersSection() {
         err instanceof Error ? err.message : 'Le changement de rôle a échoué.',
       );
     }
-    await reload();
+    reload();
   }
 
   if (error) {
-    return (
-      <Alert variant="destructive">
-        <CircleAlert />
-        <AlertTitle>{error}</AlertTitle>
-      </Alert>
-    );
+    return <ErrorAlert message={error} />;
   }
 
   return (
     <div className="grid gap-6">
-      {actionError && (
-        <Alert variant="destructive">
-          <CircleAlert />
-          <AlertTitle>{actionError}</AlertTitle>
-        </Alert>
-      )}
+      <ErrorAlert message={actionError} />
       <Card>
         <CardHeader>
           <CardTitle>Utilisateurs</CardTitle>

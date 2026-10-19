@@ -3,18 +3,26 @@ import {
   Navigate,
   RouterProvider,
 } from 'react-router-dom';
-import { AdminPage } from '@/pages/AdminPage';
 import { AppLayout } from '@/components/layouts/AppLayout';
 import { AuthLayout } from '@/components/layouts/AuthLayout';
 import { CenteredLayout } from '@/components/layouts/CenteredLayout';
 import { LegalLayout } from '@/components/layouts/LegalLayout';
-import { RedirectIfSignedIn, RequireAuth } from '@/features/auth';
+import { Toaster } from '@/components/ui/sonner';
+import { RedirectIfSignedIn, RequireAdmin, RequireAuth } from '@/features/auth';
+import { AdminAdvicePage } from '@/pages/AdminAdvicePage';
+import { AdminMediaPage } from '@/pages/AdminMediaPage';
+import { AdminUsersPage } from '@/pages/AdminUsersPage';
+import { AdviceExercisesPage } from '@/pages/AdviceExercisesPage';
+import { AdviceInstallationPage } from '@/pages/AdviceInstallationPage';
+import { AdvicePainPage } from '@/pages/AdvicePainPage';
 import { HomePage } from '@/pages/HomePage';
 import { LegalNoticePage } from '@/pages/LegalNoticePage';
 import { LoginPage } from '@/pages/LoginPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { PrivacyPolicyPage } from '@/pages/PrivacyPolicyPage';
 import { RegisterPage } from '@/pages/RegisterPage';
+import { SessionPage } from '@/pages/SessionPage';
+import { SessionsPage } from '@/pages/SessionsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { StatusPage } from '@/pages/StatusPage';
 import { TermsPage } from '@/pages/TermsPage';
@@ -27,8 +35,31 @@ const router = createBrowserRouter([
         element: <AppLayout />,
         children: [
           { path: '/', element: <HomePage /> },
+          { path: '/sessions', element: <SessionsPage /> },
+          { path: '/sessions/:id', element: <SessionPage /> },
           { path: '/settings/:tab?', element: <SettingsPage /> },
-          { path: '/admin', element: <AdminPage /> },
+          {
+            path: '/conseils',
+            element: <Navigate to="/conseils/installation" replace />,
+          },
+          {
+            path: '/conseils/installation',
+            element: <AdviceInstallationPage />,
+          },
+          { path: '/conseils/exercices', element: <AdviceExercisesPage /> },
+          { path: '/conseils/douleur', element: <AdvicePainPage /> },
+          {
+            element: <RequireAdmin />,
+            children: [
+              {
+                path: '/admin',
+                element: <Navigate to="/admin/utilisateurs" replace />,
+              },
+              { path: '/admin/utilisateurs', element: <AdminUsersPage /> },
+              { path: '/admin/conseils/:tab?', element: <AdminAdvicePage /> },
+              { path: '/admin/medias', element: <AdminMediaPage /> },
+            ],
+          },
         ],
       },
     ],
@@ -64,5 +95,10 @@ const router = createBrowserRouter([
 ]);
 
 export function App() {
-  return <RouterProvider router={router} />;
+  return (
+    <>
+      <RouterProvider router={router} />
+      <Toaster position="bottom-right" richColors />
+    </>
+  );
 }

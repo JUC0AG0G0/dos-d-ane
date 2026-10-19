@@ -81,7 +81,7 @@ Le rechargement à chaud est toujours actif : chaque modification de `client/src
 | `task test:edge` | tests de l'algorithme de posture du Raspberry Pi (`edge/`, Python, sans webcam) |
 | `task db:generate` | crée une migration depuis `server/prisma/schema.prisma`, sans l'appliquer |
 | `task db:migrate` | applique les migrations pas encore appliquées |
-| `task db:dump` | exporte la base dans `dumps/<date>.sql` (ignoré par Git, à ne pas partager) |
+| `task db:dump` | exporte la base dans `dumps/<date>.sql` et les médias dans `dumps/<date>.media.tar.gz` (ignorés par Git, à ne pas partager) |
 | `task db:restore` | annule la dernière migration, revient à une migration ou charge un dump |
 | `task` | liste toutes les commandes |
 
@@ -121,11 +121,11 @@ Toutes les routes exigent d'être connecté, sauf celles marquées `@Public()`. 
 
 ## Production
 
-Chaque merge sur `main` déploie l'application sur le serveur, via un runner GitHub Actions installé dessus, après une CI verte. Seul nginx est exposé (front et `/api`), la base et pgAdmin non. Mise en place du serveur et du runner, secrets GitHub et protection de `main` : [deployReadME.md](deployReadME.md).
+Chaque merge sur `develop` déploie l'application sur le VPS, via un runner GitHub Actions installé dessus, après une CI verte. Elle est servie derrière le Nginx Proxy Manager du VPS (HTTPS), la base et pgAdmin ne sont pas exposés. Mise en place du runner, du proxy et des secrets GitHub : [deployReadME.md](deployReadME.md).
 
 ## Branches
 
-`main` et `develop` ne reçoivent que des pull requests. Une branche par tâche, créée depuis `develop`.
+`develop` ne reçoit que des pull requests. Une branche par tâche, créée depuis `develop`.
 
 
 ## Licence

@@ -1,6 +1,7 @@
 # Surcharge de production (déploiement sur le serveur, voir deployReadME.md).
 # Seul le client (nginx) est publié : il sert le front et relaie /api au
-# serveur. L'API et la base restent dans le réseau Docker, pgAdmin n'existe pas.
+# serveur. L'API, la base et le stockage S3 restent dans le réseau Docker,
+# pgAdmin n'existe pas.
 # Chaque ${VAR} sans valeur par défaut doit être un secret GitHub et figurer
 # dans .env.prod.example (vérifié par la CI).
 x-database-url: &database-url postgresql://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@db:5432/${POSTGRES_DB:?}
@@ -33,6 +34,8 @@ services:
       SESSION_TTL_MINUTES: ${SESSION_TTL_MINUTES:-60}
       ADMIN_EMAIL: ${ADMIN_EMAIL:?}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:?}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?}
     ports: !reset []
     depends_on:
       migrate:
@@ -44,3 +47,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
       POSTGRES_DB: ${POSTGRES_DB:?}
     ports: !reset []
+
+  s3:
+    environment:
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:?}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:?}

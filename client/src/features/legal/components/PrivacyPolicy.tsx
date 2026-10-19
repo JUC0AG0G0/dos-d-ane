@@ -108,8 +108,10 @@ export function PrivacyPolicy() {
             jusqu'au 1er aout 2027
           </li>
           <li>
-            Données de posture : jusqu'à la suppression de l'appareil ou du
-            compte, au plus tard le 1er aout 2027.
+            Données de posture (sessions, pauses et captures) : conservées tant
+            que le compte existe, supprimées avec lui ou avec l'appareil, au
+            plus tard le 1er aout 2027. Vous pouvez supprimer une session et ses
+            captures à tout moment depuis sa page.
           </li>
         </ul>
         <p>

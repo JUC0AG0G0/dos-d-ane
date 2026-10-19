@@ -5,6 +5,7 @@ import {
   DevicesSection,
   PrivacySection,
 } from '@/features/settings';
+import { PageHeader } from '@/components/PageHeader';
 
 const TABS = [
   { value: 'account', label: 'Compte', Section: AccountSection },
@@ -21,7 +22,7 @@ export function SettingsPage() {
 
   return (
     <section className="grid gap-6">
-      <h1 className="text-3xl font-bold">Paramètres</h1>
+      <PageHeader title="Paramètres" />
       <Tabs
         value={tab}
         onValueChange={(value) => navigate(`/settings/${value}`)}

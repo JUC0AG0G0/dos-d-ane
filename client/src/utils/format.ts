@@ -13,3 +13,10 @@ export function formatDateTime(value: string | Date) {
 export function formatDate(value: string | Date) {
   return date.format(new Date(value));
 }
+
+const shortDate = new Intl.DateTimeFormat('fr-FR');
+
+/** « 18/10/2026 » (colonnes de tableau) */
+export function formatShortDate(value: string | Date) {
+  return shortDate.format(new Date(value));
+}

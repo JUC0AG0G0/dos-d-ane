@@ -24,5 +24,7 @@ import { AuthService } from './auth.service.js';
     AdminAccount,
     { provide: APP_GUARD, useClass: AuthGuard },
   ],
+  // Pour la passerelle WebSocket, qui vérifie le jeton à l'ouverture.
+  exports: [AuthService],
 })
 export class AuthModule {}
