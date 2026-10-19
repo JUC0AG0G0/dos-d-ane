@@ -57,6 +57,7 @@ Le serveur reçoit déjà `state` et les alertes, mais personne ne peut encore l
 
 - Avec Eron (app Expo, branche `mobile`) : choisir le Pi, Démarrer / Terminer (`POST …/start`, `…/stop`), état en direct (C2), puis les résultats (`GET …/events`, `…/summaries`).
 - Site : « ajouter un Raspberry Pi » (`POST /devices`, clé affichée une fois), liste et révocation des clés.
+- Appairage par code (comme une télé connectée) : le Pi sans clé affiche un code court, l'utilisateur le tape dans l'app ou le site, le Pi reçoit sa clé tout seul ; jamais de mot de passe sur le Pi, même tapé une fois. Demande une table de codes temporaires (10 min) et une limite de tentatives. En attendant : `python -m outils.appairer` sur le Pi (email et mot de passe tapés une fois, jamais enregistrés).
 - **Fini quand** : une personne lance et termine une session depuis son téléphone, sans Swagger.
 
 ### C4. Test de bout en bout 🔜

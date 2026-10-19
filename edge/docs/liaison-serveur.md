@@ -149,6 +149,15 @@ Variables d'environnement, dans `edge/.env` (ignoré par Git ; modèle commenté
 | `DOSDANE_SERVEUR` | `http://localhost:3000` en dev, `https://…` en prod (WebSocket en `ws://` ou `wss://` d'après lui) |
 | `DOSDANE_APPAREIL`, `DOSDANE_CLE` | `deviceId` et `key` donnés par `POST /api/devices` (ou `/devices/:id/key`) ; la clé n'est jamais affichée par le Pi |
 
+**Le plus simple : appairer le Pi** (une fois, sur le Pi) — il s'ajoute lui-même au compte et écrit `DOSDANE_APPAREIL` et `DOSDANE_CLE` dans `edge/.env` (`600`) ; le mot de passe est tapé sans écho, sert à un seul login fermé aussitôt, et n'est jamais enregistré :
+
+```bash
+cd edge && source .venv/bin/activate
+python -m outils.appairer --serveur https://<domaine> --nom "Pi du bureau"
+```
+
+Sinon, à la main : `POST /api/devices` (depuis un PC), puis recopier `deviceId` et `key` dans `edge/.env` :
+
 ```bash
 cd edge
 cp .env.example .env && chmod 600 .env    # puis le remplir
