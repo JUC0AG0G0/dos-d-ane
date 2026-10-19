@@ -17,8 +17,8 @@ Aucune calibration : les règles utilisent des seuils fixes (algo-posture.md).
     poc_<date>.csv              une ligne par image (format posture.mesures.COLONNES_CSV)
     poc_<date>_evenements.csv   début et fin de chaque alerte
     poc_<date>_resumes.csv      un résumé toutes les 5 min (audit §7.2)
-Événements et résumés ne sont pas encore envoyés au serveur : tout passe par envoyer_evenement() et
-envoyer_resume(), où l'envoi s'ajoutera (étape B1).
+En mode service, alertes et résumés partent aussi au serveur (envoyer_evenement(), envoyer_resume() :
+contrat docs/liaison-serveur.md §4), sans jamais bloquer l'analyse.
 
 Mode service (--service) : le serveur décide quand une session commence et finit (docs/liaison-serveur.md).
 La webcam n'est ouverte que pendant une session ; une coupure de la liaison n'arrête pas l'analyse.
@@ -51,7 +51,7 @@ from posture.pi import temperature_pi, throttled_pi
 from posture.points import Completeur, CoteStable, Presence
 from posture.regles import postures
 from posture.score import DUREE_RESUME, Resume
-from posture.serveur import Config, ErreurConfig, Liaison, commande
+from posture.serveur import Config, Envoi, ErreurConfig, Liaison, Numeros, commande
 
 CADENCE_CALME, CADENCE_DOUTE, CADENCE_ABSENT = 10, 2, 30     # s entre deux images
 ECHECS_REOUVERTURE = 5                                        # captures ratées d'affilée avant de rouvrir la webcam
@@ -75,37 +75,55 @@ COLONNES_RESUMES = ["id", "session", "periode", "score_moyen", "secondes_bonne",
                     "secondes_a_ameliorer", "secondes_ignore", "secondes_absent"]
 
 
-class Session:
-    """Numérote les événements et résumés, les affiche et les écrit (puis les enverra au serveur)."""
+def heure_utc(moment):
+    """Heure locale du Pi → ISO 8601 en UTC, comme l'attend le serveur."""
+    return moment.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
-    def __init__(self, base, id_session=None):
+
+class Session:
+    """Numérote les événements et résumés, les affiche, les écrit, et les envoie au serveur en mode service.
+
+    Une alerte garde le même id au début et à la fin : le serveur complète la même ligne (contrat §4).
+    """
+
+    def __init__(self, base, id_session=None, envoi=None):
         self.id = id_session or f"ses_{datetime.now():%Y%m%d_%H%M%S}"     # id du serveur en mode service
+        self.envoi = envoi
+        self.ids = {}               # cause → id de l'alerte en cours
         self.fichier = open(f"{base}_evenements.csv", "w", newline="")
         self.ecrivain = csv.writer(self.fichier)
         self.ecrivain.writerow(COLONNES_EVENEMENTS)
         self.fichier_resumes = open(f"{base}_resumes.csv", "w", newline="")
         self.ecrivain_resumes = csv.writer(self.fichier_resumes)
         self.ecrivain_resumes.writerow(COLONNES_RESUMES)
-        self.numero = self.numero_resume = 0
+        self.numeros = Numeros()   # ids uniques même après un redémarrage du service
         self.debuts = {}            # cause → heure de début de l'alerte en cours
         self.nombre = 0             # alertes déclenchées
 
     def envoyer_evenement(self, cause, phase, moyennes=None, detail=None):
-        self.numero += 1
         maintenant = datetime.now()
+        if phase == "debut" or cause not in self.ids:
+            self.ids[cause] = self.numeros.evenement()
+        id_alerte = self.ids[cause] if phase == "debut" else self.ids.pop(cause)
         if phase == "debut":
             self.debuts[cause] = maintenant
             self.nombre += 1
         debut = self.debuts.get(cause, maintenant)
         duree = round((maintenant - debut).total_seconds()) if phase == "fin" else ""
-        message = {"id": f"evt_{self.numero:04d}", "session": self.id, "type": TYPES[cause], "phase": phase,
+        message = {"id": id_alerte, "session": self.id, "type": TYPES[cause], "phase": phase,
                    "heure": maintenant.isoformat(timespec="seconds"), "debut": debut.isoformat(timespec="seconds"),
                    "duree_s": duree, **({"tete_moy": moyennes["tete"], "tronc_moy": moyennes["tronc"]}
                                         if moyennes else {"tete_moy": "", "tronc_moy": ""}),
                    "detail": ";".join(f"{TYPES[c]}:{p}" for c, p in (detail or {}).items())}
         self.ecrivain.writerow([message[k] for k in COLONNES_EVENEMENTS])
         self.fichier.flush()
-        # (après le POC) : envoi HTTPS POST au serveur, avec ce même message
+        if self.envoi:                           # même contenu, aux noms de l'API (contrat §4)
+            self.envoi.deposer(f"/api/analysis-sessions/{self.id}/events", {
+                "clientId": id_alerte, "type": TYPES[cause], "phase": "start" if phase == "debut" else "end",
+                "startedAt": heure_utc(debut), **({"endedAt": heure_utc(maintenant)} if phase == "fin" else {}),
+                "headAngleAvg": moyennes["tete"] if moyennes else None,
+                "trunkAngleAvg": moyennes["tronc"] if moyennes else None,
+                "causes": {TYPES[c]: p for c, p in detail.items()} if detail else None})
         if phase == "debut":
             parts = f"  ({', '.join(f'{c} {p} %' for c, p in detail.items())})" if detail and len(detail) > 1 else ""
             print(f"\a🔔 {maintenant:%H:%M:%S}  ALERTE {cause.upper()} — {CONSEILS[cause]}{parts}")
@@ -113,16 +131,21 @@ class Session:
             print(f"✅ {maintenant:%H:%M:%S}  fin : {cause} (durée {duree // 60} min {duree % 60} s)")
 
     def envoyer_resume(self, resume, debut):
-        self.numero_resume += 1
+        fin = datetime.now()
         s = {k: round(v) for k, v in resume.secondes.items()}
-        message = {"id": f"res_{self.numero_resume:04d}", "session": self.id,
-                   "periode": f"{debut:%H:%M}-{datetime.now():%H:%M}", "score_moyen": resume.score(),
+        message = {"id": self.numeros.resume(), "session": self.id,
+                   "periode": f"{debut:%H:%M}-{fin:%H:%M}", "score_moyen": resume.score(),
                    "secondes_bonne": s.get("vert", 0), "secondes_moyenne": s.get("orange", 0),
                    "secondes_a_ameliorer": s.get("rouge", 0), "secondes_ignore": s.get("ignore", 0),
                    "secondes_absent": s.get("absent", 0)}
         self.ecrivain_resumes.writerow([message[k] for k in COLONNES_RESUMES])
         self.fichier_resumes.flush()
-        # (après le POC) : envoi HTTPS POST au serveur, avec ce même message
+        if self.envoi:
+            self.envoi.deposer(f"/api/analysis-sessions/{self.id}/summaries", {
+                "clientId": message["id"], "periodStart": heure_utc(debut), "periodEnd": heure_utc(fin),
+                "score": message["score_moyen"], "secondsGreen": message["secondes_bonne"],
+                "secondsOrange": message["secondes_moyenne"], "secondsRed": message["secondes_a_ameliorer"],
+                "secondsIgnored": message["secondes_ignore"], "secondsAbsent": message["secondes_absent"]})
         score = "-" if message["score_moyen"] is None else f"{message['score_moyen']} / 100"
         print(f"📊 résumé {message['periode']} : score {score}, vert {message['secondes_bonne']} s, "
               f"orange {message['secondes_moyenne']} s, rouge {message['secondes_a_ameliorer']} s, "
@@ -136,7 +159,7 @@ class Session:
 class Analyse:
     """Une session d'analyse, de l'ouverture de la webcam (fournie) à terminer() : une image à la fois."""
 
-    def __init__(self, args, cam, movenet, id_session=None, liaison=None):
+    def __init__(self, args, cam, movenet, id_session=None, liaison=None, envoi=None):
         self.args, self.cam, self.movenet, self.liaison = args, cam, movenet, liaison
         if args.rapide:
             reglages = dict(fenetre=10, confirmation=10, anti_rafale=60)
@@ -148,7 +171,7 @@ class Analyse:
         self.cote_stable, self.completeur, self.presence = CoteStable(), Completeur(), Presence()
         DOSSIER_RESULTATS.mkdir(exist_ok=True)
         base = DOSSIER_RESULTATS / f"poc_{datetime.now():%Y-%m-%d_%H%M%S}"
-        self.session = Session(base, id_session)
+        self.session = Session(base, id_session, envoi)
         self.mesures = open(f"{base}.csv", "w", newline="")
         self.ecrivain = csv.writer(self.mesures)
         self.ecrivain.writerow(COLONNES_CSV)
@@ -216,7 +239,7 @@ class Analyse:
         if self.liaison:              # perdu si la liaison est coupée : l'état suivant le remplace
             self.liaison.envoyer("state", {
                 "sessionId": self.session.id,
-                "at": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
+                "at": heure_utc(datetime.now()),
                 "color": COULEURS_DIRECT[etat],
                 "posture": ("GOOD" if posture == "bonne posture" else TYPES[posture]) if a else None,
                 "headAngle": round(a["tete"], 1) if a else None,      # deux angles, aucun point du corps
@@ -297,6 +320,7 @@ def service(args):
         sys.exit(f"ÉCHEC : {e}")
     movenet = MoveNet()                    # chargé une fois, pour toutes les sessions
     liaison = Liaison(config).demarrer()
+    envoi = Envoi(config, liaison.jeton).demarrer()     # alertes et résumés, même jeton que la liaison
     analyse, prochaine = None, 0.0         # prochaine : instant de la prochaine image
     print("Service démarré : en attente d'une session (Ctrl+C pour arrêter)")
     try:
@@ -320,13 +344,15 @@ def service(args):
                     cam = ouvrir_camera()
                     if not cam.isOpened():         # image() retentera de l'ouvrir
                         print("webcam absente : nouvel essai toutes les 5 captures ratées")
-                    analyse, prochaine = Analyse(args, cam, movenet, id_session, liaison), 0.0
+                    analyse, prochaine = Analyse(args, cam, movenet, id_session, liaison, envoi), 0.0
     except KeyboardInterrupt:
         pass
     finally:
         if analyse:
             analyse.terminer()
+        envoi.arreter()                    # après terminer() : le dernier résumé part aussi
         liaison.arreter()
+        print(f"Envoyés au serveur : {envoi.envoyes}, refusés : {envoi.rejetes}, non envoyés : {envoi.en_attente}")
     if liaison.erreur:
         sys.exit(f"ÉCHEC : {liaison.erreur}")
 

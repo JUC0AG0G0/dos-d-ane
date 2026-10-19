@@ -6,10 +6,24 @@ import { CapturesController } from './captures.controller.js';
 import { DeviceConnections } from './device-connections.js';
 import { DevicesGateway } from './devices.gateway.js';
 import { LiveStates } from './live-states.js';
+import { PostureResultsController } from './posture-results.controller.js';
+import { PostureResultsService } from './posture-results.service.js';
 
 @Module({
   imports: [AuthModule],
-  controllers: [AnalysisSessionsController, CapturesController],
-  providers: [AnalysisService, DeviceConnections, LiveStates, DevicesGateway],
+  controllers: [
+    AnalysisSessionsController,
+    CapturesController,
+    PostureResultsController,
+  ],
+  providers: [
+    AnalysisService,
+    DeviceConnections,
+    LiveStates,
+    DevicesGateway,
+    PostureResultsService,
+  ],
+  // Pour fermer la WebSocket d'un Pi dont la clé est révoquée (DevicesService).
+  exports: [DeviceConnections],
 })
 export class AnalysisModule {}
