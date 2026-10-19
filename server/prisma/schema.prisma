@@ -79,6 +79,9 @@ model Device {
 /// ipAddress et userAgent sont relevés à la connexion.
 /// Une session est active tant qu'elle n'est ni révoquée ni expirée ; elle
 /// reste en base ensuite pour l'historique des connexions.
+/// kind : user (login par mot de passe, tous les droits du compte) ou device
+/// (login d'un Raspberry Pi par sa clé : seulement les routes marquées
+/// @DeviceAllowed, vérifié par un CHECK et par le guard global).
 model AuthSession {
   id         String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
   userId     String    @db.Uuid
@@ -90,6 +93,7 @@ model AuthSession {
   lastUsedAt DateTime  @default(now()) @db.Timestamptz(3)
   ipAddress  String?
   userAgent  String?
+  kind       String    @default("user")
   createdAt  DateTime  @default(now()) @db.Timestamptz(3)
 
   @@index([userId])

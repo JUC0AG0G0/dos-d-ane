@@ -68,6 +68,7 @@ Table authSessions {
   lastUsedAt timestamptz [not null, default: `now()`]
   ipAddress string
   userAgent string
+  kind text [not null, default: 'user', note: 'user (mot de passe) ou device (Pi par sa clé : routes @DeviceAllowed seulement)']
   createdAt timestamptz [not null, default: `now()`]
 
   indexes {

@@ -11,13 +11,17 @@ import type { Request, Response } from 'express';
 import type { WebSocket } from 'ws';
 import type { Role } from '../entities/index.js';
 import { AuthService } from './auth.service.js';
-import { IS_PUBLIC_KEY, ROLES_KEY } from './decorators.js';
+import { DEVICE_ALLOWED_KEY, IS_PUBLIC_KEY, ROLES_KEY } from './decorators.js';
+
+/** user : login par mot de passe ; device : Raspberry Pi connecté par sa clé. */
+export type SessionKind = 'user' | 'device';
 
 export interface AuthContext {
   userId: string;
   role: Role;
   sessionId: string;
   expiresAt: Date;
+  kind: SessionKind;
 }
 
 export type AuthenticatedRequest = Request & { auth?: AuthContext };
@@ -27,7 +31,8 @@ export type AuthenticatedSocket = WebSocket & { auth?: AuthContext };
 
 /**
  * Guard global : toute route exige un token valide, sauf celles marquées
- * @Public(). Vérifie ensuite le rôle si la route porte @Roles(...).
+ * @Public(). Vérifie ensuite le rôle si la route porte @Roles(...), et refuse
+ * une session d'appareil (Pi) hors des routes marquées @DeviceAllowed().
  * S'applique aussi aux messages WebSocket.
  */
 @Injectable()
@@ -61,6 +66,9 @@ export class AuthGuard implements CanActivate {
       .getResponse<Response>()
       .setHeader('X-Session-Expires-At', auth.expiresAt.toISOString());
 
+    if (!this.deviceAllowed(auth, targets)) {
+      throw new ForbiddenException('Réservé aux comptes, pas aux appareils');
+    }
     if (!this.hasRole(auth, targets)) {
       throw new ForbiddenException('Rôle insuffisant');
     }
@@ -79,10 +87,23 @@ export class AuthGuard implements CanActivate {
     if (!auth) {
       throw new WsException('Connexion requise');
     }
+    if (!this.deviceAllowed(auth, targets)) {
+      throw new WsException('Réservé aux comptes, pas aux appareils');
+    }
     if (!this.hasRole(auth, targets)) {
       throw new WsException('Rôle insuffisant');
     }
     return true;
+  }
+
+  private deviceAllowed(
+    auth: AuthContext,
+    targets: ReturnType<ExecutionContext['getHandler']>[],
+  ): boolean {
+    return (
+      auth.kind !== 'device' ||
+      !!this.reflector.getAllAndOverride<boolean>(DEVICE_ALLOWED_KEY, targets)
+    );
   }
 
   private hasRole(

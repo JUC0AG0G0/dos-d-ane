@@ -18,7 +18,7 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import type { AuthContext } from '../auth/auth.guard.js';
-import { CurrentAuth } from '../auth/decorators.js';
+import { CurrentAuth, DeviceAllowed } from '../auth/decorators.js';
 import {
   CreatePostureEventDto,
   CreatePostureSummaryDto,
@@ -35,6 +35,7 @@ export class PostureResultsController {
   constructor(private readonly results: PostureResultsService) {}
 
   @Post(':id/events')
+  @DeviceAllowed()
   @ApiOperation({
     summary: 'Envoie le début ou la fin d’une alerte de posture (Pi)',
     description:
@@ -68,6 +69,7 @@ export class PostureResultsController {
   }
 
   @Post(':id/summaries')
+  @DeviceAllowed()
   @ApiOperation({
     summary: 'Envoie le résumé d’une période (Pi)',
     description:

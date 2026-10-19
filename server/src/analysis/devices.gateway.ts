@@ -12,6 +12,7 @@ import {
 import { WebSocket } from 'ws';
 import type { AuthenticatedSocket } from '../auth/auth.guard.js';
 import { AuthService } from '../auth/auth.service.js';
+import { DeviceAllowed } from '../auth/decorators.js';
 import { DeviceType } from '../entities/index.js';
 import { AnalysisService } from './analysis.service.js';
 import {
@@ -53,6 +54,8 @@ type DeviceSocket = AuthenticatedSocket & { deviceId?: string };
   maxPayload: 16 * 1024,
 })
 @UseFilters(WsValidationFilter)
+// Toute la passerelle est faite pour le Pi : ouverte aux sessions d'appareil.
+@DeviceAllowed()
 export class DevicesGateway
   implements OnGatewayConnection, OnGatewayDisconnect
 {

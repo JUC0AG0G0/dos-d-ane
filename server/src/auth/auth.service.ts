@@ -9,7 +9,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '../generated/prisma/client.js';
 import { CaptureStatus, DeviceType, Role } from '../entities/index.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import type { AuthContext } from './auth.guard.js';
+import type { AuthContext, SessionKind } from './auth.guard.js';
 import type {
   DeviceInputDto,
   LoginDeviceType,
@@ -169,6 +169,7 @@ export class AuthService {
       device.user,
       { id: dto.deviceId, type: DeviceType.Raspberry },
       client,
+      'device',
     );
   }
 
@@ -193,6 +194,7 @@ export class AuthService {
         expiresAt: true,
         revokedAt: true,
         lastUsedAt: true,
+        kind: true,
         user: { select: { role: true } },
       },
     });
@@ -213,6 +215,7 @@ export class AuthService {
       role: session.user.role,
       sessionId: session.id,
       expiresAt,
+      kind: session.kind as SessionKind,
     };
   }
 
@@ -297,6 +300,7 @@ export class AuthService {
     user: UserDto,
     deviceInput: DeviceInputDto = {},
     client: ClientInfo,
+    kind: SessionKind = 'user',
   ): Promise<LoginResponseDto> {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + this.sessionTtlMs);
@@ -314,6 +318,7 @@ export class AuthService {
           expiresAt,
           ipAddress: client.ipAddress,
           userAgent: client.userAgent,
+          kind,
         },
         select: { id: true, deviceId: true },
       });

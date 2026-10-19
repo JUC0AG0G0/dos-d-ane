@@ -10,4 +10,6 @@ export class AuthSession extends CreatedEntity implements AuthSessionRow {
   lastUsedAt: Date;
   ipAddress: string | null;
   userAgent: string | null;
+  /** user (mot de passe, tous les droits du compte) ou device (Pi, routes @DeviceAllowed seulement). */
+  kind: string;
 }
