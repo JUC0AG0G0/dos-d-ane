@@ -17,7 +17,7 @@ requires-python = ">=3.13"
 dependencies = ["numpy==2.5.3"]
 
 [project.optional-dependencies]
-pi = ["opencv-python==5.0.0.93", "ai-edge-litert==2.3.0"]
+pi = ["opencv-python==5.0.0.93", "ai-edge-litert==2.3.0", "websockets==17.2"]
 dev = ["pytest==9.1.1"]
 
 [tool.setuptools]
