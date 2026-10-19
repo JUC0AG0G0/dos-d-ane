@@ -41,6 +41,8 @@ Le login renvoie un `deviceId` : le Pi le garde (`~/.local/state/dos-dane/appare
 | `1011` | Erreur du serveur | base injoignable… | réessayer plus tard (attente croissante) |
 | autre (`1006`…) | — | réseau coupé, serveur redémarré | réessayer plus tard (attente croissante) |
 
+Attente croissante ✅ : 1 s, doublée à chaque échec jusqu'à 60 s (± 20 % pour que plusieurs Pi ne reviennent pas tous ensemble), remise à 1 s après une connexion réussie. Login refusé (mauvais mot de passe) ou `4403` : le Pi s'arrête et dit pourquoi, réessayer ne servirait à rien. Pendant une coupure, l'état en direct est perdu (le suivant le remplace) ; l'analyse, elle, continue.
+
 ## 3. Format des messages WebSocket
 
 Toujours du JSON : `{ "event": "<nom>", "data": <contenu> }`. Un message qui n'est pas du JSON valide, ou dont l'`event` est inconnu, est ignoré.
@@ -78,6 +80,7 @@ cd edge
 cp .env.example .env && chmod 600 .env    # puis le remplir
 set -a; source .env; set +a               # charge les variables dans le terminal
 python -m outils.connexion                # login, connexion, ping
+python -m outils.connexion --rester       # garde la liaison, la rouvre si elle tombe (Ctrl+C)
 ```
 
 ## 6. Tester à la main

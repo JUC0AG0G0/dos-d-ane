@@ -1,25 +1,33 @@
 """Liaison avec le serveur (contrat : docs/liaison-serveur.md).
 
 Le Pi fait un login, puis ouvre lui-même la WebSocket : aucun port n'est ouvert sur le Pi.
+Liaison la garde ouverte dans un thread à part et la rouvre quand elle tombe.
 Configuration par variables d'environnement, dans edge/.env (modèle : .env.example).
 Le mot de passe et le jeton ne sont jamais affichés. Aucun point du corps n'est envoyé (audit §7.2).
 
-websockets (option pi) n'est importé qu'à l'ouverture de la WebSocket : le reste se teste sans.
+websockets (option pi) n'est importé qu'une fois la WebSocket ouverte : le reste se teste sans.
 """
 
 import json
+import logging
 import os
+import queue
+import random
+import threading
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 
 from posture.chemins import FICHIER_APPAREIL
 
+journal = logging.getLogger(__name__)
+
 CHEMIN_WS = "/api/devices/ws"
 TAILLE_MAX = 16 * 1024            # comme le serveur (maxPayload)
 CODE_JETON_REFUSE = 4401          # jeton absent, invalide ou expiré : refaire un login
 CODE_APPAREIL_REFUSE = 4403       # session ouverte depuis un autre type d'appareil : ne pas réessayer
 VARIABLES = ("DOSDANE_SERVEUR", "DOSDANE_EMAIL", "DOSDANE_MOT_DE_PASSE")
+ATTENTE_MIN, ATTENTE_MAX = 1, 60  # secondes entre deux tentatives, doublées à chaque échec
 
 
 class ErreurConfig(Exception):
@@ -95,6 +103,8 @@ def login(config, timeout=10):
         raise ConnectionError(f"serveur injoignable ({config.serveur}) : {e.reason}") from None
     except TimeoutError:
         raise ConnectionError(f"serveur injoignable ({config.serveur}) : pas de réponse en {timeout} s") from None
+    except OSError as e:                         # connexion coupée pendant la réponse…
+        raise ConnectionError(f"serveur injoignable ({config.serveur}) : {e}") from None
     ecrire_appareil(donnees["deviceId"])
     return donnees["accessToken"]
 
@@ -103,13 +113,16 @@ def ouvrir(config, jeton, timeout=10):
     """Ouvre la WebSocket et attend `ready` : avant, le serveur refuserait nos messages.
 
     Le jeton passe dans le header, jamais dans l'URL (contrat §2). Lève ConnexionRefusee si le serveur
-    ferme au lieu d'accepter, OSError ou TimeoutError s'il est injoignable.
+    ferme au lieu d'accepter, ConnectionError s'il est injoignable, TimeoutError s'il n'envoie pas `ready`.
     """
-    from websockets.exceptions import ConnectionClosed
+    from websockets.exceptions import ConnectionClosed, InvalidHandshake
     from websockets.sync.client import connect
 
-    ws = connect(config.url_ws, additional_headers={"Authorization": f"Bearer {jeton}"},
-                 max_size=TAILLE_MAX, open_timeout=timeout)
+    try:
+        ws = connect(config.url_ws, additional_headers={"Authorization": f"Bearer {jeton}"},
+                     max_size=TAILLE_MAX, open_timeout=timeout)
+    except (OSError, InvalidHandshake) as e:     # serveur arrêté, mauvaise adresse, proxy…
+        raise ConnectionError(f"WebSocket injoignable ({config.url_ws}) : {e}") from None
     try:
         evenement, _ = recevoir(ws, timeout)
     except ConnectionClosed as e:
@@ -136,3 +149,117 @@ def recevoir(ws, timeout=None):
 def fermeture(exc):
     """(code, raison) de la fermeture envoyée par le serveur ; (None, "") si la connexion a juste été coupée."""
     return (exc.rcvd.code, exc.rcvd.reason) if exc.rcvd else (None, "")
+
+
+def que_faire(code):
+    """Réaction du Pi à une fermeture (contrat §2) : "login", "arret" ou "attendre"."""
+    if code == CODE_JETON_REFUSE:
+        return "login"
+    if code == CODE_APPAREIL_REFUSE:
+        return "arret"
+    return "attendre"
+
+
+def prochaine_attente(attente):
+    """Doublée à chaque échec, plafonnée : un serveur en panne n'est pas bombardé de tentatives."""
+    return min(attente * 2, ATTENTE_MAX)
+
+
+class Liaison:
+    """Garde la WebSocket ouverte dans un thread à part et la rouvre quand elle tombe.
+
+    La boucle d'analyse n'attend jamais le réseau : envoyer() ne bloque pas et renvoie False si la
+    liaison est coupée (le message est perdu : réservé à l'état en direct, que le suivant remplace).
+    Les messages du serveur arrivent dans la file `recus`, en (event, data).
+    Après une erreur de configuration (mauvais mot de passe, 4403), la liaison s'arrête et `erreur` dit pourquoi.
+    """
+
+    def __init__(self, config):
+        self.config = config
+        self.recus = queue.Queue()
+        self.erreur = None
+        self._arret = threading.Event()
+        self._ws = None
+        self._thread = threading.Thread(target=self._boucle, name="liaison-serveur", daemon=True)
+
+    @property
+    def connectee(self):
+        return self._ws is not None
+
+    def demarrer(self):
+        self._thread.start()
+        return self
+
+    def arreter(self, timeout=5):
+        self._arret.set()
+        if ws := self._ws:
+            ws.close()
+        self._thread.join(timeout)
+
+    def envoyer(self, evenement, donnees):
+        ws = self._ws
+        if ws is None:
+            return False
+        from websockets.exceptions import ConnectionClosed
+
+        try:
+            envoyer(ws, evenement, donnees)
+            return True
+        except ConnectionClosed:                 # la boucle va se reconnecter
+            return False
+
+    def _boucle(self):
+        jeton, attente = None, ATTENTE_MIN
+        while not self._arret.is_set():
+            code = None
+            try:
+                if jeton is None:
+                    jeton = login(self.config)
+                ws = ouvrir(self.config, jeton)
+            except ErreurLogin as e:
+                return self._abandonner(str(e))
+            except ConnexionRefusee as e:
+                journal.warning("%s", e)
+                code = e.code
+            except (ConnectionError, TimeoutError) as e:
+                journal.warning("%s", e)
+            except Exception:                    # imprévu : la liaison ne doit jamais mourir en silence
+                journal.exception("erreur inattendue de la liaison")
+            else:
+                journal.info("liaison ouverte : %s", self.config.url_ws)
+                self._ws, attente = ws, ATTENTE_MIN
+                code = self._recevoir(ws)
+                self._ws = None
+                if self._arret.is_set():
+                    break
+                journal.warning("liaison perdue (code %s)", code)
+
+            action = que_faire(code)
+            if action == "arret":
+                return self._abandonner("appareil refusé (4403) : le login doit se faire en raspberry")
+            if action == "login":
+                jeton = None
+            pause = attente * random.uniform(0.8, 1.2)   # étalée : plusieurs Pi ne reviennent pas tous ensemble
+            journal.info("nouvelle tentative dans %.0f s", pause)
+            self._arret.wait(pause)
+            attente = prochaine_attente(attente)
+        journal.info("liaison fermée")
+
+    def _recevoir(self, ws):
+        """Range les messages du serveur dans `recus` jusqu'à la fermeture, dont il renvoie le code."""
+        from websockets.exceptions import ConnectionClosed
+
+        while True:
+            try:
+                brut = ws.recv()
+            except ConnectionClosed as e:
+                return fermeture(e)[0]
+            try:
+                message = json.loads(brut)
+                self.recus.put((message["event"], message.get("data")))
+            except (ValueError, TypeError, KeyError):
+                journal.warning("message du serveur illisible, ignoré")
+
+    def _abandonner(self, raison):
+        self.erreur = raison
+        journal.error("liaison arrêtée : %s", raison)
