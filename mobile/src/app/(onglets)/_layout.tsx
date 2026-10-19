@@ -2,10 +2,9 @@ import type { ComponentType } from 'react';
 import { Text } from 'react-native';
 import { Tabs } from 'expo-router';
 
-import { IconeAccueil, IconeConseils, IconeResultats, IconeSession } from '@/composants/icones';
-import { couleurs, polices } from '@/theme';
+import { IconeAccueil, IconeConseils, IconeResultats, IconeSession } from '@/components/icones';
+import { couleurs, polices } from '@/styles/theme';
 
-/** Libellé d'onglet : semi-gras vert si actif, medium gris sinon (maquette). */
 function libelle(texte: string) {
   return function Libelle({ focused }: { focused: boolean }) {
     return (

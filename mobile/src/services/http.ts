@@ -1,7 +1,6 @@
 import { env } from '@/config/env';
-import { jetonActuel, signalerSessionExpiree } from '@/auth/session';
+import { jetonActuel, signalerSessionExpiree } from '@/store/auth.store';
 
-/** Erreur HTTP renvoyée par l'API, avec son code et son corps JSON éventuel. */
 export class ApiError extends Error {
   readonly status: number;
   readonly body: unknown;

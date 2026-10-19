@@ -1,6 +1,7 @@
 /*
- * Compile la page d'analyse servie à la WebView : src/page/pose.ts (+ posture.ts
- * et TensorFlow.js) -> public/pose.js, un seul fichier JavaScript pour Safari.
+ * Compile la page d'analyse servie à la WebView : src/features/analysis/pose.ts
+ * (+ posture.ts et TensorFlow.js) -> public/pose.js, un seul fichier JavaScript
+ * pour Safari.
  * Le téléphone ne compile rien : il charge ce fichier tel quel.
  *
  *   npm run build:page            # régénère public/pose.js
@@ -16,7 +17,7 @@ const chemin = (p: string) => join(racine, p);
 const verifier = process.argv.includes('--check');
 
 const ENTETE =
-  '// FICHIER GÉNÉRÉ par `npm run build:page` à partir de src/page/ : ne pas éditer à la main.';
+  '// FICHIER GÉNÉRÉ par `npm run build:page` à partir de src/features/analysis/ : ne pas éditer à la main.';
 
 // pose-detection importe aussi BlazePose (@mediapipe/pose) et le moteur WebGPU,
 // que la page n'utilise pas (MoveNet + WebGL) : remplacés par un module vide.
@@ -30,7 +31,7 @@ const moduleVide: Plugin = {
 };
 
 const resultat = await build({
-  entryPoints: [chemin('src/page/pose.ts')],
+  entryPoints: [chemin('src/features/analysis/pose.ts')],
   bundle: true,
   format: 'iife',
   // iOS 16.4 minimum (Expo Go 57) : Safari 16 comprend tout le JS moderne.

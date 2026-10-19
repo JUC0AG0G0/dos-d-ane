@@ -128,20 +128,20 @@ tasks:
     generates: [node_modules/.package-lock.json]
 
   mobile:build:
-    desc: Compile la page d'analyse de la caméra (mobile/src/page/*.ts -> public/pose.js)
+    desc: Compile la page d'analyse de la caméra (mobile/src/features/analysis/*.ts -> public/pose.js)
     deps: [install:mobile]
     dir: mobile
     cmd: npm run build:page
 
   mobile:start:
-    desc: Lance l'app dans Expo Go ; `-- https://xxx.trycloudflare.com` (tunnel https) pour la caméra
+    desc: Lance l'app dans Expo Go, avec le tunnel https cloudflared pour la caméra (`-- --clear` vide le cache)
     deps: [mobile:build]
     dir: mobile
     interactive: true
-    cmd: "{{if .CLI_ARGS}}EXPO_PUBLIC_PAGE_URL={{.CLI_ARGS}}/pose.html {{end}}npx expo start"
+    cmd: npm run demarrer -- {{.CLI_ARGS}}
 
   mobile:test:
-    desc: Tests de l'app mobile (angles, seuils, score, statistiques, test des postures)
+    desc: Tests de l'app mobile (angles, seuils, messages, statistiques, test des postures)
     deps: [install:mobile]
     dir: mobile
     cmd: npm test
