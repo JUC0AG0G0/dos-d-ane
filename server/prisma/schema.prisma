@@ -99,19 +99,37 @@ model AuthSession {
 
 /// Session d'analyse générale d'un utilisateur, sur un ou plusieurs appareils.
 /// État déduit des dates : en préparation (startedAt null), en cours (endedAt
-/// null) puis terminée.
+/// null), en pause (une pause ouverte) puis terminée.
 model AnalysisSession {
-  id             String          @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  userId         String          @db.Uuid
-  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  startedAt      DateTime?       @db.Timestamptz(3)
-  endedAt        DateTime?       @db.Timestamptz(3)
+  id             String                 @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  userId         String                 @db.Uuid
+  user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startedAt      DateTime?              @db.Timestamptz(3)
+  endedAt        DateTime?              @db.Timestamptz(3)
   deviceSessions DeviceSession[]
-  createdAt      DateTime        @default(now()) @db.Timestamptz(3)
-  updatedAt      DateTime        @default(now()) @updatedAt @db.Timestamptz(3)
+  pauses         AnalysisSessionPause[]
+  createdAt      DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime               @default(now()) @updatedAt @db.Timestamptz(3)
 
   @@index([userId])
   @@map("analysisSessions")
+}
+
+/// Pause d'une session en cours : toute la session arrête de capturer et le
+/// serveur refuse les captures. endedAt null tant que la pause dure ; une seule
+/// pause ouverte par session : index unique partiel sur analysisSessionId
+/// (endedAt null) ajouté à la main dans la migration. Le temps de pause est
+/// retiré de la durée active.
+model AnalysisSessionPause {
+  id                String          @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  analysisSessionId String          @db.Uuid
+  analysisSession   AnalysisSession @relation(fields: [analysisSessionId], references: [id], onDelete: Cascade)
+  startedAt         DateTime        @db.Timestamptz(3)
+  endedAt           DateTime?       @db.Timestamptz(3)
+  createdAt         DateTime        @default(now()) @db.Timestamptz(3)
+
+  @@index([analysisSessionId])
+  @@map("analysisSessionPauses")
 }
 
 /// Participation d'un appareil éligible à une session d'analyse.

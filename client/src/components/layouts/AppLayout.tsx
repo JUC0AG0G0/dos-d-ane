@@ -17,10 +17,17 @@ import {
 } from '@/components/ui/sidebar';
 import { findBreadcrumb } from '@/config/navigation';
 import { useCurrentUser } from '@/features/auth';
+import { useBreadcrumbStore } from '@/store/breadcrumb.store';
 
 export function AppLayout() {
   const { pathname } = useLocation();
-  const breadcrumb = findBreadcrumb(pathname);
+  const page = useBreadcrumbStore((s) => s.page);
+  const breadcrumb = [
+    ...findBreadcrumb(pathname),
+    ...(page?.pathname === pathname
+      ? [{ to: pathname, label: page.label }]
+      : []),
+  ];
 
   useCurrentUser();
 
@@ -36,7 +43,7 @@ export function AppLayout() {
           <Breadcrumb>
             <BreadcrumbList>
               {breadcrumb.map(({ to, label }, index) => (
-                <Fragment key={to}>
+                <Fragment key={`${index}:${to}`}>
                   {index > 0 && <BreadcrumbSeparator />}
                   <BreadcrumbItem>
                     {index < breadcrumb.length - 1 ? (

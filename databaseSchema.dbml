@@ -79,13 +79,26 @@ Table authSessions {
 Table analysisSessions {
   id uuidv7 [pk, default: `uuidv7()`]
   userId uuidv7 [not null]
-  startedAt timestamptz [note: 'null : en préparation ; endedAt null : en cours ; sinon terminée']
+  startedAt timestamptz [note: 'null : en préparation ; endedAt null : en cours (en pause si une pause est ouverte) ; sinon terminée']
   endedAt timestamptz
   createdAt timestamptz [not null, default: `now()`]
   updatedAt timestamptz [not null, default: `now()`]
 
   indexes {
     userId
+  }
+}
+
+Table analysisSessionPauses {
+  id uuidv7 [pk, default: `uuidv7()`]
+  analysisSessionId uuidv7 [not null]
+  startedAt timestamptz [not null]
+  endedAt timestamptz [note: 'null tant que la pause dure ; >= startedAt']
+  createdAt timestamptz [not null, default: `now()`]
+
+  indexes {
+    analysisSessionId
+    analysisSessionId [unique, name: 'analysisSessionPauses_analysisSessionId_open_key', note: 'Partiel : WHERE endedAt IS NULL (une seule pause ouverte par session)']
   }
 }
 
@@ -272,6 +285,7 @@ Ref: devices.userId > users.id [delete: cascade]
 Ref: authSessions.userId > users.id [delete: cascade]
 Ref: authSessions.deviceId > devices.id [delete: cascade]
 Ref: analysisSessions.userId > users.id [delete: cascade]
+Ref: analysisSessionPauses.analysisSessionId > analysisSessions.id [delete: cascade]
 Ref: deviceSessions.analysisSessionId > analysisSessions.id [delete: cascade]
 Ref: deviceSessions.deviceId > devices.id [delete: cascade]
 Ref: captures.deviceSessionId > deviceSessions.id [delete: cascade]

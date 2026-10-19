@@ -1,0 +1,13 @@
+# Surcharge du VPS, ajoutée par scripts/deploy.sh après compose.prod.yaml.
+# Le VPS héberge d'autres projets derrière Nginx Proxy Manager (ports 80 et
+# 443) : le client ne publie aucun port, il rejoint le réseau du proxy, qui le
+# joint par son nom (dos-d-ane-client-1:80) et gère HTTPS.
+services:
+  client:
+    ports: !reset []
+    networks: [default, proxy]
+
+networks:
+  proxy:
+    name: reverse-proxy_default
+    external: true

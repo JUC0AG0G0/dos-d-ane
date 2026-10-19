@@ -1,19 +1,20 @@
 name: CI
 
 # Lint et compilation du serveur et du client, tests de l'algorithme edge
-# (Python), stack de production lancée dans Docker, secrets de production (vers main), puis déploiement sur main.
+# (Python), stack de production lancée dans Docker, secrets de production, puis
+# déploiement sur le VPS à chaque push sur develop.
 # Le job « ci-ok » résume les vérifications pour la protection de branche.
 on:
   pull_request:
-    branches: [main, develop]
+    branches: [develop]
   push:
-    branches: [main, develop]
+    branches: [develop]
   workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
-  # Sur main, un déploiement en cours n'est jamais interrompu.
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  # Sur develop, un déploiement en cours n'est jamais interrompu.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
 
 permissions:
   contents: read
@@ -53,6 +54,7 @@ jobs:
           S3_ACCESS_KEY=ci
           S3_SECRET_KEY=ci-s3-secret
           EOF
+          docker compose --env-file .env.prod -f compose.yaml -f compose.prod.yaml -f compose.vps.yaml config -q
           docker compose --env-file .env.prod -f compose.yaml -f compose.prod.yaml up -d --build --wait --wait-timeout 300
       - name: Vérifier l'API à travers nginx
         run: curl -fsS http://localhost/api/health | tee /dev/stderr | jq -e '.status == "ok" and .env == "production"'
@@ -69,9 +71,10 @@ jobs:
       - name: Tests de l'algorithme de posture
         run: task test:edge
 
-  # Avant main : tous les secrets de .env.prod.example doivent exister.
+  # Tous les secrets de .env.prod.example doivent exister avant le merge.
+  # Les PR venant d'un fork n'ont pas accès aux secrets : vérifiées au push.
   prod-secrets:
-    if: github.base_ref == 'main' || github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -92,12 +95,12 @@ jobs:
             exit 1
           fi
 
-  # Après une CI verte sur main (push ou relance manuelle), sur le runner
-  # auto-hébergé installé sur le serveur (guide : deployReadME.md).
+  # Après une CI verte sur develop (push ou relance manuelle), sur le runner
+  # auto-hébergé installé sur le VPS (guide : deployReadME.md).
   deploy:
     needs: ci-ok
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    runs-on: [self-hosted, dos-d-ane-prod]
+    if: github.ref == 'refs/heads/develop' && github.event_name != 'pull_request'
+    runs-on: [self-hosted, dos-d-ane-vps]
     concurrency:
       group: deploy
       cancel-in-progress: false
