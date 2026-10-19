@@ -51,7 +51,7 @@ from posture.pi import temperature_pi, throttled_pi
 from posture.points import Completeur, CoteStable, Presence
 from posture.regles import postures
 from posture.score import DUREE_RESUME, Resume
-from posture.serveur import Config, Envoi, ErreurConfig, Liaison, commande
+from posture.serveur import Config, Envoi, ErreurConfig, Liaison, Numeros, commande
 
 CADENCE_CALME, CADENCE_DOUTE, CADENCE_ABSENT = 10, 2, 30     # s entre deux images
 ECHECS_REOUVERTURE = 5                                        # captures ratées d'affilée avant de rouvrir la webcam
@@ -96,15 +96,14 @@ class Session:
         self.fichier_resumes = open(f"{base}_resumes.csv", "w", newline="")
         self.ecrivain_resumes = csv.writer(self.fichier_resumes)
         self.ecrivain_resumes.writerow(COLONNES_RESUMES)
-        self.numero = self.numero_resume = 0
+        self.numeros = Numeros()   # ids uniques même après un redémarrage du service
         self.debuts = {}            # cause → heure de début de l'alerte en cours
         self.nombre = 0             # alertes déclenchées
 
     def envoyer_evenement(self, cause, phase, moyennes=None, detail=None):
         maintenant = datetime.now()
         if phase == "debut" or cause not in self.ids:
-            self.numero += 1
-            self.ids[cause] = f"evt_{self.numero:04d}"
+            self.ids[cause] = self.numeros.evenement()
         id_alerte = self.ids[cause] if phase == "debut" else self.ids.pop(cause)
         if phase == "debut":
             self.debuts[cause] = maintenant
@@ -132,10 +131,9 @@ class Session:
             print(f"✅ {maintenant:%H:%M:%S}  fin : {cause} (durée {duree // 60} min {duree % 60} s)")
 
     def envoyer_resume(self, resume, debut):
-        self.numero_resume += 1
         fin = datetime.now()
         s = {k: round(v) for k, v in resume.secondes.items()}
-        message = {"id": f"res_{self.numero_resume:04d}", "session": self.id,
+        message = {"id": self.numeros.resume(), "session": self.id,
                    "periode": f"{debut:%H:%M}-{fin:%H:%M}", "score_moyen": resume.score(),
                    "secondes_bonne": s.get("vert", 0), "secondes_moyenne": s.get("orange", 0),
                    "secondes_a_ameliorer": s.get("rouge", 0), "secondes_ignore": s.get("ignore", 0),

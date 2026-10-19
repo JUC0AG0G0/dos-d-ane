@@ -18,6 +18,7 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from posture.chemins import FICHIER_APPAREIL
 
@@ -340,6 +341,26 @@ class Liaison:
     def _abandonner(self, raison):
         self.erreur = raison
         journal.error("liaison arrêtée : %s", raison)
+
+
+class Numeros:
+    """clientId des alertes et résumés (contrat §4) : evt_<début de l'analyse>_0001, res_…_0001.
+
+    L'heure de début de l'analyse est dans l'id : si le service redémarre pendant une session, la nouvelle
+    analyse ne reprend pas evt_0001, que le serveur prendrait pour un renvoi (et ignorerait).
+    """
+
+    def __init__(self, debut=None):
+        self.prefixe = f"{debut or datetime.now():%Y%m%d%H%M%S}"
+        self.evenements = self.resumes = 0
+
+    def evenement(self):
+        self.evenements += 1
+        return f"evt_{self.prefixe}_{self.evenements:04d}"
+
+    def resume(self):
+        self.resumes += 1
+        return f"res_{self.prefixe}_{self.resumes:04d}"
 
 
 def que_faire_reponse(code):

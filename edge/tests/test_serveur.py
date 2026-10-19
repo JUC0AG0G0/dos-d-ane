@@ -1,10 +1,13 @@
 """Configuration de la liaison avec le serveur (docs/liaison-serveur.md), sans réseau ni websockets."""
 
+import re
+from datetime import datetime
+
 import pytest
 
 import posture.serveur as serveur
-from posture.serveur import (ATTENTE_MAX, Config, Envoi, ErreurConfig, commande, prochaine_attente, que_faire,
-                             que_faire_reponse)
+from posture.serveur import (ATTENTE_MAX, Config, Envoi, ErreurConfig, Numeros, commande, prochaine_attente,
+                             que_faire, que_faire_reponse)
 
 ENV = {"DOSDANE_SERVEUR": "http://localhost:3000/", "DOSDANE_EMAIL": "pi@example.com",
        "DOSDANE_MOT_DE_PASSE": "secret-de-test"}
@@ -123,3 +126,13 @@ def test_jeton_expire_renouvele_puis_renvoye(monkeypatch):
     envoi, jeton, recus = envoyer_tout(monkeypatch, [401, 201], ["evt_0001"])
     assert recus == [("jeton1", "evt_0001"), ("jeton2", "evt_0001")]
     assert jeton.perimes == ["jeton1"] and envoi.envoyes == 1
+
+
+def test_ids_uniques_apres_un_redemarrage_pendant_la_session():
+    avant = Numeros(datetime(2026, 10, 19, 13, 32, 42))
+    ids_avant = [avant.evenement(), avant.evenement(), avant.resume()]
+    apres = Numeros(datetime(2026, 10, 19, 13, 40, 5))           # service relancé, même session
+    ids_apres = [apres.evenement(), apres.resume()]
+    assert ids_avant == ["evt_20261019133242_0001", "evt_20261019133242_0002", "res_20261019133242_0001"]
+    assert not set(ids_avant) & set(ids_apres)                   # sinon pris pour des renvois et ignorés
+    assert all(re.fullmatch(r"[A-Za-z0-9_-]{1,64}", i) for i in ids_avant + ids_apres)   # format du serveur
