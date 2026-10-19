@@ -49,6 +49,8 @@ Table devices {
   model string
   captureEligible boolean [not null, default: false, note: 'Toujours false pour web']
   captureStatus string [note: 'active / inactive si éligible, null sinon']
+  keyHash text [note: 'Empreinte SHA-256 (hex) de la clé d un Raspberry Pi, jamais la clé ; null sans clé']
+  keyCreatedAt timestamptz [note: 'Renseigné avec keyHash ; clé réservée aux raspberry']
   createdAt timestamptz [not null, default: `now()`]
   updatedAt timestamptz [not null, default: `now()`]
 
