@@ -2,7 +2,7 @@
 
 Partie **edge** du projet Dos d'âne (POC Fil Rouge Master UHA 4.0, 2026) : un Raspberry Pi 4 regarde une personne assise **de profil** avec une webcam, détecte les points du corps (MoveNet), calcule des angles et détecte les mauvaises postures. Le reste du dépôt (`server/` NestJS, mise, Taskfile) ne concerne pas ce dossier.
 
-Documentation de référence : `docs/poc-raspberry.md` (plan, installation, briques §5, tests §6, fiche de résultats §7), `docs/algo-posture.md` (**référence de l'algorithme** : contrôles, angles, seuils et leurs sources, filtre, score) et `docs/Audit_technique_final_Fil_Rouge_Master_UHA_4_0_v3.md` (architecture complète : RGPD, rôle du Pi et du serveur, messages §7.2). `docs/solution-mvp.md` résume la solution. Chaque sujet n'est décrit qu'**une fois** : ailleurs, mettre un lien plutôt que recopier. Lire la section concernée avant de modifier le code correspondant.
+Documentation de référence : `docs/poc-raspberry.md` (plan, installation, briques §5, tests §6, fiche de résultats §7), `docs/algo-posture.md` (**référence de l'algorithme** : contrôles, angles, seuils et leurs sources, filtre, score) et `docs/Audit_technique_final_Fil_Rouge_Master_UHA_4_0_v3.md` (architecture complète : RGPD, rôle du Pi et du serveur, messages §7.2) ; `docs/liaison-serveur.md` donne le contrat exact avec le serveur (connexion WebSocket, codes de fermeture, messages). `docs/solution-mvp.md` résume la solution. Chaque sujet n'est décrit qu'**une fois** : ailleurs, mettre un lien plutôt que recopier. Lire la section concernée avant de modifier le code correspondant.
 
 ## Règles à ne jamais enfreindre
 

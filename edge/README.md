@@ -7,6 +7,7 @@ Webcam de profil → MoveNet (17 points du corps) → angles tête, tronc et cou
 - Plan, installation détaillée et résultats des tests du POC : [docs/poc-raspberry.md](docs/poc-raspberry.md)
 - Se connecter au Pi en SSH (nouveau membre de l'équipe) : [docs/poc-raspberry.md §3.2](docs/poc-raspberry.md#32-travailler-confortablement-depuis-le-pc)
 - Architecture complète (serveur, RGPD, messages) : [docs/Audit_technique_final_Fil_Rouge_Master_UHA_4_0_v3.md](docs/Audit_technique_final_Fil_Rouge_Master_UHA_4_0_v3.md)
+- Liaison avec le serveur (WebSocket, authentification, format des messages) : [docs/liaison-serveur.md](docs/liaison-serveur.md)
 
 ## Installation
 
