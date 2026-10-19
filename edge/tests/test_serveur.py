@@ -10,8 +10,9 @@ import posture.serveur as serveur
 from posture.serveur import (ATTENTE_MAX, Config, Envoi, ErreurConfig, FileEnvoi, Numeros, commande,
                              prochaine_attente, que_faire, que_faire_reponse)
 
-ENV = {"DOSDANE_SERVEUR": "http://localhost:3000/", "DOSDANE_EMAIL": "pi@example.com",
-       "DOSDANE_MOT_DE_PASSE": "secret-de-test"}
+CLE = "dk_" + "s" * 43                                            # clé de test, au format du serveur
+ENV = {"DOSDANE_SERVEUR": "http://localhost:3000/", "DOSDANE_APPAREIL": "01a1534e-5369-7ec9-a0ee-76efa04fd875",
+       "DOSDANE_CLE": CLE}
 
 
 def test_websocket_sur_le_meme_hote():
@@ -23,7 +24,7 @@ def test_websocket_sur_le_meme_hote():
 def test_variables_manquantes_nommees_sans_valeur():
     with pytest.raises(ErreurConfig) as erreur:
         Config.depuis_env({"DOSDANE_SERVEUR": "http://localhost:3000"})
-    assert "DOSDANE_EMAIL" in str(erreur.value) and "DOSDANE_MOT_DE_PASSE" in str(erreur.value)
+    assert "DOSDANE_APPAREIL" in str(erreur.value) and "DOSDANE_CLE" in str(erreur.value)
 
 
 def test_adresse_sans_protocole_refusee():
@@ -31,8 +32,13 @@ def test_adresse_sans_protocole_refusee():
         Config.depuis_env(ENV | {"DOSDANE_SERVEUR": "localhost:3000"})
 
 
-def test_mot_de_passe_jamais_affiche():
-    assert "secret-de-test" not in repr(Config.depuis_env(ENV))
+def test_cle_mal_copiee_refusee_avant_tout_envoi():
+    with pytest.raises(ErreurConfig):
+        Config.depuis_env(ENV | {"DOSDANE_CLE": "dk_trop-courte"})
+
+
+def test_cle_jamais_affichee():
+    assert CLE not in repr(Config.depuis_env(ENV))
 
 
 def test_reaction_aux_codes_du_contrat():

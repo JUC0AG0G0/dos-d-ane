@@ -1,9 +1,10 @@
 """Liaison avec le serveur (contrat : docs/liaison-serveur.md).
 
-Le Pi fait un login, puis ouvre lui-même la WebSocket : aucun port n'est ouvert sur le Pi.
+Le Pi échange sa clé d'appareil contre un JWT (login), puis ouvre lui-même la WebSocket : aucun port
+n'est ouvert sur le Pi, aucun mot de passe n'y est gardé.
 Liaison la garde ouverte dans un thread à part et la rouvre quand elle tombe.
 Configuration par variables d'environnement, dans edge/.env (modèle : .env.example).
-Le mot de passe et le jeton ne sont jamais affichés. Aucun point du corps n'est envoyé (audit §7.2).
+La clé et le jeton ne sont jamais affichés. Aucun point du corps n'est envoyé (audit §7.2).
 
 websockets (option pi) n'est importé qu'une fois la WebSocket ouverte : le reste se teste sans.
 """
@@ -13,6 +14,7 @@ import logging
 import os
 import queue
 import random
+import re
 import sqlite3
 import threading
 import time
@@ -21,7 +23,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
-from posture.chemins import FICHIER_APPAREIL, FICHIER_ENVOI
+from posture.chemins import FICHIER_ENVOI
 
 journal = logging.getLogger(__name__)
 # websockets journalise lui-même chaque coupure avec une trace complète ; Liaison la rapporte déjà
@@ -32,7 +34,8 @@ CHEMIN_WS = "/api/devices/ws"
 TAILLE_MAX = 16 * 1024            # comme le serveur (maxPayload)
 CODE_JETON_REFUSE = 4401          # jeton absent, invalide ou expiré : refaire un login
 CODE_APPAREIL_REFUSE = 4403       # session ouverte depuis un autre type d'appareil : ne pas réessayer
-VARIABLES = ("DOSDANE_SERVEUR", "DOSDANE_EMAIL", "DOSDANE_MOT_DE_PASSE")
+VARIABLES = ("DOSDANE_SERVEUR", "DOSDANE_APPAREIL", "DOSDANE_CLE")
+FORMAT_CLE = re.compile(r"dk_[A-Za-z0-9_-]{43}")    # clé donnée par POST /devices
 ATTENTE_MIN, ATTENTE_MAX = 1, 60  # secondes entre deux tentatives, doublées à chaque échec
 CONSERVATION = timedelta(days=7)  # file d'envoi purgée au-delà (audit §12) : résultats de posture
 PURGE_TOUTES_LES = 3600          # s entre deux purges
@@ -43,7 +46,7 @@ class ErreurConfig(Exception):
 
 
 class ErreurLogin(Exception):
-    """Email ou mot de passe refusé : réessayer ne sert à rien."""
+    """Clé refusée (fausse, révoquée ou remplacée) : réessayer ne sert à rien."""
 
 
 class ConnexionRefusee(Exception):
@@ -57,8 +60,8 @@ class ConnexionRefusee(Exception):
 @dataclass(frozen=True)
 class Config:
     serveur: str                              # ex. http://192.168.1.20:3000, sans / final
-    email: str
-    mot_de_passe: str = field(repr=False)     # jamais affiché, même dans une trace d'erreur
+    appareil: str                             # deviceId donné avec la clé
+    cle: str = field(repr=False)              # jamais affichée, même dans une trace d'erreur
 
     @classmethod
     def depuis_env(cls, env=os.environ):
@@ -68,7 +71,9 @@ class Config:
         serveur = env["DOSDANE_SERVEUR"].rstrip("/")
         if not serveur.startswith(("http://", "https://")):
             raise ErreurConfig("DOSDANE_SERVEUR doit commencer par http:// ou https://")
-        return cls(serveur, env["DOSDANE_EMAIL"], env["DOSDANE_MOT_DE_PASSE"])
+        if not FORMAT_CLE.fullmatch(env["DOSDANE_CLE"]):
+            raise ErreurConfig("DOSDANE_CLE doit être la clé donnée par le serveur (dk_…)")
+        return cls(serveur, env["DOSDANE_APPAREIL"], env["DOSDANE_CLE"])
 
     @property
     def url_ws(self):
@@ -76,36 +81,18 @@ class Config:
         return "ws" + self.serveur.removeprefix("http") + CHEMIN_WS
 
 
-def lire_appareil():
-    try:
-        return FICHIER_APPAREIL.read_text().strip() or None
-    except FileNotFoundError:
-        return None
-
-
-def ecrire_appareil(id_appareil):
-    FICHIER_APPAREIL.parent.mkdir(parents=True, exist_ok=True)
-    FICHIER_APPAREIL.write_text(id_appareil + "\n")
-
-
 def login(config, timeout=10):
-    """Ouvre une session « raspberry » sur le serveur et renvoie son jeton (accessToken).
-
-    Réutilise l'id d'appareil reçu au premier login : sans lui, le serveur créerait un appareil à chaque fois.
-    """
-    appareil = {"type": "raspberry"}
-    if id_appareil := lire_appareil():
-        appareil["id"] = id_appareil
-    corps = json.dumps({"email": config.email, "password": config.mot_de_passe, "device": appareil})
-    requete = urllib.request.Request(f"{config.serveur}/api/auth/login", data=corps.encode(), method="POST",
+    """Échange la clé d'appareil contre un JWT (POST /auth/device-login) et renvoie ce jeton (accessToken)."""
+    corps = json.dumps({"deviceId": config.appareil, "key": config.cle})
+    requete = urllib.request.Request(f"{config.serveur}/api/auth/device-login", data=corps.encode(), method="POST",
                                      headers={"Content-Type": "application/json"})
     try:
         with urllib.request.urlopen(requete, timeout=timeout) as reponse:
             donnees = json.load(reponse)
     except urllib.error.HTTPError as e:
         if e.code in (400, 401):
-            raise ErreurLogin(f"login refusé (HTTP {e.code}) : vérifier DOSDANE_EMAIL et "
-                              "DOSDANE_MOT_DE_PASSE") from None
+            raise ErreurLogin(f"clé refusée (HTTP {e.code}) : vérifier DOSDANE_APPAREIL et DOSDANE_CLE "
+                              "(clé révoquée ou remplacée ? en créer une avec POST /devices/:id/key)") from None
         raise ConnectionError(f"login : erreur du serveur (HTTP {e.code})") from None
     except urllib.error.URLError as e:
         raise ConnectionError(f"serveur injoignable ({config.serveur}) : {e.reason}") from None
@@ -113,7 +100,6 @@ def login(config, timeout=10):
         raise ConnectionError(f"serveur injoignable ({config.serveur}) : pas de réponse en {timeout} s") from None
     except OSError as e:                         # connexion coupée pendant la réponse…
         raise ConnectionError(f"serveur injoignable ({config.serveur}) : {e}") from None
-    ecrire_appareil(donnees["deviceId"])
     return donnees["accessToken"]
 
 
@@ -317,7 +303,7 @@ class Liaison:
 
             action = que_faire(code)
             if action == "arret":
-                return self._abandonner("appareil refusé (4403) : le login doit se faire en raspberry")
+                return self._abandonner("appareil refusé (4403) : DOSDANE_APPAREIL n'est pas un Raspberry Pi")
             if action == "login":
                 self.jeton.perime(jeton)
             pause = attente * random.uniform(0.8, 1.2)   # étalée : plusieurs Pi ne reviennent pas tous ensemble
