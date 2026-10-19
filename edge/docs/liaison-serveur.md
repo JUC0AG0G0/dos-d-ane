@@ -11,7 +11,7 @@ Légende : ✅ en place · 🔜 prévu (étape de la branche `feat/envoi-serveur
 | Commandes `session:start` / `session:stop` ✅ | serveur → Pi | WebSocket | non |
 | État en direct `state` ✅ | Pi → serveur | WebSocket | non : dernier état gardé en mémoire, relayé à l'app plus tard (SSE, C2) |
 | `heartbeat` 🔜 | Pi → serveur | WebSocket | non |
-| Événements, résumés 🔜 B1 | Pi → serveur | HTTPS POST | oui |
+| Événements (alertes), résumés ✅ serveur, 🔜 Pi | Pi → serveur | HTTPS POST (§4) | oui |
 
 **Ne sort jamais du Pi** : image, pixels, vidéo, **points du corps (keypoints)**, nom ou email de la personne.
 
@@ -93,7 +93,28 @@ Envoyé à chaque image analysée (toutes les 2 à 30 s selon la cadence), seule
 
 Validé côté serveur (`LiveStateDto`) : un champ manquant, une valeur inconnue ou **un champ en plus** (points du corps…) font refuser le message (`{"event":"exception","data":{"message":"Message invalide","details":[…]}}`), sans rien journaliser côté serveur. Plus d'un état par 0,5 s et par appareil : les suivants sont ignorés.
 
-## 4. Limites connues
+## 4. Événements et résumés (HTTPS POST) ✅ serveur
+
+Ce qui est **stocké** passe par le REST classique (Swagger : `analysis-sessions`), avec le même jeton que la WebSocket : `Authorization: Bearer <accessToken>`. Tables : `postureEvents`, `postureSummaries` ([`databaseSchema.dbml`](../../databaseSchema.dbml)).
+
+| Route | Corps | Rôle |
+|---|---|---|
+| `POST /api/analysis-sessions/:id/events` | `clientId`, `type`, `phase` (`start` ou `end`), `startedAt`, `endedAt` (pour `end`), `headAngleAvg`, `trunkAngleAvg`, `causes` | `start` crée l'alerte, `end` la complète |
+| `POST /api/analysis-sessions/:id/summaries` | `clientId`, `periodStart`, `periodEnd`, `score`, `secondsGreen`, `secondsOrange`, `secondsRed`, `secondsIgnored`, `secondsAbsent` | résumé d'une période (5 min) |
+| `GET /api/analysis-sessions/:id/events` et `/summaries` | — | lecture (app, site), dans l'ordre |
+
+```json
+{ "clientId": "evt_0001", "type": "TRUNK_FORWARD", "phase": "end", "startedAt": "2026-10-19T09:24:28Z",
+  "endedAt": "2026-10-19T09:27:40Z", "headAngleAvg": 61.5, "trunkAngleAvg": 24.2,
+  "causes": { "TRUNK_FORWARD": 83, "NECK_FLEXION": 17 } }
+```
+
+- **Une alerte = une ligne**, avec le **même `clientId` au début et à la fin**. `type` : `FORWARD_HEAD` (tête en avant ou baissée), `TRUNK_FORWARD`, `TRUNK_BACKWARD`, `IMMOBILE` (assis trop longtemps, sans angles). `causes` : part de chaque cause en % (`FORWARD_HEAD`, `NECK_FLEXION`, `TRUNK_FORWARD`, `TRUNK_BACKWARD`). Une fin dont le début s'est perdu crée l'alerte. `endedAt` reste `null` si le Pi s'arrête avant la fin.
+- **Idempotent** : `clientId` (`evt_0001`, `res_0001`) est unique par appareil et par session. Le même message renvoyé (après une coupure, une réponse perdue) répond 201 avec la ligne déjà enregistrée, sans doublon. Le Pi peut donc renvoyer tant qu'il n'a pas eu de réponse 2xx.
+- **Accepté aussi sur une session terminée**, si l'appareil y a participé : un Pi coupé du réseau au moment du `stop` envoie ses derniers résultats après coup.
+- Réponses : `201` enregistré (ou déjà reçu) ; `400` corps invalide, champ en plus, dates incohérentes (ne pas renvoyer) ; `401` jeton (refaire un login) ; `404` session inconnue ; `409` session pas encore lancée ou appareil absent de la session (ne pas renvoyer) ; `5xx` ou réseau : renvoyer plus tard.
+
+## 5. Limites connues
 
 - **Le jeton n'est vérifié qu'à l'ouverture** : si la session de connexion est révoquée ou expire (`SESSION_TTL_MINUTES`, 60 min sans requête), le socket déjà ouvert reste ouvert. Corrigé par la **clé d'appareil** (B2 : `Authorization: Device <clé>`, sans mot de passe sur le Pi, révocable) et une vérification régulière.
 - **Le login demande l'email et le mot de passe d'une personne** sur le Pi : provisoire, jusqu'à la clé d'appareil (B2).
@@ -101,14 +122,14 @@ Validé côté serveur (`LiveStateDto`) : un champ manquant, une valeur inconnue
 - **Seuils** : `session:start` ne les envoie pas encore (pas stockés côté serveur) ; le Pi garde ses seuils fixes (`SEUILS`).
 - **Prod** : `client/nginx.conf` ne relaie pas encore les WebSockets (en-têtes `Upgrade` et `Connection` à ajouter sur `/api/devices/ws`).
 
-## 5. Côté Pi : configuration
+## 6. Côté Pi : configuration
 
 Variables d'environnement, dans `edge/.env` (ignoré par Git ; modèle commenté : [`edge/.env.example`](../.env.example)) :
 
 | Variable | Exemple |
 |---|---|
 | `DOSDANE_SERVEUR` | `http://localhost:3000` en dev, `https://…` en prod (WebSocket en `ws://` ou `wss://` d'après lui) |
-| `DOSDANE_EMAIL`, `DOSDANE_MOT_DE_PASSE` | compte de test du Pi (provisoire, voir §4) |
+| `DOSDANE_EMAIL`, `DOSDANE_MOT_DE_PASSE` | compte de test du Pi (provisoire, voir §5) |
 
 ```bash
 cd edge
@@ -121,7 +142,7 @@ python poc.py --service                   # la vraie session, lancée et arrêt�
 
 `poc.py --service` n'ouvre la webcam que pendant une session : sur `session:start`, une analyse commence (fichiers de `resultats/` au nom de la session du serveur) ; sur `session:stop`, elle se termine comme un Ctrl+C (alertes fermées, dernier résumé, bilan) et le Pi attend la suivante. Ctrl+C ou SIGTERM (systemd) arrêtent le service proprement.
 
-## 6. Tester à la main
+## 7. Tester à la main
 
 ```bash
 # refusé (4401)
