@@ -1,4 +1,5 @@
 import {
+  Activity,
   BookOpen,
   House,
   Settings,
@@ -31,9 +32,10 @@ interface NavSection {
 
 export const NAV_SECTIONS: NavSection[] = [
   {
-    label: 'Navigation',
+    label: 'Application',
     items: [
       { to: '/', label: 'Accueil', icon: House },
+      { to: '/sessions', label: 'Sessions', icon: Activity },
       {
         to: '/conseils',
         label: 'Conseils et exercices',

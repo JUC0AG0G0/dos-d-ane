@@ -7,6 +7,7 @@ import { AppLayout } from '@/components/layouts/AppLayout';
 import { AuthLayout } from '@/components/layouts/AuthLayout';
 import { CenteredLayout } from '@/components/layouts/CenteredLayout';
 import { LegalLayout } from '@/components/layouts/LegalLayout';
+import { Toaster } from '@/components/ui/sonner';
 import { RedirectIfSignedIn, RequireAdmin, RequireAuth } from '@/features/auth';
 import { AdminAdvicePage } from '@/pages/AdminAdvicePage';
 import { AdminMediaPage } from '@/pages/AdminMediaPage';
@@ -20,6 +21,8 @@ import { LoginPage } from '@/pages/LoginPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { PrivacyPolicyPage } from '@/pages/PrivacyPolicyPage';
 import { RegisterPage } from '@/pages/RegisterPage';
+import { SessionPage } from '@/pages/SessionPage';
+import { SessionsPage } from '@/pages/SessionsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { StatusPage } from '@/pages/StatusPage';
 import { TermsPage } from '@/pages/TermsPage';
@@ -32,6 +35,8 @@ const router = createBrowserRouter([
         element: <AppLayout />,
         children: [
           { path: '/', element: <HomePage /> },
+          { path: '/sessions', element: <SessionsPage /> },
+          { path: '/sessions/:id', element: <SessionPage /> },
           { path: '/settings/:tab?', element: <SettingsPage /> },
           {
             path: '/conseils',
@@ -90,5 +95,10 @@ const router = createBrowserRouter([
 ]);
 
 export function App() {
-  return <RouterProvider router={router} />;
+  return (
+    <>
+      <RouterProvider router={router} />
+      <Toaster position="bottom-right" richColors />
+    </>
+  );
 }
