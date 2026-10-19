@@ -1,11 +1,13 @@
 import type { IncomingMessage } from 'node:http';
-import { Logger } from '@nestjs/common';
+import { Logger, UseFilters } from '@nestjs/common';
 import {
+  ConnectedSocket,
   MessageBody,
   type OnGatewayConnection,
   type OnGatewayDisconnect,
   SubscribeMessage,
   WebSocketGateway,
+  WsException,
 } from '@nestjs/websockets';
 import { WebSocket } from 'ws';
 import type { AuthenticatedSocket } from '../auth/auth.guard.js';
@@ -16,6 +18,9 @@ import {
   DeviceConnections,
   REPLACED_CLOSE_CODE,
 } from './device-connections.js';
+import { LiveStateDto } from './dto/device-messages.dto.js';
+import { LiveStates } from './live-states.js';
+import { WsValidationFilter } from './ws-validation.filter.js';
 
 /** Codes de fermeture (la plage 4000–4999 est réservée aux applications). */
 export const CloseCode = {
@@ -47,6 +52,7 @@ type DeviceSocket = AuthenticatedSocket & { deviceId?: string };
   // Un message d'état fait moins de 1 Ko : au-delà, la connexion est coupée.
   maxPayload: 16 * 1024,
 })
+@UseFilters(WsValidationFilter)
 export class DevicesGateway
   implements OnGatewayConnection, OnGatewayDisconnect
 {
@@ -56,6 +62,7 @@ export class DevicesGateway
     private readonly auth: AuthService,
     private readonly analysis: AnalysisService,
     private readonly connections: DeviceConnections,
+    private readonly liveStates: LiveStates,
   ) {}
 
   async handleConnection(client: DeviceSocket, request: IncomingMessage) {
@@ -104,8 +111,27 @@ export class DevicesGateway
   handleDisconnect(client: DeviceSocket) {
     if (client.deviceId) {
       this.connections.remove(client.deviceId, client);
+      this.liveStates.forgetDevice(client.deviceId);
       this.logger.log(`Appareil déconnecté : ${client.deviceId}`);
     }
+  }
+
+  /**
+   * État en direct d'une image (contrat §3). Validé par LiveStateDto : tout
+   * champ inconnu (points du corps…) fait refuser le message. Accepté
+   * seulement pour la session en cours de cet appareil.
+   */
+  @SubscribeMessage('state')
+  async state(
+    @ConnectedSocket() client: DeviceSocket,
+    @MessageBody() state: LiveStateDto,
+  ) {
+    const deviceId = client.deviceId!;
+    const running = await this.analysis.runningSessionId(deviceId);
+    if (running !== state.sessionId) {
+      throw new WsException('Session pas en cours pour cet appareil');
+    }
+    this.liveStates.set(deviceId, state);
   }
 
   @SubscribeMessage('ping')

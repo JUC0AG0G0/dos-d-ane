@@ -8,6 +8,7 @@ import type { AuthContext } from '../auth/auth.guard.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { DeviceConnections } from './device-connections.js';
+import { LiveStates } from './live-states.js';
 import type {
   CreateCaptureDto,
   StartAnalysisSessionDto,
@@ -83,6 +84,7 @@ export class AnalysisService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly connections: DeviceConnections,
+    private readonly liveStates: LiveStates,
   ) {}
 
   async create(
@@ -249,6 +251,7 @@ export class AnalysisService {
       }),
     ]);
     this.notify(deviceIds, 'session:stop', id);
+    this.liveStates.clear(id);
     return this.detail(userId, id);
   }
 
@@ -265,6 +268,7 @@ export class AnalysisService {
       throw new NotFoundException('Session introuvable');
     }
     this.notify(deviceIds, 'session:stop', id);
+    this.liveStates.clear(id);
   }
 
   /**

@@ -39,7 +39,7 @@ import queue
 import signal
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 from posture.angles import angles
 from posture.camera import capturer, ouvrir_camera
@@ -66,6 +66,8 @@ CONSEILS = {TETE: "relevez la tête (téléphone ou écran à hauteur des yeux) 
             "Dos penche": "redressez-vous, le dos contre le dossier",
             ALLONGE: "rasseyez-vous au fond de la chaise",
             "Assis trop longtemps": "levez-vous 2 minutes"}
+# État en direct (message state, docs/liaison-serveur.md §3)
+COULEURS_DIRECT = {"vert": "green", "orange": "orange", "rouge": "red", "ignore": "ignored", "absent": "absent"}
 COLONNES_EVENEMENTS = ["id", "session", "type", "phase", "heure", "debut", "duree_s", "tete_moy", "tronc_moy",
                        "detail"]
 # secondes_bonne / moyenne / a_ameliorer = temps en vert / orange / rouge (audit §7.2)
@@ -134,8 +136,8 @@ class Session:
 class Analyse:
     """Une session d'analyse, de l'ouverture de la webcam (fournie) à terminer() : une image à la fois."""
 
-    def __init__(self, args, cam, movenet, id_session=None):
-        self.args, self.cam, self.movenet = args, cam, movenet
+    def __init__(self, args, cam, movenet, id_session=None, liaison=None):
+        self.args, self.cam, self.movenet, self.liaison = args, cam, movenet, liaison
         if args.rapide:
             reglages = dict(fenetre=10, confirmation=10, anti_rafale=60)
             self.assis, self.duree_resume = TempsAssis(assis_max=60, pause_min=15), 60
@@ -203,7 +205,7 @@ class Analyse:
         if phase_assis:
             session.envoyer_evenement("Assis trop longtemps", phase_assis)
 
-        # État en direct (plus tard envoyé à l'app à chaque image, audit §7.2)
+        # État en direct, envoyé au serveur à chaque image en mode service (audit §7.2)
         couleur = "rouge" if "rouge" in (avant.couleur(), allonge.couleur()) else \
             "orange" if "orange" in (avant.couleur(), allonge.couleur()) else "vert"
         etat = couleur if a else "ignore" if vue else "absent"
@@ -211,6 +213,15 @@ class Analyse:
             for r in (self.resume, self.total):
                 r.ajouter(instant - self.precedente[0], *self.precedente[1:])
         self.precedente = (instant, etat, posture == "bonne posture")
+        if self.liaison:              # perdu si la liaison est coupée : l'état suivant le remplace
+            self.liaison.envoyer("state", {
+                "sessionId": self.session.id,
+                "at": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
+                "color": COULEURS_DIRECT[etat],
+                "posture": ("GOOD" if posture == "bonne posture" else TYPES[posture]) if a else None,
+                "headAngle": round(a["tete"], 1) if a else None,      # deux angles, aucun point du corps
+                "trunkAngle": round(a["tronc"], 1) if a else None,
+                "score": self.resume.score()})
         if instant - self.debut_resume >= self.duree_resume:
             session.envoyer_resume(self.resume, self.debut_resume_heure)
             self.resume, self.debut_resume, self.debut_resume_heure = Resume(), instant, datetime.now()
@@ -298,6 +309,8 @@ def service(args):
                 evenement, donnees = liaison.recus.get(timeout=attente)
             except queue.Empty:
                 continue
+            if evenement == "exception":           # message refusé par le serveur (state invalide…)
+                logging.warning("refusé par le serveur : %s", donnees)
             for action, id_session in commande(analyse and analyse.session.id, evenement, donnees):
                 if action == "arreter":
                     analyse.terminer()
@@ -307,7 +320,7 @@ def service(args):
                     cam = ouvrir_camera()
                     if not cam.isOpened():         # image() retentera de l'ouvrir
                         print("webcam absente : nouvel essai toutes les 5 captures ratées")
-                    analyse, prochaine = Analyse(args, cam, movenet, id_session), 0.0
+                    analyse, prochaine = Analyse(args, cam, movenet, id_session, liaison), 0.0
     except KeyboardInterrupt:
         pass
     finally:

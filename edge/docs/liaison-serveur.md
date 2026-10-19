@@ -9,7 +9,7 @@ Légende : ✅ en place · 🔜 prévu (étape de la branche `feat/envoi-serveur
 | Quoi | Sens | Transport | Stocké ? |
 |---|---|---|---|
 | Commandes `session:start` / `session:stop` ✅ | serveur → Pi | WebSocket | non |
-| État en direct `state` 🔜 A6 | Pi → serveur | WebSocket | non, relayé à l'app (SSE) |
+| État en direct `state` ✅ | Pi → serveur | WebSocket | non : dernier état gardé en mémoire, relayé à l'app plus tard (SSE, C2) |
 | `heartbeat` 🔜 | Pi → serveur | WebSocket | non |
 | Événements, résumés 🔜 B1 | Pi → serveur | HTTPS POST | oui |
 
@@ -56,7 +56,7 @@ Erreur renvoyée par le serveur : `{ "event": "exception", "data": { "status": "
 | `ping` → `pong` | Pi → serveur → Pi | n'importe quoi, renvoyé tel quel | ✅ test de la liaison |
 | `session:start` | serveur → Pi | `{ "sessionId": "<uuid>" }` (seuils plus tard) | ✅ |
 | `session:stop` | serveur → Pi | `{ "sessionId": "<uuid>" }` | ✅ |
-| `state` | Pi → serveur | voir ci-dessous | 🔜 A6 |
+| `state` | Pi → serveur | voir ci-dessous | ✅ |
 | `heartbeat` | Pi → serveur | température, version, état de la caméra | 🔜 |
 
 ### Sessions : la base fait foi
@@ -73,7 +73,25 @@ Erreur renvoyée par le serveur : `{ "event": "exception", "data": { "status": "
 
 Le Pi compare toujours avec ce qu'il fait déjà (`commande()` dans `posture/serveur.py`) : un message répété ne change rien, un `session:stop` d'une autre session est ignoré. **Une coupure de la liaison n'arrête pas la session** : le Pi continue d'analyser, et `ready` lui dit à la reconnexion si elle a été arrêtée entre-temps.
 
-`state` (champs à confirmer en A6, d'après l'audit §7.2) : id de la session, heure, posture (`FORWARD_HEAD`, `NECK_FLEXION`, `TRUNK_FORWARD`, `TRUNK_BACKWARD`, `IMMOBILE` ou bonne posture), couleur, angle tête, angle tronc, score de la période. Deux angles seulement : **aucun point du corps**.
+### `state` : l'état en direct
+
+Envoyé à chaque image analysée (toutes les 2 à 30 s selon la cadence), seulement pendant une session. **Jamais stocké** : le serveur garde le dernier état de chaque session en mémoire, l'oublie au `stop`, et le relaiera à l'app (SSE, étape C2).
+
+```json
+{ "event": "state", "data": { "sessionId": "<uuid>", "at": "2026-10-19T09:24:30Z", "color": "red",
+  "posture": "TRUNK_FORWARD", "headAngle": 63.0, "trunkAngle": 28.0, "score": 17 } }
+```
+
+| Champ | Valeurs |
+|---|---|
+| `sessionId` | la session en cours de cet appareil (sinon refusé : `Session pas en cours pour cet appareil`) |
+| `at` | heure de l'image sur le Pi, ISO 8601 en UTC (horloge du Pi synchronisée par NTP ; le serveur note aussi sa propre heure de réception) |
+| `color` | couleur de l'alerte en cours : `green`, `orange` (en doute), `red` (alerte) ; `ignored` (image mal vue), `absent` (personne) |
+| `posture` | posture de l'image : `GOOD`, `FORWARD_HEAD` (tête en avant ou baissée, regroupées), `TRUNK_FORWARD`, `TRUNK_BACKWARD` ; `null` si l'image n'est pas jugée |
+| `headAngle`, `trunkAngle` | degrés, à 0,1 près ; `null` si l'image n'est pas jugée (sens des angles : [algo-posture.md](algo-posture.md)) |
+| `score` | % du temps en bonne posture sur la période de résumé en cours (0–100), `null` tant que rien n'est suivi |
+
+Validé côté serveur (`LiveStateDto`) : un champ manquant, une valeur inconnue ou **un champ en plus** (points du corps…) font refuser le message (`{"event":"exception","data":{"message":"Message invalide","details":[…]}}`), sans rien journaliser côté serveur. Plus d'un état par 0,5 s et par appareil : les suivants sont ignorés.
 
 ## 4. Limites connues
 
@@ -115,4 +133,4 @@ npx wscat -c ws://localhost:3000/api/devices/ws -H "Authorization: Bearer <acces
 < {"event":"pong","data":"bonjour"}
 ```
 
-Code : côté Pi [`edge/posture/serveur.py`](../posture/serveur.py) ; côté serveur, passerelle [`server/src/analysis/devices.gateway.ts`](../../server/src/analysis/devices.gateway.ts), Pi connectés [`device-connections.ts`](../../server/src/analysis/device-connections.ts), envoi des commandes dans [`analysis.service.ts`](../../server/src/analysis/analysis.service.ts), refus des messages non authentifiés dans [`server/src/auth/auth.guard.ts`](../../server/src/auth/auth.guard.ts).
+Code : côté Pi [`edge/posture/serveur.py`](../posture/serveur.py) ; côté serveur, passerelle [`server/src/analysis/devices.gateway.ts`](../../server/src/analysis/devices.gateway.ts), Pi connectés [`device-connections.ts`](../../server/src/analysis/device-connections.ts), envoi des commandes dans [`analysis.service.ts`](../../server/src/analysis/analysis.service.ts), état en direct [`dto/device-messages.dto.ts`](../../server/src/analysis/dto/device-messages.dto.ts) et [`live-states.ts`](../../server/src/analysis/live-states.ts), refus des messages non authentifiés dans [`server/src/auth/auth.guard.ts`](../../server/src/auth/auth.guard.ts).
