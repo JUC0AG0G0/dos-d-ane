@@ -2,7 +2,7 @@
 
 import pytest
 
-from posture.serveur import ATTENTE_MAX, Config, ErreurConfig, prochaine_attente, que_faire
+from posture.serveur import ATTENTE_MAX, Config, ErreurConfig, commande, prochaine_attente, que_faire
 
 ENV = {"DOSDANE_SERVEUR": "http://localhost:3000/", "DOSDANE_EMAIL": "pi@example.com",
        "DOSDANE_MOT_DE_PASSE": "secret-de-test"}
@@ -42,3 +42,24 @@ def test_attente_doublee_puis_plafonnee():
         attentes.append(prochaine_attente(attentes[-1]))
     assert attentes[:4] == [1, 2, 4, 8]
     assert max(attentes) == ATTENTE_MAX == attentes[-1]
+
+
+def test_ready_aligne_sur_la_session_du_serveur():
+    assert commande(None, "ready", {"sessionId": "s1"}) == [("demarrer", "s1")]       # start manqué
+    assert commande("s1", "ready", {"sessionId": None}) == [("arreter", "s1")]        # stop manqué
+    assert commande("s1", "ready", {"sessionId": "s1"}) == []                         # déjà à jour
+    assert commande("s1", "ready", {"sessionId": "s2"}) == [("arreter", "s1"), ("demarrer", "s2")]
+
+
+def test_ordres_repetes_ou_d_une_autre_session_sans_effet():
+    assert commande(None, "session:start", {"sessionId": "s1"}) == [("demarrer", "s1")]
+    assert commande("s1", "session:start", {"sessionId": "s1"}) == []
+    assert commande("s1", "session:stop", {"sessionId": "s1"}) == [("arreter", "s1")]
+    assert commande(None, "session:stop", {"sessionId": "s1"}) == []
+    assert commande("s2", "session:stop", {"sessionId": "s1"}) == []                  # pas la nôtre
+
+
+def test_messages_inconnus_ou_incomplets_ignores():
+    assert commande("s1", "pong", "10:00:00") == []
+    assert commande("s1", "session:start", {}) == []
+    assert commande("s1", "session:start", "pas un objet") == []

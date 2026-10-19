@@ -8,7 +8,7 @@ Légende : ✅ en place · 🔜 prévu (étape de la branche `feat/envoi-serveur
 
 | Quoi | Sens | Transport | Stocké ? |
 |---|---|---|---|
-| Commandes `session:start` / `session:stop` ✅ serveur, 🔜 Pi (A5b) | serveur → Pi | WebSocket | non |
+| Commandes `session:start` / `session:stop` ✅ | serveur → Pi | WebSocket | non |
 | État en direct `state` 🔜 A6 | Pi → serveur | WebSocket | non, relayé à l'app (SSE) |
 | `heartbeat` 🔜 | Pi → serveur | WebSocket | non |
 | Événements, résumés 🔜 B1 | Pi → serveur | HTTPS POST | oui |
@@ -54,8 +54,8 @@ Erreur renvoyée par le serveur : `{ "event": "exception", "data": { "status": "
 |---|---|---|---|
 | `ready` | serveur → Pi | `{ "deviceId": "<uuid>", "sessionId": "<uuid>" \| null }` | ✅ connexion acceptée ; toujours le premier message |
 | `ping` → `pong` | Pi → serveur → Pi | n'importe quoi, renvoyé tel quel | ✅ test de la liaison |
-| `session:start` | serveur → Pi | `{ "sessionId": "<uuid>" }` (seuils plus tard) | ✅ serveur |
-| `session:stop` | serveur → Pi | `{ "sessionId": "<uuid>" }` | ✅ serveur |
+| `session:start` | serveur → Pi | `{ "sessionId": "<uuid>" }` (seuils plus tard) | ✅ |
+| `session:stop` | serveur → Pi | `{ "sessionId": "<uuid>" }` | ✅ |
 | `state` | Pi → serveur | voir ci-dessous | 🔜 A6 |
 | `heartbeat` | Pi → serveur | température, version, état de la caméra | 🔜 |
 
@@ -71,7 +71,7 @@ Erreur renvoyée par le serveur : `{ "event": "exception", "data": { "status": "
 | `DELETE /analysis-sessions/:id/devices/:deviceId` sur une session en cours | `session:stop` au Pi retiré |
 | `DELETE /analysis-sessions/:id` sur une session en cours | `session:stop` |
 
-Le Pi compare toujours avec ce qu'il fait déjà : un message répété ne change rien, un `session:stop` d'une autre session est ignoré.
+Le Pi compare toujours avec ce qu'il fait déjà (`commande()` dans `posture/serveur.py`) : un message répété ne change rien, un `session:stop` d'une autre session est ignoré. **Une coupure de la liaison n'arrête pas la session** : le Pi continue d'analyser, et `ready` lui dit à la reconnexion si elle a été arrêtée entre-temps.
 
 `state` (champs à confirmer en A6, d'après l'audit §7.2) : id de la session, heure, posture (`FORWARD_HEAD`, `NECK_FLEXION`, `TRUNK_FORWARD`, `TRUNK_BACKWARD`, `IMMOBILE` ou bonne posture), couleur, angle tête, angle tronc, score de la période. Deux angles seulement : **aucun point du corps**.
 

@@ -14,16 +14,17 @@ import time
 
 from websockets.exceptions import ConnectionClosed
 
-from posture.serveur import (Config, ConnexionRefusee, ErreurConfig, ErreurLogin, Liaison, envoyer, fermeture,
-                             login, ouvrir, recevoir)
+from posture.serveur import (Config, ConnexionRefusee, ErreurConfig, ErreurLogin, Liaison, commande, envoyer,
+                             fermeture, login, ouvrir, recevoir)
 
 
 def une_fois(config):
     try:
         jeton = login(config)
         print("Login     : OK")
-        with ouvrir(config, jeton) as ws:
-            print("Connexion : OK (ready reçu)")
+        ws, pret = ouvrir(config, jeton)
+        with ws:
+            print(f"Connexion : OK (ready reçu, session en cours : {pret.get('sessionId') or 'aucune'})")
             debut = time.monotonic()
             envoyer(ws, "ping", "bonjour")
             evenement, donnees = recevoir(ws, timeout=5)
@@ -39,11 +40,11 @@ def une_fois(config):
 
 
 def rester(config):
-    """Ping toutes les 10 s quand la liaison est ouverte ; affiche ce que le serveur envoie."""
+    """Ping toutes les 10 s quand la liaison est ouverte ; suit les ordres de session du serveur."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(message)s", datefmt="%H:%M:%S")
     liaison = Liaison(config).demarrer()
     print("Liaison démarrée : Ctrl+C pour finir")
-    prochain_ping = time.monotonic()
+    prochain_ping, en_cours = time.monotonic(), None
     try:
         while liaison.erreur is None:
             if time.monotonic() >= prochain_ping:
@@ -51,9 +52,14 @@ def rester(config):
                 prochain_ping = time.monotonic() + 10
             try:
                 evenement, donnees = liaison.recus.get(timeout=1)
-                logging.info("reçu : %s %r", evenement, donnees)
             except queue.Empty:
-                pass
+                continue
+            if evenement == "pong":
+                continue
+            logging.info("reçu : %s %r", evenement, donnees)
+            for action, session in commande(en_cours, evenement, donnees):
+                logging.info("%s session %s", "▶ démarrer" if action == "demarrer" else "■ arrêter", session)
+                en_cours = session if action == "demarrer" else None
     except KeyboardInterrupt:
         pass
     finally:

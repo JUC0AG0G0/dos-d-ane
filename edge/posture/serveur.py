@@ -112,6 +112,7 @@ def login(config, timeout=10):
 def ouvrir(config, jeton, timeout=10):
     """Ouvre la WebSocket et attend `ready` : avant, le serveur refuserait nos messages.
 
+    Renvoie (ws, data de `ready`) : data["sessionId"] est la session à analyser (contrat §3).
     Le jeton passe dans le header, jamais dans l'URL (contrat §2). Lève ConnexionRefusee si le serveur
     ferme au lieu d'accepter, ConnectionError s'il est injoignable, TimeoutError s'il n'envoie pas `ready`.
     """
@@ -124,7 +125,7 @@ def ouvrir(config, jeton, timeout=10):
     except (OSError, InvalidHandshake) as e:     # serveur arrêté, mauvaise adresse, proxy…
         raise ConnectionError(f"WebSocket injoignable ({config.url_ws}) : {e}") from None
     try:
-        evenement, _ = recevoir(ws, timeout)
+        evenement, donnees = recevoir(ws, timeout)
     except ConnectionClosed as e:
         raise ConnexionRefusee(*fermeture(e)) from None
     except BaseException:
@@ -133,7 +134,7 @@ def ouvrir(config, jeton, timeout=10):
     if evenement != "ready":
         ws.close()
         raise ConnectionError(f"le serveur a répondu {evenement!r} au lieu de 'ready'")
-    return ws
+    return ws, donnees if isinstance(donnees, dict) else {}
 
 
 def envoyer(ws, evenement, donnees):
@@ -149,6 +150,30 @@ def recevoir(ws, timeout=None):
 def fermeture(exc):
     """(code, raison) de la fermeture envoyée par le serveur ; (None, "") si la connexion a juste été coupée."""
     return (exc.rcvd.code, exc.rcvd.reason) if exc.rcvd else (None, "")
+
+
+def commande(en_cours, evenement, donnees):
+    """Ce que la session locale doit faire d'un message du serveur (contrat §3, « la base fait foi »).
+
+    `en_cours` : id de la session analysée en ce moment, None si aucune. Renvoie une liste d'actions
+    ("arreter", id) puis ("demarrer", id), vide si rien ne change : un message répété ne fait rien,
+    un session:stop d'une autre session est ignoré, passer d'une session à une autre arrête d'abord la première.
+    """
+    session = donnees.get("sessionId") if isinstance(donnees, dict) else None
+    if evenement == "ready":
+        voulue = session                         # None : rien à analyser
+    elif evenement == "session:start" and session:
+        voulue = session
+    elif evenement == "session:stop" and session == en_cours:
+        voulue = None
+    else:
+        return []                                # autre message, ordre incomplet ou stop d'une autre session
+    actions = []
+    if en_cours and voulue != en_cours:
+        actions.append(("arreter", en_cours))
+    if voulue and voulue != en_cours:
+        actions.append(("demarrer", voulue))
+    return actions
 
 
 def que_faire(code):
@@ -170,7 +195,8 @@ class Liaison:
 
     La boucle d'analyse n'attend jamais le réseau : envoyer() ne bloque pas et renvoie False si la
     liaison est coupée (le message est perdu : réservé à l'état en direct, que le suivant remplace).
-    Les messages du serveur arrivent dans la file `recus`, en (event, data).
+    Les messages du serveur arrivent dans la file `recus`, en (event, data), en commençant par `ready` à
+    chaque connexion : les passer à commande() pour savoir quoi démarrer ou arrêter.
     Après une erreur de configuration (mauvais mot de passe, 4403), la liaison s'arrête et `erreur` dit pourquoi.
     """
 
@@ -215,7 +241,7 @@ class Liaison:
             try:
                 if jeton is None:
                     jeton = login(self.config)
-                ws = ouvrir(self.config, jeton)
+                ws, pret = ouvrir(self.config, jeton)
             except ErreurLogin as e:
                 return self._abandonner(str(e))
             except ConnexionRefusee as e:
@@ -227,6 +253,7 @@ class Liaison:
                 journal.exception("erreur inattendue de la liaison")
             else:
                 journal.info("liaison ouverte : %s", self.config.url_ws)
+                self.recus.put(("ready", pret))     # la session à analyser, pour se remettre à jour
                 self._ws, attente = ws, ATTENTE_MIN
                 code = self._recevoir(ws)
                 self._ws = None
