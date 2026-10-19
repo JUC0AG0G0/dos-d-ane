@@ -98,7 +98,10 @@ cp .env.example .env && chmod 600 .env    # puis le remplir
 set -a; source .env; set +a               # charge les variables dans le terminal
 python -m outils.connexion                # login, connexion, ping
 python -m outils.connexion --rester       # garde la liaison, la rouvre si elle tombe (Ctrl+C)
+python poc.py --service                   # la vraie session, lancée et arrêtée par le serveur
 ```
+
+`poc.py --service` n'ouvre la webcam que pendant une session : sur `session:start`, une analyse commence (fichiers de `resultats/` au nom de la session du serveur) ; sur `session:stop`, elle se termine comme un Ctrl+C (alertes fermées, dernier résumé, bilan) et le Pi attend la suivante. Ctrl+C ou SIGTERM (systemd) arrêtent le service proprement.
 
 ## 6. Tester à la main
 

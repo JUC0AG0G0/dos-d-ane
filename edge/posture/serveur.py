@@ -21,6 +21,9 @@ from dataclasses import dataclass, field
 from posture.chemins import FICHIER_APPAREIL
 
 journal = logging.getLogger(__name__)
+# websockets journalise lui-même chaque coupure avec une trace complète ; Liaison la rapporte déjà
+# (« liaison perdue »), on ne garde que ses erreurs graves.
+logging.getLogger("websockets").setLevel(logging.CRITICAL)
 
 CHEMIN_WS = "/api/devices/ws"
 TAILLE_MAX = 16 * 1024            # comme le serveur (maxPayload)

@@ -17,17 +17,27 @@ Aucune calibration : les règles utilisent des seuils fixes (algo-posture.md).
     poc_<date>.csv              une ligne par image (format posture.mesures.COLONNES_CSV)
     poc_<date>_evenements.csv   début et fin de chaque alerte
     poc_<date>_resumes.csv      un résumé toutes les 5 min (audit §7.2)
-Rien n'est encore envoyé au serveur : tout passe par envoyer_evenement(), où l'envoi s'ajoutera.
+Événements et résumés ne sont pas encore envoyés au serveur : tout passe par envoyer_evenement() et
+envoyer_resume(), où l'envoi s'ajoutera (étape B1).
+
+Mode service (--service) : le serveur décide quand une session commence et finit (docs/liaison-serveur.md).
+La webcam n'est ouverte que pendant une session ; une coupure de la liaison n'arrête pas l'analyse.
 
 Lancer depuis edge/ avec .venv activé :
     python poc.py                    # session normale, Ctrl+C pour terminer
     python poc.py --rapide           # durées raccourcies pour tester (fenêtre 10 s, alerte en 10 s…)
     python poc.py --cadence-fixe 2   # T7 : comparer avec une image toutes les 2 s
+    python poc.py --service          # attend session:start / session:stop (configuration : edge/.env)
 Depuis le PC :  ssh -t pi 'cd ~/dos-d-ane/edge && .venv/bin/python poc.py'
+Ctrl+C ou SIGTERM (systemd) : l'analyse en cours se termine proprement (dernier résumé, bilan).
 """
 
 import argparse
 import csv
+import logging
+import queue
+import signal
+import sys
 import time
 from datetime import datetime
 
@@ -41,6 +51,7 @@ from posture.pi import temperature_pi, throttled_pi
 from posture.points import Completeur, CoteStable, Presence
 from posture.regles import postures
 from posture.score import DUREE_RESUME, Resume
+from posture.serveur import Config, ErreurConfig, Liaison, commande
 
 CADENCE_CALME, CADENCE_DOUTE, CADENCE_ABSENT = 10, 2, 30     # s entre deux images
 ECHECS_REOUVERTURE = 5                                        # captures ratées d'affilée avant de rouvrir la webcam
@@ -65,8 +76,8 @@ COLONNES_RESUMES = ["id", "session", "periode", "score_moyen", "secondes_bonne",
 class Session:
     """Numérote les événements et résumés, les affiche et les écrit (puis les enverra au serveur)."""
 
-    def __init__(self, base):
-        self.id = f"ses_{datetime.now():%Y%m%d_%H%M%S}"
+    def __init__(self, base, id_session=None):
+        self.id = id_session or f"ses_{datetime.now():%Y%m%d_%H%M%S}"     # id du serveur en mode service
         self.fichier = open(f"{base}_evenements.csv", "w", newline="")
         self.ecrivain = csv.writer(self.fichier)
         self.ecrivain.writerow(COLONNES_EVENEMENTS)
@@ -120,134 +131,204 @@ class Session:
         self.fichier_resumes.close()
 
 
+class Analyse:
+    """Une session d'analyse, de l'ouverture de la webcam (fournie) à terminer() : une image à la fois."""
+
+    def __init__(self, args, cam, movenet, id_session=None):
+        self.args, self.cam, self.movenet = args, cam, movenet
+        if args.rapide:
+            reglages = dict(fenetre=10, confirmation=10, anti_rafale=60)
+            self.assis, self.duree_resume = TempsAssis(assis_max=60, pause_min=15), 60
+        else:
+            reglages = {}
+            self.assis, self.duree_resume = TempsAssis(), DUREE_RESUME
+        self.avant, self.allonge = Bocal(regroupement=REGROUPEMENT, **reglages), Bocal(**reglages)
+        self.cote_stable, self.completeur, self.presence = CoteStable(), Completeur(), Presence()
+        DOSSIER_RESULTATS.mkdir(exist_ok=True)
+        base = DOSSIER_RESULTATS / f"poc_{datetime.now():%Y-%m-%d_%H%M%S}"
+        self.session = Session(base, id_session)
+        self.mesures = open(f"{base}.csv", "w", newline="")
+        self.ecrivain = csv.writer(self.mesures)
+        self.ecrivain.writerow(COLONNES_CSV)
+
+        print(f"Session {self.session.id}{' (mode rapide)' if args.rapide else ''}")
+        print(f"Mesures : {base}.csv   Événements et résumés : {base}_evenements.csv, _resumes.csv")
+        self.temp_debut, self.debut_session = temperature_pi(), time.monotonic()
+        self.images, self.echecs = 0, 0
+        self.resume, self.total = Resume(), Resume()
+        self.debut_resume, self.debut_resume_heure = self.debut_session, datetime.now()
+        self.precedente = None        # (instant, état, bonne) de l'image précédente, pour les durées
+
+    def image(self):
+        """Analyse une image ; renvoie l'attente (s) avant la suivante."""
+        t_boucle = time.monotonic()
+        image = capturer(self.cam)
+        if image is None:
+            self.echecs += 1
+            print(f"capture ratée ({self.echecs})")
+            if self.echecs % ECHECS_REOUVERTURE == 0:     # webcam débranchée ou figée : on la rouvre
+                self.cam.release()
+                self.cam = ouvrir_camera()
+                print("webcam rouverte" if self.cam.isOpened() else "webcam toujours absente")
+            return CADENCE_DOUTE
+        self.echecs = 0
+        pts = self.movenet.points(image)
+        del image                                        # l'image n'a existé qu'en mémoire
+        self.images += 1
+        cote = self.cote_stable.maj(pts)
+        pts_c, complete = self.completeur.maj(pts, cote)
+        a = angles(pts_c, cote)
+        vue = self.presence.maj(pts, a is not None)
+        if not vue:
+            a = None                                     # image fantôme sur la chaise vide : pas jugée
+        self.ecrivain.writerow(ligne_csv("SESSION", pts, cote, a, None, complete))
+
+        avant, allonge, assis, session = self.avant, self.allonge, self.assis, self.session
+        instant = time.monotonic()
+        evenements = []
+        if a:
+            regles = postures(a)
+            cause = next((n for n in VERS_L_AVANT if regles[n][0]), None)
+            evenements.append((avant.ajouter(instant, cause, a), avant))
+            evenements.append((allonge.ajouter(instant, ALLONGE if regles[ALLONGE][0] else None, a), allonge))
+            posture = REGROUPEMENT.get(cause, cause) or (ALLONGE if regles[ALLONGE][0] else "bonne posture")
+        else:                                            # fenêtre vide : l'alerte en cours se termine
+            evenements.append((avant.elaguer(instant), avant))
+            evenements.append((allonge.elaguer(instant), allonge))
+            posture = "ignorée" if vue else "absent"
+        for liste, bocal in evenements:
+            for phase, nom in liste:
+                session.envoyer_evenement(nom, phase, bocal.moyennes(), bocal.detail())
+        phase_assis = assis.maj(instant, vue)
+        if phase_assis:
+            session.envoyer_evenement("Assis trop longtemps", phase_assis)
+
+        # État en direct (plus tard envoyé à l'app à chaque image, audit §7.2)
+        couleur = "rouge" if "rouge" in (avant.couleur(), allonge.couleur()) else \
+            "orange" if "orange" in (avant.couleur(), allonge.couleur()) else "vert"
+        etat = couleur if a else "ignore" if vue else "absent"
+        if self.precedente:           # l'image précédente compte jusqu'à celle-ci
+            for r in (self.resume, self.total):
+                r.ajouter(instant - self.precedente[0], *self.precedente[1:])
+        self.precedente = (instant, etat, posture == "bonne posture")
+        if instant - self.debut_resume >= self.duree_resume:
+            session.envoyer_resume(self.resume, self.debut_resume_heure)
+            self.resume, self.debut_resume, self.debut_resume_heure = Resume(), instant, datetime.now()
+        mesure = f"tête {a['tete']:3.0f}°  tronc {a['tronc']:+4.0f}°  " if a else " " * 23
+        print(f"{datetime.now():%H:%M:%S}  {couleur:6s} {posture:24s} {mesure}"
+              f"avant {100 * avant.taux():3.0f} %  assis {assis.duree(instant) / 60:4.1f} min")
+        self.mesures.flush()
+
+        if self.args.cadence_fixe:
+            cadence = self.args.cadence_fixe
+        elif not vue:
+            cadence = CADENCE_ABSENT
+        elif not a or avant.en_doute() or allonge.en_doute():
+            cadence = CADENCE_DOUTE
+        else:
+            cadence = CADENCE_CALME
+        return max(0.0, cadence - (time.monotonic() - t_boucle))
+
+    def terminer(self):
+        """Ferme les alertes ouvertes, envoie le dernier résumé (période incomplète), ferme tout, affiche le bilan."""
+        print("\nSession terminée.")
+        try:
+            for bocal in (self.avant, self.allonge):
+                if bocal.alerte:
+                    self.session.envoyer_evenement(bocal.alerte, "fin", bocal.moyennes(), bocal.detail())
+            if self.assis.alerte:
+                self.session.envoyer_evenement("Assis trop longtemps", "fin")
+            if self.precedente:
+                for r in (self.resume, self.total):
+                    r.ajouter(time.monotonic() - self.precedente[0], *self.precedente[1:])
+                self.session.envoyer_resume(self.resume, self.debut_resume_heure)
+        finally:
+            self.cam.release()
+            self.mesures.close()
+            self.session.fermer()
+
+        minutes = (time.monotonic() - self.debut_session) / 60
+        total = self.total
+        print("\n===== Bilan =====")
+        print(f"Durée       : {minutes:.1f} min, {self.images} images "
+              f"({self.images / max(minutes, 1e-9):.1f} par minute)")
+        print(f"Alertes     : {self.session.nombre}")
+        score = total.score()
+        suivi = sum(total.secondes[c] for c in ("vert", "orange", "rouge"))
+        print(f"Score       : {'-' if score is None else f'{score} / 100'} (% du temps en bonne posture, sur "
+              f"{suivi / 60:.1f} min suivies ; ignoré {total.secondes['ignore']:.0f} s, absent {total.secondes['absent']:.0f} s)")
+        print(f"Température : {self.temp_debut} °C → {temperature_pi()} °C, throttled {throttled_pi()}")
+
+
+def manuel(args):
+    """Une seule session, lancée tout de suite, jusqu'au Ctrl+C."""
+    cam = ouvrir_camera()
+    if not cam.isOpened():
+        print("ÉCHEC : impossible d'ouvrir la webcam")
+        return
+    analyse = Analyse(args, cam, MoveNet())
+    print("Ctrl+C pour terminer")
+    try:
+        while True:
+            time.sleep(analyse.image())
+    except KeyboardInterrupt:
+        pass
+    finally:
+        analyse.terminer()
+
+
+def service(args):
+    """Attend les ordres du serveur : une Analyse par session, la webcam fermée entre deux sessions."""
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(message)s", datefmt="%H:%M:%S")
+    try:
+        config = Config.depuis_env()
+    except ErreurConfig as e:
+        sys.exit(f"ÉCHEC : {e}")
+    movenet = MoveNet()                    # chargé une fois, pour toutes les sessions
+    liaison = Liaison(config).demarrer()
+    analyse, prochaine = None, 0.0         # prochaine : instant de la prochaine image
+    print("Service démarré : en attente d'une session (Ctrl+C pour arrêter)")
+    try:
+        while liaison.erreur is None:
+            if analyse and time.monotonic() >= prochaine:
+                prochaine = time.monotonic() + analyse.image()
+            # Attente de la prochaine image sur la file des ordres : un stop est traité tout de suite.
+            attente = max(0.0, prochaine - time.monotonic()) if analyse else 1.0
+            try:
+                evenement, donnees = liaison.recus.get(timeout=attente)
+            except queue.Empty:
+                continue
+            for action, id_session in commande(analyse and analyse.session.id, evenement, donnees):
+                if action == "arreter":
+                    analyse.terminer()
+                    analyse = None
+                    print("En attente d'une session")
+                else:
+                    cam = ouvrir_camera()
+                    if not cam.isOpened():         # image() retentera de l'ouvrir
+                        print("webcam absente : nouvel essai toutes les 5 captures ratées")
+                    analyse, prochaine = Analyse(args, cam, movenet, id_session), 0.0
+    except KeyboardInterrupt:
+        pass
+    finally:
+        if analyse:
+            analyse.terminer()
+        liaison.arreter()
+    if liaison.erreur:
+        sys.exit(f"ÉCHEC : {liaison.erreur}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Session de suivi de posture (POC)")
     parser.add_argument("--rapide", action="store_true",
                         help="fenêtre 10 s, confirmation 10 s, anti-rafale 1 min, « levez-vous » après 1 min")
     parser.add_argument("--cadence-fixe", type=float, help="une image toutes les N s (comparaison T7)")
+    parser.add_argument("--service", action="store_true",
+                        help="sessions démarrées et arrêtées par le serveur (docs/liaison-serveur.md)")
     args = parser.parse_args()
-
-    if args.rapide:
-        reglages = dict(fenetre=10, confirmation=10, anti_rafale=60)
-        assis, duree_resume = TempsAssis(assis_max=60, pause_min=15), 60
-    else:
-        reglages = {}
-        assis, duree_resume = TempsAssis(), DUREE_RESUME
-    avant, allonge = Bocal(regroupement=REGROUPEMENT, **reglages), Bocal(**reglages)
-
-    cam = ouvrir_camera()
-    if not cam.isOpened():
-        print("ÉCHEC : impossible d'ouvrir la webcam")
-        return
-    movenet, cote_stable, completeur, presence = MoveNet(), CoteStable(), Completeur(), Presence()
-    DOSSIER_RESULTATS.mkdir(exist_ok=True)
-    base = DOSSIER_RESULTATS / f"poc_{datetime.now():%Y-%m-%d_%H%M%S}"
-    session = Session(base)
-    mesures = open(f"{base}.csv", "w", newline="")
-    ecrivain = csv.writer(mesures)
-    ecrivain.writerow(COLONNES_CSV)
-
-    print(f"Session {session.id}{' (mode rapide)' if args.rapide else ''} : Ctrl+C pour terminer")
-    print(f"Mesures : {base}.csv   Événements et résumés : {base}_evenements.csv, _resumes.csv")
-    temp_debut, debut_session = temperature_pi(), time.monotonic()
-    images, echecs = 0, 0
-    resume, total = Resume(), Resume()
-    debut_resume, debut_resume_heure = debut_session, datetime.now()
-    precedente = None                 # (instant, état, bonne) de l'image précédente, pour les durées
-    try:
-        while True:
-            t_boucle = time.monotonic()
-            image = capturer(cam)
-            if image is None:
-                echecs += 1
-                print(f"capture ratée ({echecs})")
-                if echecs % ECHECS_REOUVERTURE == 0:     # webcam débranchée ou figée : on la rouvre
-                    cam.release()
-                    cam = ouvrir_camera()
-                    print("webcam rouverte" if cam.isOpened() else "webcam toujours absente")
-                time.sleep(CADENCE_DOUTE)
-                continue
-            echecs = 0
-            pts = movenet.points(image)
-            del image                                        # l'image n'a existé qu'en mémoire
-            images += 1
-            cote = cote_stable.maj(pts)
-            pts_c, complete = completeur.maj(pts, cote)
-            a = angles(pts_c, cote)
-            vue = presence.maj(pts, a is not None)
-            if not vue:
-                a = None                                     # image fantôme sur la chaise vide : pas jugée
-            ecrivain.writerow(ligne_csv("SESSION", pts, cote, a, None, complete))
-
-            instant = time.monotonic()
-            evenements = []
-            if a:
-                regles = postures(a)
-                cause = next((n for n in VERS_L_AVANT if regles[n][0]), None)
-                evenements.append((avant.ajouter(instant, cause, a), avant))
-                evenements.append((allonge.ajouter(instant, ALLONGE if regles[ALLONGE][0] else None, a), allonge))
-                posture = REGROUPEMENT.get(cause, cause) or (ALLONGE if regles[ALLONGE][0] else "bonne posture")
-            else:                                            # fenêtre vide : l'alerte en cours se termine
-                evenements.append((avant.elaguer(instant), avant))
-                evenements.append((allonge.elaguer(instant), allonge))
-                posture = "ignorée" if vue else "absent"
-            for liste, bocal in evenements:
-                for phase, nom in liste:
-                    session.envoyer_evenement(nom, phase, bocal.moyennes(), bocal.detail())
-            phase_assis = assis.maj(instant, vue)
-            if phase_assis:
-                session.envoyer_evenement("Assis trop longtemps", phase_assis)
-
-            # État en direct (plus tard envoyé à l'app à chaque image, audit §7.2)
-            couleur = "rouge" if "rouge" in (avant.couleur(), allonge.couleur()) else \
-                "orange" if "orange" in (avant.couleur(), allonge.couleur()) else "vert"
-            etat = couleur if a else "ignore" if vue else "absent"
-            if precedente:                # l'image précédente compte jusqu'à celle-ci
-                for r in (resume, total):
-                    r.ajouter(instant - precedente[0], *precedente[1:])
-            precedente = (instant, etat, posture == "bonne posture")
-            if instant - debut_resume >= duree_resume:
-                session.envoyer_resume(resume, debut_resume_heure)
-                resume, debut_resume, debut_resume_heure = Resume(), instant, datetime.now()
-            mesure = f"tête {a['tete']:3.0f}°  tronc {a['tronc']:+4.0f}°  " if a else " " * 23
-            print(f"{datetime.now():%H:%M:%S}  {couleur:6s} {posture:24s} {mesure}"
-                  f"avant {100 * avant.taux():3.0f} %  assis {assis.duree(instant) / 60:4.1f} min")
-
-            if args.cadence_fixe:
-                cadence = args.cadence_fixe
-            elif not vue:
-                cadence = CADENCE_ABSENT
-            elif not a or avant.en_doute() or allonge.en_doute():
-                cadence = CADENCE_DOUTE
-            else:
-                cadence = CADENCE_CALME
-            time.sleep(max(0.0, cadence - (time.monotonic() - t_boucle)))
-            mesures.flush()
-    except KeyboardInterrupt:
-        print("\nSession terminée.")
-        for bocal in (avant, allonge):            # fermer les alertes encore ouvertes
-            if bocal.alerte:
-                session.envoyer_evenement(bocal.alerte, "fin", bocal.moyennes(), bocal.detail())
-        if assis.alerte:
-            session.envoyer_evenement("Assis trop longtemps", "fin")
-        if precedente:                    # dernière image, puis dernier résumé (période incomplète)
-            for r in (resume, total):
-                r.ajouter(time.monotonic() - precedente[0], *precedente[1:])
-            session.envoyer_resume(resume, debut_resume_heure)
-    finally:
-        cam.release()
-        mesures.close()
-        session.fermer()
-
-    minutes = (time.monotonic() - debut_session) / 60
-    print("\n===== Bilan =====")
-    print(f"Durée       : {minutes:.1f} min, {images} images ({images / max(minutes, 1e-9):.1f} par minute)")
-    print(f"Alertes     : {session.nombre}")
-    score = total.score()
-    suivi = sum(total.secondes[c] for c in ("vert", "orange", "rouge"))
-    print(f"Score       : {'-' if score is None else f'{score} / 100'} (% du temps en bonne posture, sur "
-          f"{suivi / 60:.1f} min suivies ; ignoré {total.secondes['ignore']:.0f} s, absent {total.secondes['absent']:.0f} s)")
-    print(f"Température : {temp_debut} °C → {temperature_pi()} °C, throttled {throttled_pi()}")
+    # systemd arrête le service par SIGTERM : même fin propre qu'un Ctrl+C
+    signal.signal(signal.SIGTERM, signal.default_int_handler)
+    service(args) if args.service else manuel(args)
 
 
 if __name__ == "__main__":
