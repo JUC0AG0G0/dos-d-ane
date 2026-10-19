@@ -2,7 +2,9 @@
 
 import pytest
 
-from posture.serveur import ATTENTE_MAX, Config, ErreurConfig, commande, prochaine_attente, que_faire
+import posture.serveur as serveur
+from posture.serveur import (ATTENTE_MAX, Config, Envoi, ErreurConfig, commande, prochaine_attente, que_faire,
+                             que_faire_reponse)
 
 ENV = {"DOSDANE_SERVEUR": "http://localhost:3000/", "DOSDANE_EMAIL": "pi@example.com",
        "DOSDANE_MOT_DE_PASSE": "secret-de-test"}
@@ -63,3 +65,61 @@ def test_messages_inconnus_ou_incomplets_ignores():
     assert commande("s1", "pong", "10:00:00") == []
     assert commande("s1", "session:start", {}) == []
     assert commande("s1", "session:start", "pas un objet") == []
+
+
+def test_reaction_aux_reponses_des_post():
+    assert que_faire_reponse(201) == "envoye"
+    assert que_faire_reponse(401) == "login"                       # jeton expiré
+    assert [que_faire_reponse(c) for c in (400, 404, 409)] == ["rejete"] * 3   # renvoyer ne changerait rien
+    assert [que_faire_reponse(c) for c in (500, 503, None)] == ["attendre"] * 3
+
+
+class FauxJeton:
+    def __init__(self):
+        self.numero, self.perimes = 1, []
+
+    def valeur(self):
+        return f"jeton{self.numero}"
+
+    def perime(self, ancien):
+        self.perimes.append(ancien)
+        self.numero += 1
+
+
+def envoyer_tout(monkeypatch, reponses, messages):
+    """Fait passer `messages` par Envoi face à un faux serveur qui répond `reponses` dans l'ordre."""
+    monkeypatch.setattr(serveur, "ATTENTE_MIN", 0.01)
+    recus, reponses = [], list(reponses)
+
+    def faux_poster(config, jeton, chemin, corps):
+        recus.append((jeton, corps["clientId"]))
+        reponse = reponses.pop(0) if reponses else 201
+        if reponse is None:
+            raise ConnectionError("réseau coupé")
+        return reponse, None
+
+    monkeypatch.setattr(serveur, "poster", faux_poster)
+    jeton = FauxJeton()
+    envoi = Envoi(Config.depuis_env(ENV), jeton).demarrer()
+    for clientId in messages:
+        envoi.deposer("/api/analysis-sessions/s1/events", {"clientId": clientId})
+    envoi.arreter(timeout=5)
+    return envoi, jeton, recus
+
+
+def test_echec_renvoye_dans_l_ordre(monkeypatch):
+    envoi, _, recus = envoyer_tout(monkeypatch, [None, 503, 201, 201], ["evt_0001", "evt_0002"])
+    assert [c for _, c in recus] == ["evt_0001"] * 3 + ["evt_0002"]   # le 2ᵉ attend que le 1ᵉʳ soit passé
+    assert (envoi.envoyes, envoi.rejetes, envoi.en_attente) == (2, 0, 0)
+
+
+def test_refus_mis_de_cote_sans_bloquer_la_suite(monkeypatch):
+    envoi, _, recus = envoyer_tout(monkeypatch, [409, 201], ["evt_0001", "evt_0002"])
+    assert [c for _, c in recus] == ["evt_0001", "evt_0002"]
+    assert (envoi.envoyes, envoi.rejetes) == (1, 1)
+
+
+def test_jeton_expire_renouvele_puis_renvoye(monkeypatch):
+    envoi, jeton, recus = envoyer_tout(monkeypatch, [401, 201], ["evt_0001"])
+    assert recus == [("jeton1", "evt_0001"), ("jeton2", "evt_0001")]
+    assert jeton.perimes == ["jeton1"] and envoi.envoyes == 1

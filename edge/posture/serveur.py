@@ -14,6 +14,7 @@ import os
 import queue
 import random
 import threading
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -112,6 +113,52 @@ def login(config, timeout=10):
     return donnees["accessToken"]
 
 
+class Jeton:
+    """Jeton partagé par la WebSocket et les envois : un deuxième login révoquerait le premier
+    (une seule session de connexion par appareil côté serveur)."""
+
+    def __init__(self, config):
+        self.config = config
+        self._valeur = None
+        self._verrou = threading.Lock()
+
+    def valeur(self):
+        """Jeton en cours, après un login s'il n'y en a pas (ErreurLogin, ConnectionError)."""
+        with self._verrou:
+            if self._valeur is None:
+                self._valeur = login(self.config)
+            return self._valeur
+
+    def perime(self, ancien):
+        """Refusé par le serveur : le prochain valeur() refera un login (une seule fois si deux threads le voient)."""
+        with self._verrou:
+            if self._valeur == ancien:
+                self._valeur = None
+
+
+def poster(config, jeton, chemin, corps, timeout=10):
+    """POST JSON au serveur. Renvoie (code HTTP, message d'erreur du serveur ou None).
+
+    Une réponse d'erreur (4xx, 5xx) est renvoyée, pas levée ; ConnectionError si le serveur est injoignable.
+    """
+    requete = urllib.request.Request(f"{config.serveur}{chemin}", data=json.dumps(corps).encode(), method="POST",
+                                     headers={"Content-Type": "application/json",
+                                              "Authorization": f"Bearer {jeton}"})
+    try:
+        with urllib.request.urlopen(requete, timeout=timeout) as reponse:
+            return reponse.status, None
+    except urllib.error.HTTPError as e:
+        try:
+            message = json.loads(e.read(4096)).get("message")
+        except (ValueError, AttributeError):
+            message = None
+        return e.code, message
+    except urllib.error.URLError as e:
+        raise ConnectionError(f"serveur injoignable ({config.serveur}) : {e.reason}") from None
+    except OSError as e:                         # délai dépassé, connexion coupée pendant la réponse…
+        raise ConnectionError(f"serveur injoignable ({config.serveur}) : {e}") from None
+
+
 def ouvrir(config, jeton, timeout=10):
     """Ouvre la WebSocket et attend `ready` : avant, le serveur refuserait nos messages.
 
@@ -205,6 +252,7 @@ class Liaison:
 
     def __init__(self, config):
         self.config = config
+        self.jeton = Jeton(config)               # à partager avec Envoi
         self.recus = queue.Queue()
         self.erreur = None
         self._arret = threading.Event()
@@ -242,8 +290,7 @@ class Liaison:
         while not self._arret.is_set():
             code = None
             try:
-                if jeton is None:
-                    jeton = login(self.config)
+                jeton = self.jeton.valeur()
                 ws, pret = ouvrir(self.config, jeton)
             except ErreurLogin as e:
                 return self._abandonner(str(e))
@@ -268,7 +315,7 @@ class Liaison:
             if action == "arret":
                 return self._abandonner("appareil refusé (4403) : le login doit se faire en raspberry")
             if action == "login":
-                jeton = None
+                self.jeton.perime(jeton)
             pause = attente * random.uniform(0.8, 1.2)   # étalée : plusieurs Pi ne reviennent pas tous ensemble
             journal.info("nouvelle tentative dans %.0f s", pause)
             self._arret.wait(pause)
@@ -293,3 +340,93 @@ class Liaison:
     def _abandonner(self, raison):
         self.erreur = raison
         journal.error("liaison arrêtée : %s", raison)
+
+
+def que_faire_reponse(code):
+    """Réaction à la réponse d'un POST (contrat §4) : "envoye", "login", "rejete" ou "attendre"."""
+    if code is not None and 200 <= code < 300:
+        return "envoye"
+    if code == 401:
+        return "login"
+    if code is not None and 400 <= code < 500:
+        return "rejete"                          # 400, 404, 409… : renvoyer ne changerait rien
+    return "attendre"                            # 5xx ou réseau
+
+
+class Envoi:
+    """Envoie au serveur les alertes et les résumés (contrat §4) dans un thread à part.
+
+    deposer() ne bloque jamais la boucle d'analyse. Les messages partent dans l'ordre ; en cas d'échec,
+    le même message est renvoyé (même clientId : le serveur ignore les doublons) avec une attente
+    doublée à chaque échec. File en mémoire : rien n'est perdu pendant une coupure tant que le programme
+    tourne ; un arrêt du Pi avant l'envoi perd les messages en attente (file sur disque : étape B3).
+    """
+
+    def __init__(self, config, jeton):
+        self.config, self.jeton = config, jeton
+        self.envoyes = self.rejetes = 0
+        self._file = queue.Queue()
+        self._arret, self._limite = threading.Event(), None
+        self._thread = threading.Thread(target=self._boucle, name="envoi-serveur", daemon=True)
+
+    def demarrer(self):
+        self._thread.start()
+        return self
+
+    def deposer(self, chemin, corps):
+        self._file.put((chemin, corps))
+
+    @property
+    def en_attente(self):
+        return self._file.qsize()
+
+    def arreter(self, timeout=15):
+        """Envoie ce qui reste en `timeout` s au plus (en réessayant si besoin), puis s'arrête."""
+        self._limite = time.monotonic() + timeout
+        self._arret.set()
+        self._thread.join(timeout + 1)
+
+    def _boucle(self):
+        attente, courant = ATTENTE_MIN, None
+        while True:
+            if courant is None:
+                if self._arret.is_set() and self._file.empty():
+                    break
+                try:
+                    courant = self._file.get(timeout=0.5)
+                except queue.Empty:
+                    continue
+            chemin, corps = courant
+            jeton, code, message = None, None, None
+            try:
+                jeton = self.jeton.valeur()
+                code, message = poster(self.config, jeton, chemin, corps)
+            except (ErreurLogin, ConnectionError) as e:
+                journal.warning("envoi impossible : %s", e)
+            except Exception:                    # imprévu : l'envoi ne doit jamais mourir en silence
+                journal.exception("erreur inattendue de l'envoi")
+
+            action = que_faire_reponse(code)
+            if action == "envoye":
+                self.envoyes += 1
+                courant, attente = None, ATTENTE_MIN
+                continue
+            if action == "rejete":
+                self.rejetes += 1
+                journal.error("refusé par le serveur (HTTP %s : %s) : %s %s", code, message, chemin,
+                              corps.get("clientId"))
+                courant = None
+                continue
+            if action == "login" and jeton:
+                self.jeton.perime(jeton)
+            pause = attente * random.uniform(0.8, 1.2)
+            if self._arret.is_set():                 # arrêt demandé : réessayer seulement jusqu'à la limite
+                reste = self._limite - time.monotonic()
+                if reste <= 0:
+                    journal.warning("arrêt : %d message(s) non envoyés", 1 + self._file.qsize())
+                    break
+                time.sleep(min(pause, reste))
+            else:
+                journal.info("envoi : nouvel essai dans %.0f s (%d en attente)", pause, 1 + self._file.qsize())
+                self._arret.wait(pause)
+            attente = prochaine_attente(attente)
