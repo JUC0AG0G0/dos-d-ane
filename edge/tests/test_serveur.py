@@ -2,13 +2,13 @@
 
 import re
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
 import posture.serveur as serveur
-from posture.serveur import (ATTENTE_MAX, Config, Envoi, ErreurConfig, Numeros, commande, prochaine_attente,
-                             que_faire, que_faire_reponse)
+from posture.serveur import (ATTENTE_MAX, Config, Envoi, ErreurConfig, FileEnvoi, Numeros, commande,
+                             prochaine_attente, que_faire, que_faire_reponse)
 
 ENV = {"DOSDANE_SERVEUR": "http://localhost:3000/", "DOSDANE_EMAIL": "pi@example.com",
        "DOSDANE_MOT_DE_PASSE": "secret-de-test"}
@@ -167,3 +167,17 @@ def test_refus_garde_dans_la_table_rejetes(monkeypatch, tmp_path):
     lignes = sqlite3.connect(tmp_path / "envoi.sqlite").execute(
         "SELECT code, raison, corps FROM rejetes").fetchall()
     assert lignes == [(409, "refusé", '{"clientId": "evt_x_0001"}')]
+
+
+def test_purge_au_dela_de_7_jours(tmp_path):
+    fichier = tmp_path / "envoi.sqlite"
+    file = FileEnvoi(fichier)
+    file.ajouter("/x", {"clientId": "evt_recent"})
+    file.ajouter("/x", {"clientId": "evt_vieux"})
+    file.ajouter("/x", {"clientId": "evt_refuse_vieux"})
+    vieux = (datetime.now(timezone.utc) - timedelta(days=8)).isoformat(timespec="seconds")
+    with sqlite3.connect(fichier) as cnx:
+        cnx.execute("UPDATE messages SET depose = ? WHERE corps LIKE '%vieux%'", (vieux,))
+    file.rejeter(3, 409, "refusé")
+    assert file.purger(datetime.now(timezone.utc) - timedelta(days=7)) == (1, 1)
+    assert file.premier()[2] == {"clientId": "evt_recent"} and len(file) == 1

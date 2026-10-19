@@ -19,7 +19,7 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from posture.chemins import FICHIER_APPAREIL, FICHIER_ENVOI
 
@@ -34,6 +34,8 @@ CODE_JETON_REFUSE = 4401          # jeton absent, invalide ou expiré : refaire 
 CODE_APPAREIL_REFUSE = 4403       # session ouverte depuis un autre type d'appareil : ne pas réessayer
 VARIABLES = ("DOSDANE_SERVEUR", "DOSDANE_EMAIL", "DOSDANE_MOT_DE_PASSE")
 ATTENTE_MIN, ATTENTE_MAX = 1, 60  # secondes entre deux tentatives, doublées à chaque échec
+CONSERVATION = timedelta(days=7)  # file d'envoi purgée au-delà (audit §12) : résultats de posture
+PURGE_TOUTES_LES = 3600          # s entre deux purges
 
 
 class ErreurConfig(Exception):
@@ -436,6 +438,14 @@ class FileEnvoi:
                               (maintenant_utc(), code, raison if raison is None else str(raison), id_message))
             self._cnx.execute("DELETE FROM messages WHERE id = ?", (id_message,))
 
+    def purger(self, avant):
+        """Supprime messages et refus déposés avant `avant` (datetime UTC) ; renvoie (messages, refus)."""
+        limite = avant.isoformat(timespec="seconds")   # même format que `depose` : comparable en texte
+        with self._verrou, self._cnx:
+            messages = self._cnx.execute("DELETE FROM messages WHERE depose < ?", (limite,)).rowcount
+            refus = self._cnx.execute("DELETE FROM rejetes WHERE depose < ?", (limite,)).rowcount
+        return messages, refus
+
     def __len__(self):
         with self._verrou:
             return self._cnx.execute("SELECT count(*) FROM messages").fetchone()[0]
@@ -461,6 +471,7 @@ class Envoi:
         self._nouveau = threading.Event()
         self._arret, self._limite = threading.Event(), None
         self._thread = threading.Thread(target=self._boucle, name="envoi-serveur", daemon=True)
+        self._purger()
         if reste := len(self._file):
             journal.info("envoi : %d message(s) restés de l'exécution précédente, envoyés en premier", reste)
 
@@ -491,9 +502,19 @@ class Envoi:
             self._restant = len(self._file)      # en_attente reste lisible une fois la file fermée
             self._file.fermer()
 
+    def _purger(self):
+        """Au-delà de 7 jours, un message ne sera plus utile et ne doit pas être gardé (audit §12)."""
+        self._derniere_purge = time.monotonic()
+        messages, refus = self._file.purger(datetime.now(timezone.utc) - CONSERVATION)
+        if messages or refus:
+            journal.warning("envoi : purge de %d message(s) jamais envoyés et %d refus de plus de %d jours",
+                            messages, refus, CONSERVATION.days)
+
     def _boucle(self):
         attente = ATTENTE_MIN
         while True:
+            if time.monotonic() - self._derniere_purge >= PURGE_TOUTES_LES:
+                self._purger()
             courant = self._file.premier()
             if courant is None:
                 if self._arret.is_set():
