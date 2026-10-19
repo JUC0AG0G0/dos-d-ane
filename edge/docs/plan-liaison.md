@@ -1,6 +1,6 @@
 # Liaison Pi ↔ serveur : le plan
 
-Ce qui est fait et ce qui reste pour que le Raspberry Pi soit piloté depuis l'app et que ses résultats arrivent au serveur. **Comment** ça marche (messages, routes, codes, sécurité) : [liaison-serveur.md](liaison-serveur.md). **Pourquoi** l'architecture (Pi en edge, WebSocket ouverte par le Pi, rien d'identifiant ne sort) : [audit §7.2](Audit_technique_final_Fil_Rouge_Master_UHA_4_0_v3.md#72-ce-qui-sort-du-pi--messages-et-transport).
+Ce qui est fait et ce qui reste pour que le Raspberry Pi soit piloté depuis l'app et que ses résultats arrivent au serveur. **Comment** ça marche (messages, routes, codes, sécurité) : [liaison-serveur.md](liaison-serveur.md). Expliqué simplement, pour l'oral : [liaison-expliquee.md](liaison-expliquee.md). **Pourquoi** l'architecture (Pi en edge, WebSocket ouverte par le Pi, rien d'identifiant ne sort) : [audit §7.2](Audit_technique_final_Fil_Rouge_Master_UHA_4_0_v3.md#72-ce-qui-sort-du-pi--messages-et-transport).
 
 Règle de travail : une petite étape à la fois, testée (sur le vrai Pi quand elle le touche) avant la suivante, un commit par étape, une PR par partie.
 
@@ -57,6 +57,7 @@ Le serveur reçoit déjà `state` et les alertes, mais personne ne peut encore l
 
 - Avec Eron (app Expo, branche `mobile`) : choisir le Pi, Démarrer / Terminer (`POST …/start`, `…/stop`), état en direct (C2), puis les résultats (`GET …/events`, `…/summaries`).
 - Site : « ajouter un Raspberry Pi » (`POST /devices`, clé affichée une fois), liste et révocation des clés.
+- Appairage par code (comme une télé connectée) : le Pi sans clé affiche un code court, l'utilisateur le tape dans l'app ou le site, le Pi reçoit sa clé tout seul ; jamais de mot de passe sur le Pi, même tapé une fois. Demande une table de codes temporaires (10 min) et une limite de tentatives. En attendant : `python -m outils.appairer` sur le Pi (email et mot de passe tapés une fois, jamais enregistrés).
 - **Fini quand** : une personne lance et termine une session depuis son téléphone, sans Swagger.
 
 ### C4. Test de bout en bout 🔜

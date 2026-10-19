@@ -1,6 +1,6 @@
 # Liaison Pi ↔ serveur : le contrat
 
-Ce que le Raspberry Pi et le serveur doivent respecter pour se parler. **Pourquoi** ces choix (WebSocket ouverte par le Pi, POST pour ce qui est stocké, rien d'identifiant ne sort du Pi) : [audit §7.2](Audit_technique_final_Fil_Rouge_Master_UHA_4_0_v3.md#72-ce-qui-sort-du-pi--messages-et-transport). Ici, seulement le **comment** ; ce qui est fait et ce qui reste : [plan-liaison.md](plan-liaison.md).
+Ce que le Raspberry Pi et le serveur doivent respecter pour se parler. **Pourquoi** ces choix (WebSocket ouverte par le Pi, POST pour ce qui est stocké, rien d'identifiant ne sort du Pi) : [audit §7.2](Audit_technique_final_Fil_Rouge_Master_UHA_4_0_v3.md#72-ce-qui-sort-du-pi--messages-et-transport). Ici, seulement le **comment** ; ce qui est fait et ce qui reste : [plan-liaison.md](plan-liaison.md). Version expliquée simplement : [liaison-expliquee.md](liaison-expliquee.md).
 
 Légende : ✅ en place · 🔜 prévu (étape de la branche `feat/envoi-serveur`).
 
@@ -43,6 +43,7 @@ Le Pi n'a **aucun mot de passe** : il a un `deviceId` et une **clé** (`dk_` + 2
 
 - Le serveur ne garde que l'**empreinte SHA-256** de la clé (`devices.keyHash`), comparée en temps constant. Clé fausse ou appareil inconnu : même réponse, `401 Appareil ou clé invalide`.
 - Le JWT obtenu expire comme un autre (60 min sans requête) : sur `401` ou `4401`, le Pi refait `device-login` tout seul, sans intervention.
+- **Droits limités** : la session ouverte par `device-login` est une **session d'appareil** (`authSessions.kind = device`). Elle n'a accès qu'à ce dont le Pi a besoin — la WebSocket, `POST …/events`, `POST …/summaries` (routes marquées `@DeviceAllowed()`) ; partout ailleurs (compte, sessions, appareils, administration, lecture des résultats) : `403 Réservé aux comptes, pas aux appareils`. Une clé volée ne donne donc pas accès au compte.
 - **Révoquer ou remplacer la clé ferme les sessions du Pi et coupe sa WebSocket tout de suite** (`4401 Clé révoquée`) ; son nouveau login est refusé, il s'arrête avec un message qui dit quoi faire.
 
 **Pourquoi la clé contre un JWT**, et pas la clé dans chaque requête (`Authorization: Device <clé>`, prévu au départ) : les deux suppriment le mot de passe et l'expiration gênante et permettent de révoquer un Pi, mais tout le serveur (guard, révocation, routes qui retrouvent l'appareil par la session) repose sur le JWT et sa session de connexion. Échanger la clé contre un JWT ne change que le login ; la clé circule rarement (un login de temps en temps) et le JWT qui circule est de courte durée et révocable. C'est le schéma classique « secret de longue durée → jeton de courte durée » (client credentials d'OAuth).
@@ -148,6 +149,15 @@ Variables d'environnement, dans `edge/.env` (ignoré par Git ; modèle commenté
 |---|---|
 | `DOSDANE_SERVEUR` | `http://localhost:3000` en dev, `https://…` en prod (WebSocket en `ws://` ou `wss://` d'après lui) |
 | `DOSDANE_APPAREIL`, `DOSDANE_CLE` | `deviceId` et `key` donnés par `POST /api/devices` (ou `/devices/:id/key`) ; la clé n'est jamais affichée par le Pi |
+
+**Le plus simple : appairer le Pi** (une fois, sur le Pi) — il s'ajoute lui-même au compte et écrit `DOSDANE_APPAREIL` et `DOSDANE_CLE` dans `edge/.env` (`600`) ; le mot de passe est tapé sans écho, sert à un seul login fermé aussitôt, et n'est jamais enregistré :
+
+```bash
+cd edge && source .venv/bin/activate
+python -m outils.appairer --serveur https://<domaine> --nom "Pi du bureau"
+```
+
+Sinon, à la main : `POST /api/devices` (depuis un PC), puis recopier `deviceId` et `key` dans `edge/.env` :
 
 ```bash
 cd edge
