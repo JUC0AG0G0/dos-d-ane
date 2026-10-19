@@ -13,14 +13,15 @@ import logging
 import os
 import queue
 import random
+import sqlite3
 import threading
 import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 
-from posture.chemins import FICHIER_APPAREIL
+from posture.chemins import FICHIER_APPAREIL, FICHIER_ENVOI
 
 journal = logging.getLogger(__name__)
 # websockets journalise lui-même chaque coupure avec une trace complète ; Liaison la rapporte déjà
@@ -374,50 +375,133 @@ def que_faire_reponse(code):
     return "attendre"                            # 5xx ou réseau
 
 
+SCHEMA_FILE = """
+CREATE TABLE IF NOT EXISTS messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,      -- ordre d'envoi
+    chemin TEXT NOT NULL,                      -- /api/analysis-sessions/<id>/events ou /summaries
+    corps TEXT NOT NULL,                       -- JSON du message (contrat §4)
+    depose TEXT NOT NULL                       -- heure de dépôt (ISO, UTC)
+);
+CREATE TABLE IF NOT EXISTS rejetes (           -- refusés par le serveur (4xx) : gardés pour comprendre
+    id INTEGER PRIMARY KEY,
+    chemin TEXT NOT NULL,
+    corps TEXT NOT NULL,
+    depose TEXT NOT NULL,
+    rejete TEXT NOT NULL,
+    code INTEGER NOT NULL,
+    raison TEXT
+);
+"""
+
+
+def maintenant_utc():
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+class FileEnvoi:
+    """File des messages à envoyer, sur disque (SQLite) : elle survit à un arrêt du Pi.
+
+    Le dossier est réservé à l'utilisateur (700) : les messages contiennent des résultats de posture.
+    Appelée depuis la boucle d'analyse (ajouter) et depuis le thread d'envoi : un verrou protège la connexion.
+    """
+
+    def __init__(self, fichier):
+        fichier.parent.mkdir(parents=True, exist_ok=True)
+        os.chmod(fichier.parent, 0o700)
+        self._cnx = sqlite3.connect(fichier, check_same_thread=False)
+        self._verrou = threading.Lock()
+        with self._verrou, self._cnx:
+            self._cnx.executescript(SCHEMA_FILE)
+
+    def ajouter(self, chemin, corps):
+        with self._verrou, self._cnx:
+            self._cnx.execute("INSERT INTO messages (chemin, corps, depose) VALUES (?, ?, ?)",
+                              (chemin, json.dumps(corps), maintenant_utc()))
+
+    def premier(self):
+        """Plus ancien message en attente : (id, chemin, corps), ou None."""
+        with self._verrou:
+            ligne = self._cnx.execute("SELECT id, chemin, corps FROM messages ORDER BY id LIMIT 1").fetchone()
+        return (ligne[0], ligne[1], json.loads(ligne[2])) if ligne else None
+
+    def retirer(self, id_message):
+        with self._verrou, self._cnx:
+            self._cnx.execute("DELETE FROM messages WHERE id = ?", (id_message,))
+
+    def rejeter(self, id_message, code, raison):
+        """Déplace le message dans `rejetes`, avec la réponse du serveur (une seule transaction)."""
+        with self._verrou, self._cnx:
+            self._cnx.execute("INSERT INTO rejetes (id, chemin, corps, depose, rejete, code, raison) "
+                              "SELECT id, chemin, corps, depose, ?, ?, ? FROM messages WHERE id = ?",
+                              (maintenant_utc(), code, raison if raison is None else str(raison), id_message))
+            self._cnx.execute("DELETE FROM messages WHERE id = ?", (id_message,))
+
+    def __len__(self):
+        with self._verrou:
+            return self._cnx.execute("SELECT count(*) FROM messages").fetchone()[0]
+
+    def fermer(self):
+        with self._verrou:
+            self._cnx.close()
+
+
 class Envoi:
     """Envoie au serveur les alertes et les résumés (contrat §4) dans un thread à part.
 
-    deposer() ne bloque jamais la boucle d'analyse. Les messages partent dans l'ordre ; en cas d'échec,
-    le même message est renvoyé (même clientId : le serveur ignore les doublons) avec une attente
-    doublée à chaque échec. File en mémoire : rien n'est perdu pendant une coupure tant que le programme
-    tourne ; un arrêt du Pi avant l'envoi perd les messages en attente (file sur disque : étape B3).
+    deposer() écrit le message sur disque (FileEnvoi) et rend la main : la boucle d'analyse n'attend jamais
+    le réseau. Les messages partent dans l'ordre ; un message n'est effacé qu'une fois reçu par le serveur
+    (2xx). En cas d'échec, il est renvoyé (même clientId : le serveur ignore les doublons) avec une attente
+    doublée à chaque échec. Ceux qui restent à l'arrêt partent au démarrage suivant, en premier.
     """
 
-    def __init__(self, config, jeton):
+    def __init__(self, config, jeton, fichier=FICHIER_ENVOI):
         self.config, self.jeton = config, jeton
         self.envoyes = self.rejetes = 0
-        self._file = queue.Queue()
+        self._file, self._restant = FileEnvoi(fichier), None
+        self._nouveau = threading.Event()
         self._arret, self._limite = threading.Event(), None
         self._thread = threading.Thread(target=self._boucle, name="envoi-serveur", daemon=True)
+        if reste := len(self._file):
+            journal.info("envoi : %d message(s) restés de l'exécution précédente, envoyés en premier", reste)
 
     def demarrer(self):
         self._thread.start()
         return self
 
     def deposer(self, chemin, corps):
-        self._file.put((chemin, corps))
+        try:
+            self._file.ajouter(chemin, corps)
+        except sqlite3.Error:                    # disque plein… : ne pas arrêter l'analyse (le CSV le garde)
+            journal.exception("envoi : message non enregistré dans la file")
+            return
+        self._nouveau.set()
 
     @property
     def en_attente(self):
-        return self._file.qsize()
+        return self._restant if self._restant is not None else len(self._file)
 
     def arreter(self, timeout=15):
-        """Envoie ce qui reste en `timeout` s au plus (en réessayant si besoin), puis s'arrête."""
+        """Envoie ce qui reste en `timeout` s au plus (en réessayant si besoin), puis s'arrête.
+        Ce qui n'est pas parti reste sur disque pour le prochain démarrage."""
         self._limite = time.monotonic() + timeout
         self._arret.set()
+        self._nouveau.set()
         self._thread.join(timeout + 1)
+        if not self._thread.is_alive():
+            self._restant = len(self._file)      # en_attente reste lisible une fois la file fermée
+            self._file.fermer()
 
     def _boucle(self):
-        attente, courant = ATTENTE_MIN, None
+        attente = ATTENTE_MIN
         while True:
+            courant = self._file.premier()
             if courant is None:
-                if self._arret.is_set() and self._file.empty():
+                if self._arret.is_set():
                     break
-                try:
-                    courant = self._file.get(timeout=0.5)
-                except queue.Empty:
-                    continue
-            chemin, corps = courant
+                self._nouveau.wait(1.0)
+                self._nouveau.clear()
+                continue
+            id_message, chemin, corps = courant
             jeton, code, message = None, None, None
             try:
                 jeton = self.jeton.valeur()
@@ -429,14 +513,15 @@ class Envoi:
 
             action = que_faire_reponse(code)
             if action == "envoye":
+                self._file.retirer(id_message)
                 self.envoyes += 1
-                courant, attente = None, ATTENTE_MIN
+                attente = ATTENTE_MIN
                 continue
             if action == "rejete":
+                self._file.rejeter(id_message, code, message)
                 self.rejetes += 1
-                journal.error("refusé par le serveur (HTTP %s : %s) : %s %s", code, message, chemin,
-                              corps.get("clientId"))
-                courant = None
+                journal.error("refusé par le serveur (HTTP %s : %s) : %s %s — gardé dans la table rejetes",
+                              code, message, chemin, corps.get("clientId"))
                 continue
             if action == "login" and jeton:
                 self.jeton.perime(jeton)
@@ -444,10 +529,11 @@ class Envoi:
             if self._arret.is_set():                 # arrêt demandé : réessayer seulement jusqu'à la limite
                 reste = self._limite - time.monotonic()
                 if reste <= 0:
-                    journal.warning("arrêt : %d message(s) non envoyés", 1 + self._file.qsize())
+                    journal.warning("arrêt : %d message(s) gardés sur disque pour le prochain démarrage",
+                                    len(self._file))
                     break
                 time.sleep(min(pause, reste))
             else:
-                journal.info("envoi : nouvel essai dans %.0f s (%d en attente)", pause, 1 + self._file.qsize())
+                journal.info("envoi : nouvel essai dans %.0f s (%d en attente)", pause, len(self._file))
                 self._arret.wait(pause)
             attente = prochaine_attente(attente)

@@ -1,6 +1,7 @@
 """Configuration de la liaison avec le serveur (docs/liaison-serveur.md), sans réseau ni websockets."""
 
 import re
+import sqlite3
 from datetime import datetime
 
 import pytest
@@ -89,8 +90,8 @@ class FauxJeton:
         self.numero += 1
 
 
-def envoyer_tout(monkeypatch, reponses, messages):
-    """Fait passer `messages` par Envoi face à un faux serveur qui répond `reponses` dans l'ordre."""
+def faux_serveur(monkeypatch, reponses):
+    """Remplace poster() par un faux serveur qui répond `reponses` dans l'ordre (None : réseau coupé), puis 201."""
     monkeypatch.setattr(serveur, "ATTENTE_MIN", 0.01)
     recus, reponses = [], list(reponses)
 
@@ -99,31 +100,37 @@ def envoyer_tout(monkeypatch, reponses, messages):
         reponse = reponses.pop(0) if reponses else 201
         if reponse is None:
             raise ConnectionError("réseau coupé")
-        return reponse, None
+        return reponse, "refusé" if reponse and reponse >= 400 else None
 
     monkeypatch.setattr(serveur, "poster", faux_poster)
+    return recus
+
+
+def envoyer_tout(monkeypatch, tmp_path, reponses, messages):
+    """Fait passer `messages` par Envoi (file dans tmp_path) face au faux serveur."""
+    recus = faux_serveur(monkeypatch, reponses)
     jeton = FauxJeton()
-    envoi = Envoi(Config.depuis_env(ENV), jeton).demarrer()
+    envoi = Envoi(Config.depuis_env(ENV), jeton, tmp_path / "envoi.sqlite").demarrer()
     for clientId in messages:
         envoi.deposer("/api/analysis-sessions/s1/events", {"clientId": clientId})
     envoi.arreter(timeout=5)
     return envoi, jeton, recus
 
 
-def test_echec_renvoye_dans_l_ordre(monkeypatch):
-    envoi, _, recus = envoyer_tout(monkeypatch, [None, 503, 201, 201], ["evt_0001", "evt_0002"])
+def test_echec_renvoye_dans_l_ordre(monkeypatch, tmp_path):
+    envoi, _, recus = envoyer_tout(monkeypatch, tmp_path, [None, 503, 201, 201], ["evt_0001", "evt_0002"])
     assert [c for _, c in recus] == ["evt_0001"] * 3 + ["evt_0002"]   # le 2ᵉ attend que le 1ᵉʳ soit passé
     assert (envoi.envoyes, envoi.rejetes, envoi.en_attente) == (2, 0, 0)
 
 
-def test_refus_mis_de_cote_sans_bloquer_la_suite(monkeypatch):
-    envoi, _, recus = envoyer_tout(monkeypatch, [409, 201], ["evt_0001", "evt_0002"])
+def test_refus_mis_de_cote_sans_bloquer_la_suite(monkeypatch, tmp_path):
+    envoi, _, recus = envoyer_tout(monkeypatch, tmp_path, [409, 201], ["evt_0001", "evt_0002"])
     assert [c for _, c in recus] == ["evt_0001", "evt_0002"]
     assert (envoi.envoyes, envoi.rejetes) == (1, 1)
 
 
-def test_jeton_expire_renouvele_puis_renvoye(monkeypatch):
-    envoi, jeton, recus = envoyer_tout(monkeypatch, [401, 201], ["evt_0001"])
+def test_jeton_expire_renouvele_puis_renvoye(monkeypatch, tmp_path):
+    envoi, jeton, recus = envoyer_tout(monkeypatch, tmp_path, [401, 201], ["evt_0001"])
     assert recus == [("jeton1", "evt_0001"), ("jeton2", "evt_0001")]
     assert jeton.perimes == ["jeton1"] and envoi.envoyes == 1
 
@@ -136,3 +143,27 @@ def test_ids_uniques_apres_un_redemarrage_pendant_la_session():
     assert ids_avant == ["evt_20261019133242_0001", "evt_20261019133242_0002", "res_20261019133242_0001"]
     assert not set(ids_avant) & set(ids_apres)                   # sinon pris pour des renvois et ignorés
     assert all(re.fullmatch(r"[A-Za-z0-9_-]{1,64}", i) for i in ids_avant + ids_apres)   # format du serveur
+
+
+def test_file_survit_a_un_arret_sans_reseau(monkeypatch, tmp_path):
+    fichier = tmp_path / "envoi.sqlite"
+    faux_serveur(monkeypatch, [None] * 1000)                      # serveur injoignable
+    avant = Envoi(Config.depuis_env(ENV), FauxJeton(), fichier).demarrer()
+    for clientId in ("evt_x_0001", "res_x_0001"):
+        avant.deposer("/api/analysis-sessions/s1/events", {"clientId": clientId})
+    avant.arreter(timeout=0.2)                                    # « le Pi s'éteint »
+    assert avant.envoyes == 0
+
+    recus = faux_serveur(monkeypatch, [])                         # redémarrage, serveur revenu
+    apres = Envoi(Config.depuis_env(ENV), FauxJeton(), fichier)
+    assert apres.en_attente == 2
+    apres.demarrer().arreter(timeout=5)
+    assert [c for _, c in recus] == ["evt_x_0001", "res_x_0001"]  # tous, dans l'ordre
+    assert apres.en_attente == 0
+
+
+def test_refus_garde_dans_la_table_rejetes(monkeypatch, tmp_path):
+    envoyer_tout(monkeypatch, tmp_path, [409], ["evt_x_0001"])
+    lignes = sqlite3.connect(tmp_path / "envoi.sqlite").execute(
+        "SELECT code, raison, corps FROM rejetes").fetchall()
+    assert lignes == [(409, "refusé", '{"clientId": "evt_x_0001"}')]
