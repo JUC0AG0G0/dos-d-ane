@@ -1,4 +1,4 @@
-// DOS-D'ÂNE : schéma de la base (exercices-conseils, 2026-10-18)
+// DOS-D'ÂNE : schéma de la base (envoi-evenements, 2026-10-19)
 // Généré depuis server/prisma/schema.prisma et ses migrations.
 // PostgreSQL 18, id en UUID v7 (uuidv7()), dates en timestamptz(3).
 
@@ -129,6 +129,45 @@ Table keypoints {
   }
 }
 
+Table postureEvents {
+  id uuidv7 [pk, default: `uuidv7()`]
+  deviceSessionId uuidv7 [not null]
+  clientId text [not null, note: 'Id donné par le Pi (evt_0001) : envoi idempotent']
+  type text [not null, note: 'FORWARD_HEAD, TRUNK_FORWARD, TRUNK_BACKWARD, IMMOBILE']
+  startedAt timestamptz [not null, note: 'Heure du Pi']
+  endedAt timestamptz [note: 'null tant que l alerte dure ; >= startedAt']
+  headAngleAvg float [note: 'Degrés, -180 à 180, au déclenchement ; null pour IMMOBILE']
+  trunkAngleAvg float [note: 'Degrés, -180 à 180, au déclenchement ; null pour IMMOBILE']
+  causes jsonb [note: 'Part de chaque cause en %, ex. {"FORWARD_HEAD": 60, "NECK_FLEXION": 40}']
+  createdAt timestamptz [not null, default: `now()`]
+  updatedAt timestamptz [not null, default: `now()`]
+
+  indexes {
+    (deviceSessionId, clientId) [unique]
+    (deviceSessionId, startedAt)
+  }
+}
+
+Table postureSummaries {
+  id uuidv7 [pk, default: `uuidv7()`]
+  deviceSessionId uuidv7 [not null]
+  clientId text [not null, note: 'Id donné par le Pi (res_0001) : envoi idempotent']
+  periodStart timestamptz [not null]
+  periodEnd timestamptz [not null, note: '>= periodStart']
+  score int [note: '% du temps en bonne posture, 0 à 100 ; null si rien n a été suivi']
+  secondsGreen int [not null, note: '>= 0']
+  secondsOrange int [not null, note: '>= 0']
+  secondsRed int [not null, note: '>= 0']
+  secondsIgnored int [not null, note: '>= 0, image mal vue']
+  secondsAbsent int [not null, note: '>= 0, personne devant la caméra']
+  createdAt timestamptz [not null, default: `now()`]
+
+  indexes {
+    (deviceSessionId, clientId) [unique]
+    (deviceSessionId, periodStart)
+  }
+}
+
 Table exercises {
   id uuidv7 [pk, default: `uuidv7()`]
   title string [not null]
@@ -235,6 +274,8 @@ Ref: deviceSessions.analysisSessionId > analysisSessions.id [delete: cascade]
 Ref: deviceSessions.deviceId > devices.id [delete: cascade]
 Ref: captures.deviceSessionId > deviceSessions.id [delete: cascade]
 Ref: keypoints.captureId > captures.id [delete: cascade]
+Ref: postureEvents.deviceSessionId > deviceSessions.id [delete: cascade]
+Ref: postureSummaries.deviceSessionId > deviceSessions.id [delete: cascade]
 Ref: exercises.mediaId > media.id [delete: set null]
 Ref: exerciseSteps.exerciseId > exercises.id [delete: cascade]
 Ref: postureTips.mediaId > media.id [delete: set null]

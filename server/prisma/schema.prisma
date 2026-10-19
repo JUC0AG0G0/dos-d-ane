@@ -117,15 +117,17 @@ model AnalysisSession {
 /// bloquerait la suppression d'un utilisateur (droit à l'effacement), car
 /// PostgreSQL supprime ses appareils avant ses sessions d'analyse.
 model DeviceSession {
-  id                String          @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  analysisSessionId String          @db.Uuid
-  analysisSession   AnalysisSession @relation(fields: [analysisSessionId], references: [id], onDelete: Cascade)
-  deviceId          String          @db.Uuid
-  device            Device          @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-  startedAt         DateTime        @db.Timestamptz(3)
-  endedAt           DateTime?       @db.Timestamptz(3)
+  id                String           @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  analysisSessionId String           @db.Uuid
+  analysisSession   AnalysisSession  @relation(fields: [analysisSessionId], references: [id], onDelete: Cascade)
+  deviceId          String           @db.Uuid
+  device            Device           @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  startedAt         DateTime         @db.Timestamptz(3)
+  endedAt           DateTime?        @db.Timestamptz(3)
   captures          Capture[]
-  createdAt         DateTime        @default(now()) @db.Timestamptz(3)
+  postureEvents     PostureEvent[]
+  postureSummaries  PostureSummary[]
+  createdAt         DateTime         @default(now()) @db.Timestamptz(3)
 
   @@unique([analysisSessionId, deviceId])
   @@index([deviceId])
@@ -185,6 +187,60 @@ model Keypoint {
 
   @@unique([captureId, bodyPart])
   @@map("keypoints")
+}
+
+// --- Résultats envoyés par le Pi (edge/docs/liaison-serveur.md) --------------
+// Calculés sur le Pi : aucune image ni aucun point du corps (audit §7.2).
+// clientId est l'id donné par le Pi (evt_0001, res_0001) : unique par
+// participation, il rend l'envoi idempotent (un message renvoyé après une
+// coupure ne crée pas de doublon). Les heures sont celles du Pi (NTP).
+
+/// Alerte de posture : créée à son début, complétée à sa fin (endedAt null tant
+/// qu'elle dure, ou si le Pi s'est arrêté avant). type : FORWARD_HEAD (tête en
+/// avant ou baissée), TRUNK_FORWARD, TRUNK_BACKWARD, IMMOBILE (assis trop
+/// longtemps), vérifié par un CHECK. Angles moyens au déclenchement (null pour
+/// IMMOBILE). causes : part de chaque cause en %, ex. {"FORWARD_HEAD": 60,
+/// "NECK_FLEXION": 40}.
+model PostureEvent {
+  id              String        @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  deviceSessionId String        @db.Uuid
+  deviceSession   DeviceSession @relation(fields: [deviceSessionId], references: [id], onDelete: Cascade)
+  clientId        String
+  type            String
+  startedAt       DateTime      @db.Timestamptz(3)
+  endedAt         DateTime?     @db.Timestamptz(3)
+  headAngleAvg    Float?
+  trunkAngleAvg   Float?
+  causes          Json?
+  createdAt       DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime      @default(now()) @updatedAt @db.Timestamptz(3)
+
+  @@unique([deviceSessionId, clientId])
+  @@index([deviceSessionId, startedAt])
+  @@map("postureEvents")
+}
+
+/// Résumé d'une période (5 min) : score = % du temps en bonne posture (null si
+/// rien n'a été suivi), temps passé en vert / orange / rouge, image ignorée,
+/// personne absente.
+model PostureSummary {
+  id              String        @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  deviceSessionId String        @db.Uuid
+  deviceSession   DeviceSession @relation(fields: [deviceSessionId], references: [id], onDelete: Cascade)
+  clientId        String
+  periodStart     DateTime      @db.Timestamptz(3)
+  periodEnd       DateTime      @db.Timestamptz(3)
+  score           Int?
+  secondsGreen    Int
+  secondsOrange   Int
+  secondsRed      Int
+  secondsIgnored  Int
+  secondsAbsent   Int
+  createdAt       DateTime      @default(now()) @db.Timestamptz(3)
+
+  @@unique([deviceSessionId, clientId])
+  @@index([deviceSessionId, periodStart])
+  @@map("postureSummaries")
 }
 
 // --- Conseils : exercices, réglages du poste, repères douleur ---------------
