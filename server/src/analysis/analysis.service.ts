@@ -7,6 +7,7 @@ import {
 import type { AuthContext } from '../auth/auth.guard.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { DeviceConnections } from './device-connections.js';
 import type {
   CreateCaptureDto,
   StartAnalysisSessionDto,
@@ -79,7 +80,10 @@ const deviceBusy = () =>
 
 @Injectable()
 export class AnalysisService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly connections: DeviceConnections,
+  ) {}
 
   async create(
     auth: AuthContext,
@@ -219,6 +223,7 @@ export class AnalysisService {
       where: { id },
       data: { startedAt: new Date() },
     });
+    this.notify(await this.openDeviceIds(id), 'session:start', id);
     return this.detail(userId, id);
   }
 
@@ -231,6 +236,7 @@ export class AnalysisService {
           : 'Session déjà terminée',
       );
     }
+    const deviceIds = await this.openDeviceIds(id);
     const endedAt = new Date();
     await this.prisma.$transaction([
       this.prisma.analysisSession.update({
@@ -242,16 +248,39 @@ export class AnalysisService {
         data: { endedAt },
       }),
     ]);
+    this.notify(deviceIds, 'session:stop', id);
     return this.detail(userId, id);
   }
 
   async remove(userId: string, id: string): Promise<void> {
+    const status = await this.sessionStatus(userId, id);
+    const deviceIds =
+      status === AnalysisSessionStatus.Running
+        ? await this.openDeviceIds(id)
+        : [];
     const { count } = await this.prisma.analysisSession.deleteMany({
       where: { id, userId },
     });
     if (count === 0) {
       throw new NotFoundException('Session introuvable');
     }
+    this.notify(deviceIds, 'session:stop', id);
+  }
+
+  /**
+   * Session en cours à laquelle participe l'appareil, ou null : envoyée au Pi
+   * à chaque connexion (`ready`), pour qu'il rattrape un start ou un stop manqué.
+   */
+  async runningSessionId(deviceId: string): Promise<string | null> {
+    const deviceSession = await this.prisma.deviceSession.findFirst({
+      where: {
+        deviceId,
+        endedAt: null,
+        analysisSession: { startedAt: { not: null }, endedAt: null },
+      },
+      select: { analysisSessionId: true },
+    });
+    return deviceSession?.analysisSessionId ?? null;
   }
 
   async addDevice(
@@ -259,7 +288,7 @@ export class AnalysisService {
     id: string,
     deviceId: string,
   ): Promise<AnalysisSessionDetailDto> {
-    await this.openSession(userId, id);
+    const status = await this.openSession(userId, id);
     await this.captureDevice(userId, deviceId);
     const existing = await this.prisma.deviceSession.findUnique({
       where: {
@@ -284,6 +313,9 @@ export class AnalysisService {
     } catch (error) {
       throw isUniqueViolation(error) ? deviceBusy() : error;
     }
+    if (status === AnalysisSessionStatus.Running) {
+      this.notify([deviceId], 'session:start', id);
+    }
     return this.detail(userId, id);
   }
 
@@ -303,6 +335,9 @@ export class AnalysisService {
           });
     if (count === 0) {
       throw new NotFoundException('Appareil absent de la session');
+    }
+    if (status === AnalysisSessionStatus.Running) {
+      this.notify([deviceId], 'session:stop', id);
     }
     return this.detail(userId, id);
   }
@@ -458,5 +493,24 @@ export class AnalysisService {
       throw new ConflictException('Session terminée');
     }
     return status;
+  }
+
+  private async openDeviceIds(id: string): Promise<string[]> {
+    const deviceSessions = await this.prisma.deviceSession.findMany({
+      where: { analysisSessionId: id, endedAt: null },
+      select: { deviceId: true },
+    });
+    return deviceSessions.map((ds) => ds.deviceId);
+  }
+
+  /** Prévient les Pi connectés ; les autres se mettront à jour à leur connexion (`ready`). */
+  private notify(
+    deviceIds: string[],
+    event: 'session:start' | 'session:stop',
+    sessionId: string,
+  ) {
+    for (const deviceId of deviceIds) {
+      this.connections.send(deviceId, event, { sessionId });
+    }
   }
 }

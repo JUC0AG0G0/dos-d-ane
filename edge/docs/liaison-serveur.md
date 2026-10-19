@@ -8,8 +8,8 @@ Légende : ✅ en place · 🔜 prévu (étape de la branche `feat/envoi-serveur
 
 | Quoi | Sens | Transport | Stocké ? |
 |---|---|---|---|
-| Commandes `session:start` / `session:stop` 🔜 A5 | serveur → Pi | WebSocket | non |
-| État en direct `state` 🔜 A4 | Pi → serveur | WebSocket | non, relayé à l'app (SSE) |
+| Commandes `session:start` / `session:stop` ✅ serveur, 🔜 Pi (A5b) | serveur → Pi | WebSocket | non |
+| État en direct `state` 🔜 A6 | Pi → serveur | WebSocket | non, relayé à l'app (SSE) |
 | `heartbeat` 🔜 | Pi → serveur | WebSocket | non |
 | Événements, résumés 🔜 B1 | Pi → serveur | HTTPS POST | oui |
 
@@ -38,6 +38,7 @@ Le login renvoie un `deviceId` : le Pi le garde (`~/.local/state/dos-dane/appare
 |---|---|---|---|
 | `4401` | Connexion requise | jeton absent, invalide, expiré ou session révoquée | refaire un login, puis se reconnecter |
 | `4403` | Réservé aux Raspberry Pi | la session a été ouverte depuis un autre type d'appareil | ne pas réessayer : erreur de configuration |
+| `4409` | Remplacée par une autre connexion | le même appareil (même `deviceId`) s'est connecté ailleurs | réessayer plus tard ; si ça se répète, deux Pi partagent le même fichier `appareil` |
 | `1011` | Erreur du serveur | base injoignable… | réessayer plus tard (attente croissante) |
 | autre (`1006`…) | — | réseau coupé, serveur redémarré | réessayer plus tard (attente croissante) |
 
@@ -51,19 +52,35 @@ Erreur renvoyée par le serveur : `{ "event": "exception", "data": { "status": "
 
 | `event` | Sens | `data` | État |
 |---|---|---|---|
-| `ready` | serveur → Pi | `{ "deviceId": "<uuid>" }` | ✅ connexion acceptée |
+| `ready` | serveur → Pi | `{ "deviceId": "<uuid>", "sessionId": "<uuid>" \| null }` | ✅ connexion acceptée ; toujours le premier message |
 | `ping` → `pong` | Pi → serveur → Pi | n'importe quoi, renvoyé tel quel | ✅ test de la liaison |
-| `state` | Pi → serveur | voir ci-dessous | 🔜 A4 |
-| `session:start` | serveur → Pi | id de la session d'analyse (UUID) et seuils | 🔜 A5 |
-| `session:stop` | serveur → Pi | id de la session d'analyse | 🔜 A5 |
+| `session:start` | serveur → Pi | `{ "sessionId": "<uuid>" }` (seuils plus tard) | ✅ serveur |
+| `session:stop` | serveur → Pi | `{ "sessionId": "<uuid>" }` | ✅ serveur |
+| `state` | Pi → serveur | voir ci-dessous | 🔜 A6 |
 | `heartbeat` | Pi → serveur | température, version, état de la caméra | 🔜 |
 
-`state` (champs à confirmer en A4, d'après l'audit §7.2) : id de la session, heure, posture (`FORWARD_HEAD`, `NECK_FLEXION`, `TRUNK_FORWARD`, `TRUNK_BACKWARD`, `IMMOBILE` ou bonne posture), couleur, angle tête, angle tronc, score de la période. Deux angles seulement : **aucun point du corps**.
+### Sessions : la base fait foi
+
+`sessionId` de `ready` = la session d'analyse **en cours** à laquelle l'appareil participe (`null` sinon). Le Pi s'y aligne à chaque connexion : un Pi éteint ou déconnecté pendant un start ou un stop se remet à jour tout seul, sans file d'attente côté serveur. Ensuite, le serveur envoie :
+
+| Action (REST, app ou site) | Message aux Pi de la session |
+|---|---|
+| `POST /analysis-sessions/:id/start` | `session:start` |
+| `POST /analysis-sessions/:id/stop` | `session:stop` |
+| `POST /analysis-sessions/:id/devices` sur une session en cours | `session:start` au Pi ajouté |
+| `DELETE /analysis-sessions/:id/devices/:deviceId` sur une session en cours | `session:stop` au Pi retiré |
+| `DELETE /analysis-sessions/:id` sur une session en cours | `session:stop` |
+
+Le Pi compare toujours avec ce qu'il fait déjà : un message répété ne change rien, un `session:stop` d'une autre session est ignoré.
+
+`state` (champs à confirmer en A6, d'après l'audit §7.2) : id de la session, heure, posture (`FORWARD_HEAD`, `NECK_FLEXION`, `TRUNK_FORWARD`, `TRUNK_BACKWARD`, `IMMOBILE` ou bonne posture), couleur, angle tête, angle tronc, score de la période. Deux angles seulement : **aucun point du corps**.
 
 ## 4. Limites connues
 
 - **Le jeton n'est vérifié qu'à l'ouverture** : si la session de connexion est révoquée ou expire (`SESSION_TTL_MINUTES`, 60 min sans requête), le socket déjà ouvert reste ouvert. Corrigé par la **clé d'appareil** (B2 : `Authorization: Device <clé>`, sans mot de passe sur le Pi, révocable) et une vérification régulière.
 - **Le login demande l'email et le mot de passe d'une personne** sur le Pi : provisoire, jusqu'à la clé d'appareil (B2).
+- **Une seule instance du serveur** : la liste des Pi connectés est gardée en mémoire (`DeviceConnections`). Avec plusieurs instances, il faudrait la partager (Redis…).
+- **Seuils** : `session:start` ne les envoie pas encore (pas stockés côté serveur) ; le Pi garde ses seuils fixes (`SEUILS`).
 - **Prod** : `client/nginx.conf` ne relaie pas encore les WebSockets (en-têtes `Upgrade` et `Connection` à ajouter sur `/api/devices/ws`).
 
 ## 5. Côté Pi : configuration
@@ -90,9 +107,9 @@ python -m outils.connexion --rester       # garde la liaison, la rouvre si elle 
 npx wscat -c ws://localhost:3000/api/devices/ws
 # accepté avec un jeton de login raspberry (Swagger : POST /api/auth/login)
 npx wscat -c ws://localhost:3000/api/devices/ws -H "Authorization: Bearer <accessToken>"
-< {"event":"ready","data":{"deviceId":"…"}}
+< {"event":"ready","data":{"deviceId":"…","sessionId":null}}
 > {"event":"ping","data":"bonjour"}
 < {"event":"pong","data":"bonjour"}
 ```
 
-Code : côté Pi [`edge/posture/serveur.py`](../posture/serveur.py) ; côté serveur, passerelle [`server/src/analysis/devices.gateway.ts`](../../server/src/analysis/devices.gateway.ts), refus des messages non authentifiés dans [`server/src/auth/auth.guard.ts`](../../server/src/auth/auth.guard.ts).
+Code : côté Pi [`edge/posture/serveur.py`](../posture/serveur.py) ; côté serveur, passerelle [`server/src/analysis/devices.gateway.ts`](../../server/src/analysis/devices.gateway.ts), Pi connectés [`device-connections.ts`](../../server/src/analysis/device-connections.ts), envoi des commandes dans [`analysis.service.ts`](../../server/src/analysis/analysis.service.ts), refus des messages non authentifiés dans [`server/src/auth/auth.guard.ts`](../../server/src/auth/auth.guard.ts).
