@@ -2,6 +2,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import { WsAdapter } from '@nestjs/platform-ws';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
 
@@ -10,6 +11,8 @@ async function bootstrap() {
   const config = app.get(ConfigService);
 
   app.setGlobalPrefix('api');
+  // WebSocket « pur » (bibliothèque ws) : le Pi s'y connecte en Python sans Socket.IO.
+  app.useWebSocketAdapter(new WsAdapter(app));
   // Derrière un proxy (réseau local ou Docker), l'IP du client est lue dans
   // X-Forwarded-For. Les adresses publiques ne sont pas crues.
   app.set('trust proxy', 'loopback, linklocal, uniquelocal');

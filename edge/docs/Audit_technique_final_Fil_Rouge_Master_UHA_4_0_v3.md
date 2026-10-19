@@ -470,6 +470,8 @@ Grâce à la webcam USB, **le même code Python** tourne sur un PC et sur le Pi 
 
 ### 7.2 Ce qui sort du Pi : messages et transport
 
+Détail de la mise en œuvre (adresse, authentification, codes d'erreur, format exact des messages) : [liaison-serveur.md](liaison-serveur.md).
+
 **Ce qui ne sort jamais :** image, frame, pixels, vidéo, **ni les keypoints** (points du corps).
 **Ce qui sort :** angles, posture, couleur, score, événements, résumés, horodatage, tous marqués du numéro de session. Le Pi ne connaît ni le nom, ni l'email de la personne.
 

@@ -186,6 +186,17 @@ export class AuthService {
     };
   }
 
+  /** Appareil sur lequel la session a été ouverte (au login). */
+  async sessionDevice(
+    sessionId: string,
+  ): Promise<{ id: string; type: string }> {
+    const { device } = await this.prisma.authSession.findUniqueOrThrow({
+      where: { id: sessionId },
+      select: { device: { select: { id: true, type: true } } },
+    });
+    return device;
+  }
+
   async me(auth: AuthContext): Promise<UserDto> {
     return this.prisma.user.findUniqueOrThrow({
       where: { id: auth.userId },
