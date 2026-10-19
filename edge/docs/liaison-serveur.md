@@ -139,7 +139,7 @@ Ce qui est **stocké** passe par le REST classique (Swagger : `analysis-sessions
 - **Aucune limite de tentatives** sur les routes de login (mot de passe comme clé). Sans conséquence pour la clé (256 bits), à ajouter pour le mot de passe (tout le projet).
 - **Une seule instance du serveur** : la liste des Pi connectés est gardée en mémoire (`DeviceConnections`). Avec plusieurs instances, il faudrait la partager (Redis…).
 - **Seuils** : `session:start` ne les envoie pas encore (pas stockés côté serveur) ; le Pi garde ses seuils fixes (`SEUILS`).
-- **Prod** : `client/nginx.conf` ne relaie pas encore les WebSockets (en-têtes `Upgrade` et `Connection` à ajouter sur `/api/devices/ws`).
+- **Prod** : la WebSocket traverse deux nginx, qui doivent tous deux relayer `Upgrade` et `Connection` : `client/nginx.conf` (bloc `/api/devices/ws`) et Nginx Proxy Manager sur le VPS (« Websockets Support », [deployReadME.md](../../deployReadME.md) §5).
 
 ## 6. Côté Pi : configuration
 
