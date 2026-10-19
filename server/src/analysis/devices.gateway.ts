@@ -29,7 +29,8 @@ type DeviceSocket = AuthenticatedSocket & { deviceId?: string };
  *
  * Le jeton (`Authorization: Bearer <JWT>` d'un login raspberry) est vérifié
  * une seule fois, à l'ouverture ; jamais dans l'URL, qui finit dans les logs.
- * Tant que la vérification n'est pas finie, le guard global refuse les messages.
+ * Tant que la vérification n'est pas finie, le guard global refuse les messages ;
+ * le message `ready` dit au Pi qu'elle est finie.
  */
 @WebSocketGateway({
   // Le préfixe global `api` ne s'applique pas aux WebSockets.
@@ -65,6 +66,11 @@ export class DevicesGateway
       }
       client.auth = auth;
       client.deviceId = device.id;
+      // Le Pi attend ce message avant d'envoyer quoi que ce soit : avant, le
+      // guard refuserait ses messages (vérification du jeton pas finie).
+      client.send(
+        JSON.stringify({ event: 'ready', data: { deviceId: device.id } }),
+      );
       this.logger.log(`Appareil connecté : ${device.id}`);
     } catch (err) {
       this.logger.error('Échec de la vérification de connexion', err);

@@ -12,6 +12,8 @@ Aucune image n'est jamais écrite : elles n'existent qu'en mémoire.
     score     résumé d'une période (% du temps en bonne posture)
     mesures   une ligne de CSV par image (jamais d'image)
     pi        température et ralentissement du Raspberry Pi
+    serveur   liaison avec le serveur : login, WebSocket (docs/liaison-serveur.md)
 
-Seuls camera et movenet ont besoin d'OpenCV et de LiteRT : le reste (et les tests) ne demande que NumPy.
+Seuls camera et movenet ont besoin d'OpenCV et de LiteRT, et serveur de websockets à l'ouverture de la
+WebSocket : le reste (et les tests) ne demande que NumPy.
 """

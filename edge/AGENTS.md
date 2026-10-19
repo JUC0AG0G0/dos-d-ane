@@ -14,14 +14,15 @@ Documentation de référence : `docs/poc-raspberry.md` (plan, installation, briq
 
 | Fichier | Rôle |
 |---|---|
-| `posture/` | **le cœur, commun à tous** (paquet) : `camera`, `movenet`, `points` (côté, point complété, présence), `angles`, `regles` (`SEUILS`, `postures()`), `filtre` (`Bocal`, `TempsAssis`), `score` (`Resume`), `mesures` (CSV), `chemins`, `pi` |
+| `posture/` | **le cœur, commun à tous** (paquet) : `camera`, `movenet`, `points` (côté, point complété, présence), `angles`, `regles` (`SEUILS`, `postures()`), `filtre` (`Bocal`, `TempsAssis`), `score` (`Resume`), `mesures` (CSV), `chemins`, `pi`, `serveur` (login, WebSocket : `docs/liaison-serveur.md`) |
 | `poc.py` | la vraie session (§5.5) : bocaux, cadence adaptative, événements (sans fenêtre) |
 | `live.py` | outil de debug avec fenêtre (pas utilisé en session) |
-| `outils/` | outils de mesure sur le Pi : `t2_camera.py`, `t4_modeles.py`, `enregistrer.py` (volontaires), `evaluer.py` (F1), `confiance.py` (images ignorées) ; puis `t1_vitesse.py` |
+| `outils/` | outils de mesure sur le Pi : `t2_camera.py`, `t4_modeles.py`, `enregistrer.py` (volontaires), `evaluer.py` (F1), `confiance.py` (images ignorées), `connexion.py` (liaison avec le serveur) ; puis `t1_vitesse.py` |
 | `tests/` | tests unitaires de l'algorithme (pytest), sans webcam ni modèle : `aide.personne()` fabrique des points avec les angles voulus |
 
 - Toute logique réutilisable va dans `posture/`, dans le module de son étape ; les scripts l'**importent** (`from posture.regles import postures`), ils ne recopient pas de code.
-- Seuls `posture/camera.py` et `posture/movenet.py` importent OpenCV et LiteRT : les autres modules ne dépendent que de NumPy, pour que les tests tournent sur un PC sans webcam.
+- Seuls `posture/camera.py` et `posture/movenet.py` importent OpenCV et LiteRT, et `posture/serveur.py` importe `websockets` seulement dans `ouvrir()` : les autres modules ne dépendent que de NumPy, pour que les tests tournent sur un PC sans webcam.
+- Liaison serveur : configuration dans `edge/.env` (jamais commité), mot de passe et jeton jamais affichés ni écrits dans les logs.
 - Les outils de mesure se lancent depuis `edge/` : `python -m outils.t2_camera --court`.
 - **Tests unitaires** : `python -m pytest` depuis `edge/` (après `pip install -e ".[dev]"`, ou `task test:edge` depuis la racine avec mise ; la CI les lance à chaque PR). Les lancer après toute modification de `posture/`, et ajouter un test pour chaque nouvelle règle ou bug corrigé.
 - Règles d'alerte, seuils fixes `SEUILS` vérifiés sur 4 volontaires (T5) : tête en avant (tête < 50°), dos penché (tronc > 20°), cou penché (nez > 42° sous l'oreille, 2 personnes), allongé dans la chaise (tronc < −30°). Tête en avant et cou penché donnent une seule alerte, « Tête en avant ou baissée » (`poc.py`, `REGROUPEMENT`). Les autres seuils (écart des épaules 0,35, 70 %, 40 %, 1 min…) sont des **valeurs de départ** à ajuster par les tests ; tous seront à terme envoyés par le serveur.

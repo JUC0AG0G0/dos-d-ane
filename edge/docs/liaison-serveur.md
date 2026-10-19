@@ -28,7 +28,9 @@ C'est **le Pi** qui ouvre la connexion, et il la rouvre si elle tombe.
 
 Le jeton passe **toujours dans le header, jamais dans l'URL** (`?token=…`) : les URL sont écrites dans les journaux (nginx, proxys).
 
-Le serveur vérifie le jeton **une fois, à l'ouverture**. Tant que ce n'est pas fini, les messages reçus sont refusés.
+Le serveur vérifie le jeton **une fois, à l'ouverture**, puis envoie `ready`. **Le Pi attend `ready` avant d'envoyer quoi que ce soit** : avant, ses messages seraient refusés (`Connexion requise`).
+
+Le login renvoie un `deviceId` : le Pi le garde (`~/.local/state/dos-dane/appareil`) et le renvoie aux logins suivants (`"device": { "id": …, "type": "raspberry" }`), sinon le serveur crée un nouvel appareil à chaque fois.
 
 ### Codes de fermeture
 
@@ -47,6 +49,7 @@ Erreur renvoyée par le serveur : `{ "event": "exception", "data": { "status": "
 
 | `event` | Sens | `data` | État |
 |---|---|---|---|
+| `ready` | serveur → Pi | `{ "deviceId": "<uuid>" }` | ✅ connexion acceptée |
 | `ping` → `pong` | Pi → serveur → Pi | n'importe quoi, renvoyé tel quel | ✅ test de la liaison |
 | `state` | Pi → serveur | voir ci-dessous | 🔜 A4 |
 | `session:start` | serveur → Pi | id de la session d'analyse (UUID) et seuils | 🔜 A5 |
@@ -61,15 +64,32 @@ Erreur renvoyée par le serveur : `{ "event": "exception", "data": { "status": "
 - **Le login demande l'email et le mot de passe d'une personne** sur le Pi : provisoire, jusqu'à la clé d'appareil (B2).
 - **Prod** : `client/nginx.conf` ne relaie pas encore les WebSockets (en-têtes `Upgrade` et `Connection` à ajouter sur `/api/devices/ws`).
 
-## 5. Tester à la main
+## 5. Côté Pi : configuration
+
+Variables d'environnement, dans `edge/.env` (ignoré par Git ; modèle commenté : [`edge/.env.example`](../.env.example)) :
+
+| Variable | Exemple |
+|---|---|
+| `DOSDANE_SERVEUR` | `http://localhost:3000` en dev, `https://…` en prod (WebSocket en `ws://` ou `wss://` d'après lui) |
+| `DOSDANE_EMAIL`, `DOSDANE_MOT_DE_PASSE` | compte de test du Pi (provisoire, voir §4) |
+
+```bash
+cd edge
+cp .env.example .env && chmod 600 .env    # puis le remplir
+set -a; source .env; set +a               # charge les variables dans le terminal
+python -m outils.connexion                # login, connexion, ping
+```
+
+## 6. Tester à la main
 
 ```bash
 # refusé (4401)
 npx wscat -c ws://localhost:3000/api/devices/ws
 # accepté avec un jeton de login raspberry (Swagger : POST /api/auth/login)
 npx wscat -c ws://localhost:3000/api/devices/ws -H "Authorization: Bearer <accessToken>"
+< {"event":"ready","data":{"deviceId":"…"}}
 > {"event":"ping","data":"bonjour"}
 < {"event":"pong","data":"bonjour"}
 ```
 
-Code : passerelle [`server/src/analysis/devices.gateway.ts`](../../server/src/analysis/devices.gateway.ts), refus des messages non authentifiés dans [`server/src/auth/auth.guard.ts`](../../server/src/auth/auth.guard.ts).
+Code : côté Pi [`edge/posture/serveur.py`](../posture/serveur.py) ; côté serveur, passerelle [`server/src/analysis/devices.gateway.ts`](../../server/src/analysis/devices.gateway.ts), refus des messages non authentifiés dans [`server/src/auth/auth.guard.ts`](../../server/src/auth/auth.guard.ts).
