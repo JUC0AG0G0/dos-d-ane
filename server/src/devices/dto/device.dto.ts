@@ -37,4 +37,13 @@ export class DeviceDto {
       'Session ouverte (préparation, en cours ou en pause) où l’appareil est actif',
   })
   openSessionId: string | null;
+
+  @ApiProperty({
+    type: String,
+    enum: ['active', 'pending', 'revoked'],
+    nullable: true,
+    description:
+      'Clé d’un Raspberry Pi : active ; pending, ajouté par son code mais clé pas encore relevée ; revoked, révoquée (le Pi attend d’être ajouté de nouveau). null si ce n’est pas un Raspberry Pi',
+  })
+  keyStatus: 'active' | 'pending' | 'revoked' | null;
 }

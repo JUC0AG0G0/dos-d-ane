@@ -331,7 +331,8 @@ def service(args):
             if liaison.erreur is None:     # arrêt demandé (Ctrl+C, SIGTERM)
                 return
             if not (liaison.cle_refusee and appairage):
-                sys.exit(f"ÉCHEC : {liaison.erreur}")
+                conseil = " ; pour l'ajouter avec un code : outils/preparer.py" if liaison.cle_refusee else ""
+                sys.exit(f"ÉCHEC : {liaison.erreur}{conseil}")
             enregistrer_env(FICHIER_ENV, {"DOSDANE_APPAREIL": "", "DOSDANE_CLE": ""})
             print("Clé refusée (révoquée depuis le site ?) : effacée, retour en attente d'appairage")
             config = None

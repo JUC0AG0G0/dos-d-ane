@@ -5,6 +5,15 @@ export interface SessionDevice {
   model: string | null;
 }
 
+/** Appareil du compte (GET /devices). */
+export interface UserDevice extends SessionDevice {
+  /**
+   * Clé d'un Raspberry Pi : active ; pending, ajouté mais clé pas encore
+   * relevée ; revoked, révoquée (le Pi attend d'être ajouté de nouveau).
+   */
+  keyStatus: 'active' | 'pending' | 'revoked' | null;
+}
+
 export interface Session {
   id: string;
   device: SessionDevice;
