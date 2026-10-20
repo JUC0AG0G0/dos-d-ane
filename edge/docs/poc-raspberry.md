@@ -339,6 +339,33 @@ Tous attendent une image carrée en `uint8` et renvoient **17 points × (y, x, s
 
 **Durée réelle :** environ 2 h 30 de la carte SD au bureau visible par VNC (dont une bonne partie due au problème de l'Imager), puis environ 1 h pour le dépôt, l'environnement Python et le modèle, puis environ 30 min pour diagnostiquer les redémarrages dus à la webcam. **L'étape 0 est terminée.**
 
+### 3.6 Le Pi en service (systemd)
+
+Pour un vrai usage, `poc.py --service` ne se lance pas à la main : **systemd** (le programme qui démarre les autres à l'allumage) le lance tout seul, le relance s'il s'arrête, et garde ses messages dans le journal. Le Pi est alors « branché, ça marche » : il se connecte au serveur et attend qu'une session soit lancée depuis le site ou l'app. La webcam n'est allumée que pendant une session.
+
+Avant : le Pi est appairé (`edge/.env` rempli, [liaison-serveur.md](liaison-serveur.md) §7) et `python -m outils.connexion` affiche `Liaison OK`.
+
+```bash
+cd ~/dos-d-ane
+sudo cp edge/dos-dane.service /etc/systemd/system/
+sudo systemctl daemon-reload            # systemd relit ses fichiers
+sudo systemctl enable --now dos-dane    # lancé à chaque allumage, et tout de suite
+journalctl -u dos-dane -f               # « liaison ouverte » ; Ctrl+C quitte l'affichage, pas le service
+```
+
+L'unité ([`edge/dos-dane.service`](../dos-dane.service)) lance le Python de `edge/.venv` sous l'utilisateur `uha40` (pas root), avec `edge/.env` comme configuration ; si l'utilisateur ou le dossier changent, adapter ses chemins avant de la copier.
+
+| Pour | Commande |
+|---|---|
+| voir s'il tourne | `systemctl status dos-dane` |
+| lire le journal depuis l'allumage | `journalctl -u dos-dane -b --no-pager` |
+| arrêter (fin propre : dernier résumé, envoi de ce qui reste) | `sudo systemctl stop dos-dane` |
+| relancer après un `git pull` ou une modification de `edge/.env` | `sudo systemctl restart dos-dane` |
+| après une modification de `dos-dane.service` | le recopier, puis `sudo systemctl daemon-reload` et `restart` |
+| ne plus le lancer à l'allumage | `sudo systemctl disable --now dos-dane` |
+
+⚠️ Une seule application à la fois sur la webcam : arrêter le service avant `live.py` ou un outil de `outils/`.
+
 ---
 
 ## 4. Organisation du code du POC
@@ -616,7 +643,11 @@ L'écran « session en cours » de l'app n'est donc pas une vidéo : la silhouet
 | Allongé, `poc.py` | 14/10/2026 | P01, 2 sessions de 1 à 2 min : presque droit (calé au dossier, tronc −27°), allongé, redressé | tronc allongé **−34° à −56°**, 100 % des images « allongé » ; alerte **60 s** après le passage à 70 % (~1 min 05 après le début), fin **36 s** après le redressement ; 0 fausse alerte ; hanche vue à 0,37–0,50 ; Pi 46 °C max, `0x0` | — | ✅ pour 1 pers. | calé au dossier, le tronc est déjà à −27/−28°, près du seuil de −30° : à vérifier en travail normal |
 | Absence (chaise vide), `poc.py` | 14/10/2026 | P01 assis, puis part ~1 min | ancienne règle : **36 s « ignorée »** (MoveNet voit un corps dans la chaise vide : oreilles et épaules 0,12–0,73), une image fantôme jugée « dos penché », « absent » après **38 s** ; temps assis qui continue | absent < 15 s | ❌ | nouvelle règle `Presence` (6 images sans angles et peu nettes) : rejouée, absent en 12 s, 0 fausse absence sur les sessions du 12–14/10. À revérifier en vrai avec 5 min d'absence |
 | Caméra vide, `poc.py` (ancien code) | 14/10/2026 | personne devant la caméra pendant 1 min 30 | **jamais « absent »** : 31 images « ignorée », 13 images avec des angles fantômes absurdes (tête −55°, tronc −77°, tronc de 33–41 px) jugées « dos penché » / « tête en avant » | absent < 15 s | ❌ | contrôle C4 « angles possibles » ajouté : rejoué avec `Presence`, absent dès la 6ᵉ image, plus aucune image jugée |
-| Mode service, `poc.py --service --rapide` | 19/10/2026 | Pi relié au serveur de dev du PC (même sous-réseau) ; session créée et lancée par l'API, ~1 min, puis stop, puis SIGTERM ; avant, mode manuel `--rapide` 70 s | analyse lancée dès `session:start`, webcam fermée hors session ; stop traité tout de suite : dernier résumé, bilan, retour en attente ; CSV au nom de la session du serveur ; coupure réseau de ~1 min 15 avant la session : reconnexion seule ; SIGTERM : fin propre ; mode manuel inchangé (alertes, résumés, bilan) ; 52–54 °C, `0x0`. 2ᵉ essai avec l'état en direct : 30 images en 0,9 min, alerte dos penché, 0 état refusé par le serveur | — | ✅ | liaison détaillée : [liaison-serveur.md](liaison-serveur.md) |
+| Mode service, `poc.py --service --rapide` | 19/10/2026 | Pi relié au serveur de dev du PC (même sous-réseau) ; session créée et lancée par l'API, ~1 min, puis stop, puis SIGTERM ; avant, mode manuel `--rapide` 70 s | analyse lancée dès `session:start`, webcam fermée hors session ; stop traité tout de suite : dernier résumé, bilan, retour en attente ; CSV au nom de la session du serveur ; coupure réseau de ~1 min 15 avant la session : reconnexion seule ; SIGTERM : fin propre ; mode manuel inchangé (alertes, résumés, bilan) ; 52–54 °C, `0x0`. 2ᵉ essai avec l'état en direct : 30 images en 0,9 min, alerte dos penché, 0 état refusé par le serveur. 3ᵉ essai (alertes et résumés envoyés) : 2 alertes (dos penché 57 s, assis trop longtemps 18 s) et 2 résumés, identiques dans le CSV du Pi et en base ; 6 envoyés, 0 refusé | — | ✅ | liaison détaillée : [liaison-serveur.md](liaison-serveur.md) |
+| Coupure + redémarrage, `poc.py --service --rapide` | 19/10/2026 | session lancée par l'API ; serveur coupé ~3 min ; pendant la coupure, service du Pi arrêté (SIGTERM) puis relancé ; serveur rallumé ; stop | pendant la coupure, analyse continue et messages gardés dans SQLite (6 à l'arrêt du service, retrouvés au redémarrage) ; à la reconnexion, `ready` relance l'analyse de la même session, les 6 messages partent ; au total **12 envoyés, 0 refusé, 0 non envoyé** : 4 alertes et 5 résumés en base = les 2 CSV du Pi, **0 doublon** (ids des deux analyses différents) ; durées à ± 1 s (heures envoyées à la seconde) | ni perte ni doublon | ✅ | pendant la coupure, un Pi redémarré n'analyse pas tant qu'il n'a pas reçu `ready` (il ne sait pas qu'une session est en cours) ; à refaire avec 1 h de coupure (audit §20) |
+| Pause / reprise, `poc.py --service --rapide` | 19/10/2026 | session lancée, pause ~20 s, reprise, stop ; puis service relancé pendant une pause | pause : analyse terminée (dernier résumé), **webcam libérée** ; reprise : nouvelle analyse dans la même session ; base : 1 alerte, 2 résumés, durée active 61 s, pause 22 s ; Pi reconnecté pendant la pause : n'analyse pas, démarre à la reprise | webcam éteinte pendant la pause | ✅ | — |
+| **Recette en prod** (parties A et B), `poc.py --service --rapide` | 19/10/2026 | vrai Pi appairé sur `dos-d-ane.julescorneille.fr` (`wss://`, derrière Nginx Proxy Manager et le nginx du client), mêmes tests qu'en dev sauf l'arrêt du serveur partagé et la coupure d'1 h ; coupure simulée côté Pi (faux `https_proxy`) | **A** : sans jeton / jeton faux → `4401`, jeton de compte → `4403` ; connexion remplacée (`4409`) → nouveau login et reconnexion seule en 4 s ; démarrer → 28 images, alertes, résumé ; pause → webcam libérée ; Pi relancé pendant la pause → n'analyse pas ; reprise → nouvelle analyse ; arrêt → bilan ; démarrer pendant que le Pi est éteint → rattrapé par `ready` ; 0 `state` refusé, ping 34–39 ms. **B1** : CSV du Pi = base (3 alertes, 3 résumés, 0 doublon, durée active 119 s, pause 36 s) ; renvoi → même ligne ; résumé après l'arrêt accepté ; `keypoints` en plus → 400. **B2** : jeton du Pi → 403 sur 7 routes du compte ; clé fausse → 401 ; révocation pendant que le service tourne → `4401`, arrêt avec message ; nouvelle clé → `Liaison OK`. **B3** : 2 messages gardés sur la carte SD pendant la coupure, envoyés au redémarrage, 1 fois chacun en base. Pi 52–57 °C, `0x0` | même comportement qu'en dev | ✅ | sessions de test supprimées ensuite ; reste la coupure d'1 h (C4) |
+| **Service systemd** (C1), `poc.py --service` | 20/10/2026 | service installé (§3.6), Pi redémarré (`sudo reboot`) sans toucher à rien ensuite ; session lancée puis arrêtée depuis le site de prod ; puis `systemctl stop` | service lancé 4 s après l'allumage, liaison `wss://` ouverte 4 s plus tard ; session reçue, webcam allumée, 30 images en 0,9 min ; arrêt depuis le site → résumé, bilan, retour en attente ; `systemctl stop` → liaison fermée, 1 envoyé, 0 refusé, arrêt propre en moins d'1 s ; 51,6 → 53,5 °C | après un redémarrage, une session lancée depuis le site démarre l'analyse sans rien toucher sur le Pi | ✅ | le site affiche « Captures 0 » et « n'envoie plus rien » : il compte les captures (points du corps), que le Pi n'envoie jamais en session normale |
 | T5 assis trop longtemps | | `poc.py --rapide` | détectée : oui / non | oui | | |
 | T5 fausses alertes | | ___ h de test | ___ / h | < 1 / h | | |
 | T7 cadence | | fixe 2 s vs adaptative | ___ captures vs ___, délai ___ s | délai < 1 min | | |
@@ -631,7 +662,7 @@ Chaque ligne alimente le rapport, y compris les échecs : ils constituent la par
 
 Une fois les tests réussis :
 
-1. réorganiser le code de `edge/` en paquet Python (`pyproject.toml`, service qui démarre avec le Pi) ;
+1. réorganiser le code de `edge/` en paquet Python (`pyproject.toml`, service qui démarre avec le Pi : fait, §3.6) ;
 2. ajouter l'envoi des événements au serveur NestJS (HTTPS) ;
 3. démarrer et arrêter l'analyse depuis l'app mobile (session) ;
 4. faire le test T6 complet (capture réseau).

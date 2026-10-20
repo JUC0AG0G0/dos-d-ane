@@ -8,6 +8,7 @@ import { AppLayout } from '@/components/layouts/AppLayout';
 import { AuthLayout } from '@/components/layouts/AuthLayout';
 import { CenteredLayout } from '@/components/layouts/CenteredLayout';
 import { LegalLayout } from '@/components/layouts/LegalLayout';
+import { Toaster } from '@/components/ui/sonner';
 import { RedirectIfSignedIn, RequireAdmin, RequireAuth } from '@/features/auth';
 
 function lazyPage<K extends string>(
@@ -68,6 +69,14 @@ const RegisterPage = lazyPage(
   () => import('@/pages/RegisterPage'),
   'RegisterPage',
 );
+const SessionPage = lazyPage(
+  () => import('@/pages/SessionPage'),
+  'SessionPage',
+);
+const SessionsPage = lazyPage(
+  () => import('@/pages/SessionsPage'),
+  'SessionsPage',
+);
 const SettingsPage = lazyPage(
   () => import('@/pages/SettingsPage'),
   'SettingsPage',
@@ -83,6 +92,8 @@ const router = createBrowserRouter([
         element: <AppLayout />,
         children: [
           { path: '/', element: <HomePage /> },
+          { path: '/sessions', element: <SessionsPage /> },
+          { path: '/sessions/:id', element: <SessionPage /> },
           { path: '/settings/:tab?', element: <SettingsPage /> },
           {
             path: '/conseils',
@@ -141,5 +152,10 @@ const router = createBrowserRouter([
 ]);
 
 export function App() {
-  return <RouterProvider router={router} />;
+  return (
+    <>
+      <RouterProvider router={router} />
+      <Toaster position="bottom-right" richColors />
+    </>
+  );
 }

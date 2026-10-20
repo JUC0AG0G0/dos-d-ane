@@ -8,6 +8,8 @@ Webcam de profil → MoveNet (17 points du corps) → angles tête, tronc et cou
 - Se connecter au Pi en SSH (nouveau membre de l'équipe) : [docs/poc-raspberry.md §3.2](docs/poc-raspberry.md#32-travailler-confortablement-depuis-le-pc)
 - Architecture complète (serveur, RGPD, messages) : [docs/Audit_technique_final_Fil_Rouge_Master_UHA_4_0_v3.md](docs/Audit_technique_final_Fil_Rouge_Master_UHA_4_0_v3.md)
 - Liaison avec le serveur (WebSocket, authentification, format des messages) : [docs/liaison-serveur.md](docs/liaison-serveur.md)
+- La liaison avec le serveur expliquée simplement (ce qu'on a fait, comment, pourquoi) : [docs/liaison-expliquee.md](docs/liaison-expliquee.md)
+- Ce qui est fait et ce qui reste pour la liaison (parties A, B, C) : [docs/plan-liaison.md](docs/plan-liaison.md)
 
 ## Installation
 
@@ -63,6 +65,7 @@ edge/
 python poc.py                          # session normale ; Ctrl+C pour terminer
 python poc.py --rapide                 # durées raccourcies pour essayer (alerte en 10 s…)
 python poc.py --service                # sessions lancées par le serveur (edge/.env, docs/liaison-serveur.md)
+python -m outils.appairer              # une fois : ajoute ce Pi à un compte et écrit sa clé dans edge/.env
 python live.py                         # debug en direct (sur le bureau du Pi) ; q pour quitter
 
 python -m outils.t2_camera --court     # T2 : la webcam tient (1 minute ; sans --court : 1 heure)

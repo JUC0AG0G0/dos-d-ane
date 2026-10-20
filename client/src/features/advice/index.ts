@@ -1,3 +1,4 @@
+export { DailyTip } from './components/DailyTip';
 export { ExerciseMedia } from './components/ExerciseMedia';
 export { ExercisesView } from './components/ExercisesView';
 export { ExerciseTypeBadges } from './components/ExerciseTypeBadges';

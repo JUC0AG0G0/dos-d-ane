@@ -27,4 +27,7 @@ export class Device extends TimestampedEntity implements DeviceRow {
   model: string | null;
   captureEligible: boolean;
   captureStatus: string | null;
+  /** Empreinte SHA-256 de la clé d'un Raspberry Pi (jamais à renvoyer au client). */
+  keyHash: string | null;
+  keyCreatedAt: Date | null;
 }

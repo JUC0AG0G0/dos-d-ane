@@ -1,0 +1,22 @@
+# Service systemd du Pi : poc.py --service lancé à l'allumage et relancé s'il s'arrête.
+# Installation et commandes : docs/poc-raspberry.md §3.6.
+[Unit]
+Description=Dos d'âne : analyse de posture pilotée par le serveur
+# Le réseau peut encore manquer au démarrage : la liaison réessaie seule (1 s → 60 s).
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=uha40
+WorkingDirectory=/home/uha40/dos-d-ane/edge
+EnvironmentFile=/home/uha40/dos-d-ane/edge/.env
+# Sinon Python garde ses print() en mémoire et journalctl les montre en retard.
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/uha40/dos-d-ane/edge/.venv/bin/python poc.py --service
+Restart=on-failure
+RestartSec=10
+# systemctl stop envoie SIGTERM : dernier résumé et envoi de ce qui reste (15 s au plus).
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

@@ -5,6 +5,7 @@ import {
   ArrayUnique,
   IsArray,
   IsEnum,
+  IsIn,
   IsInt,
   IsISO8601,
   IsNumber,
@@ -15,6 +16,60 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { BodyPart } from '../../entities/index.js';
+import { AnalysisSessionStatus } from './analysis-responses.dto.js';
+
+/** Filtre de la liste : un état, ou open (en préparation, en cours ou en pause). */
+export const SESSION_STATUS_FILTERS = [
+  ...Object.values(AnalysisSessionStatus),
+  'open',
+] as const;
+export type SessionStatusFilter = (typeof SESSION_STATUS_FILTERS)[number];
+
+// Les paramètres de requête arrivent en texte (ValidationPipe sans transform) :
+// @Type sert à la validation, le contrôleur convertit ensuite avec Number().
+
+export class ListSessionsQueryDto {
+  @ApiPropertyOptional({ enum: SESSION_STATUS_FILTERS })
+  @IsOptional()
+  @IsIn(SESSION_STATUS_FILTERS, { message: 'Statut inconnu' })
+  status?: SessionStatusFilter;
+
+  @ApiPropertyOptional({ example: 3, minimum: 1, maximum: 100 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'Limite invalide' })
+  @Min(1, { message: 'Limite invalide' })
+  @Max(100, { message: 'Limite invalide' })
+  limit?: string;
+}
+
+export class CapturePageQueryDto {
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'nextCursor de la page précédente',
+  })
+  @IsOptional()
+  @IsUUID('all', { message: 'Curseur invalide' })
+  cursor?: string;
+
+  @ApiPropertyOptional({ example: 50, minimum: 1, maximum: 200 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'Limite invalide' })
+  @Min(1, { message: 'Limite invalide' })
+  @Max(200, { message: 'Limite invalide' })
+  limit?: string;
+}
+
+export class TimelineQueryDto {
+  @ApiPropertyOptional({ example: 10, minimum: 1, maximum: 1440 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'Taille de tranche invalide' })
+  @Min(1, { message: 'Taille de tranche invalide' })
+  @Max(1440, { message: 'Taille de tranche invalide' })
+  bucketMinutes?: string;
+}
 
 export class StartAnalysisSessionDto {
   @ApiPropertyOptional({

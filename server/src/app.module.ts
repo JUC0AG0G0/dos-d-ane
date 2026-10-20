@@ -4,7 +4,7 @@ import { AdviceModule } from './advice/advice.module.js';
 import { AnalysisModule } from './analysis/analysis.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { validateEnv } from './config/env.validation.js';
-import { DevicesController } from './devices/devices.controller.js';
+import { DevicesModule } from './devices/devices.module.js';
 import { HealthController } from './health/health.controller.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { UsersModule } from './users/users.module.js';
@@ -22,7 +22,8 @@ import { UsersModule } from './users/users.module.js';
     UsersModule,
     AnalysisModule,
     AdviceModule,
+    DevicesModule,
   ],
-  controllers: [HealthController, DevicesController],
+  controllers: [HealthController],
 })
 export class AppModule {}
