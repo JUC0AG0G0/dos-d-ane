@@ -5,7 +5,6 @@ import {
   Get,
   HttpCode,
   HttpStatus,
-  type MessageEvent,
   Param,
   ParseUUIDPipe,
   Post,
@@ -28,6 +27,7 @@ import type { Observable } from 'rxjs';
 import type { AuthContext } from '../auth/auth.guard.js';
 import { CurrentAuth } from '../auth/decorators.js';
 import { AnalysisService } from './analysis.service.js';
+import type { LiveMessage } from './live-states.js';
 import {
   AddSessionDeviceDto,
   CapturePageQueryDto,
@@ -141,14 +141,14 @@ export class AnalysisSessionsController {
   @ApiOperation({
     summary: 'Suit une session en direct (Server-Sent Events)',
     description:
-      'Flux text/event-stream : le dernier état du Pi à l’ouverture, puis chaque nouvel état (event: state) ; event: ping toutes les 30 s. Jamais stocké. EventSource n’envoie pas d’en-tête Authorization : lire le flux avec fetch.',
+      'Flux text/event-stream. À l’ouverture : event: status (setup, running, paused, ended) puis le dernier état du Pi. Ensuite : chaque état (event: state), chaque début ou fin d’alerte (event: alert, endedAt null au début), chaque changement de statut, et event: ping toutes les 30 s. Le flux se ferme après status ended ou deleted. Jamais stocké. EventSource n’envoie pas d’en-tête Authorization : lire le flux avec fetch.',
   })
   @ApiOkResponse({ description: 'Flux d’événements' })
   @ApiNotFoundResponse({ description: 'Session introuvable' })
   live(
     @CurrentAuth() auth: AuthContext,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<Observable<MessageEvent>> {
+  ): Promise<Observable<LiveMessage>> {
     return this.analysis.live(auth.userId, id);
   }
 

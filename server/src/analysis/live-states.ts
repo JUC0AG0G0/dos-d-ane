@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
+import type { AnalysisSessionStatus } from './dto/analysis-responses.dto.js';
 import type { LiveStateDto } from './dto/device-messages.dto.js';
 import type { PostureEventDto } from './dto/posture-results.dto.js';
 
@@ -16,7 +17,16 @@ export interface LiveState extends LiveStateDto {
 export type LiveMessage =
   | { type: 'state'; data: LiveState }
   /** Début (endedAt null) ou fin d'une alerte, une seule fois même si le Pi la renvoie. */
-  | { type: 'alert'; data: PostureEventDto };
+  | { type: 'alert'; data: PostureEventDto }
+  /** Statut de la session : à l'ouverture du flux, puis à chaque changement. */
+  | { type: 'status'; data: { status: AnalysisSessionStatus | 'deleted' } }
+  /** Rien d'autre à dire : garde la connexion ouverte. */
+  | { type: 'ping'; data: '' };
+
+/** Session arrêtée ou supprimée : plus rien n'arrivera, le flux se ferme. */
+export const isFinal = (message: LiveMessage) =>
+  message.type === 'status' &&
+  (message.data.status === 'ended' || message.data.status === 'deleted');
 
 /**
  * Dernier état en direct de chaque session en cours, en mémoire seulement
