@@ -2,8 +2,10 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  type MessageEvent,
   NotFoundException,
 } from '@nestjs/common';
+import { interval, map, merge, type Observable } from 'rxjs';
 import type { AuthContext } from '../auth/auth.guard.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -24,6 +26,9 @@ import {
   type CapturePageDto,
   type SessionTimelineDto,
 } from './dto/analysis-responses.dto.js';
+
+/** Un message au moins toutes les 30 s : nginx coupe une réponse muette au bout de 60 s. */
+const LIVE_HEARTBEAT_MS = 30_000;
 
 const captureSelect = {
   id: true,
@@ -347,6 +352,15 @@ export class AnalysisService {
   }
 
   /** Captures de la session, de la plus ancienne à la plus récente, par pages. */
+  /** Flux en direct de la session (SSE) : états du Pi, et `ping` quand rien ne passe. */
+  async live(userId: string, id: string): Promise<Observable<MessageEvent>> {
+    await this.sessionStatus(userId, id);
+    return merge(
+      this.liveStates.watch(id),
+      interval(LIVE_HEARTBEAT_MS).pipe(map(() => ({ type: 'ping', data: '' }))),
+    );
+  }
+
   async captures(
     userId: string,
     id: string,

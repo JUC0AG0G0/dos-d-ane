@@ -5,10 +5,12 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  type MessageEvent,
   Param,
   ParseUUIDPipe,
   Post,
   Query,
+  Sse,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -22,6 +24,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import type { Observable } from 'rxjs';
 import type { AuthContext } from '../auth/auth.guard.js';
 import { CurrentAuth } from '../auth/decorators.js';
 import { AnalysisService } from './analysis.service.js';
@@ -132,6 +135,21 @@ export class AnalysisSessionsController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<AnalysisSessionDetailDto> {
     return this.analysis.start(auth.userId, id);
+  }
+
+  @Sse(':id/live')
+  @ApiOperation({
+    summary: 'Suit une session en direct (Server-Sent Events)',
+    description:
+      'Flux text/event-stream : le dernier état du Pi à l’ouverture, puis chaque nouvel état (event: state) ; event: ping toutes les 30 s. Jamais stocké. EventSource n’envoie pas d’en-tête Authorization : lire le flux avec fetch.',
+  })
+  @ApiOkResponse({ description: 'Flux d’événements' })
+  @ApiNotFoundResponse({ description: 'Session introuvable' })
+  live(
+    @CurrentAuth() auth: AuthContext,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<Observable<MessageEvent>> {
+    return this.analysis.live(auth.userId, id);
   }
 
   @Get(':id/captures')
