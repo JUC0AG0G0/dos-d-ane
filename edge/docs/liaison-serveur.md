@@ -145,7 +145,7 @@ Pour suivre une session pendant qu'elle tourne (couleur, posture, angles, alerte
 | Authentification | header `Authorization: Bearer <accessToken>`, comme les autres routes, **jamais dans l'URL** |
 | Réponse | `text/event-stream`, avec `X-Accel-Buffering: no` (nginx transmet chaque message sans attendre) |
 
-⚠️ **`EventSource` (l'objet SSE intégré au navigateur) ne sait pas envoyer d'en-tête `Authorization`** : il prendrait un `401`. Lire le flux avec `fetch` (corps lu au fil de l'eau), ou une librairie qui accepte les en-têtes : `@microsoft/fetch-event-source` (site), `react-native-sse` (app Expo).
+⚠️ **`EventSource` (l'objet SSE intégré au navigateur) ne sait pas envoyer d'en-tête `Authorization`** : il prendrait un `401`. Lire le flux avec `fetch` (corps lu au fil de l'eau), ou une librairie qui accepte les en-têtes (`react-native-sse` pour l'app Expo). Exemple complet côté site, sans librairie : `events()` dans [`client/src/services/http.ts`](../../client/src/services/http.ts) (découpage des messages) et [`useLiveSession.ts`](../../client/src/features/sessions/hooks/useLiveSession.ts) (reconnexion, fin de session).
 
 Chaque message a un nom (`event:`) et un contenu JSON (`data:`) :
 
