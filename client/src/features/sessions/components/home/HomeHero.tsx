@@ -205,7 +205,7 @@ const STEPS = [
     text: 'Sur votre téléphone, votre ordinateur ou un Raspberry avec caméra.',
   },
   {
-    title: 'Connectez-vous et activez la capture',
+    title: 'Connectez-vous sur l’appareil',
     text: 'Avec le même compte que sur ce site.',
   },
   {

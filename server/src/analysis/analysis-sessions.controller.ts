@@ -60,13 +60,9 @@ export class AnalysisSessionsController {
   })
   @ApiCreatedResponse({ type: AnalysisSessionDetailDto })
   @ApiBadRequestResponse({
-    description:
-      'Corps invalide, appareil qui ne peut pas capturer (web) ou capture désactivée',
+    description: 'Corps invalide ou appareil qui ne peut pas capturer (web)',
   })
   @ApiNotFoundResponse({ description: 'Appareil introuvable' })
-  @ApiConflictResponse({
-    description: 'Appareil déjà dans une autre session ouverte',
-  })
   create(
     @CurrentAuth() auth: AuthContext,
     @Body() dto: StartAnalysisSessionDto,
@@ -123,12 +119,10 @@ export class AnalysisSessionsController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Lance une session en préparation' })
   @ApiOkResponse({ type: AnalysisSessionDetailDto })
-  @ApiBadRequestResponse({
-    description: 'Capture désactivée sur un appareil de la session',
-  })
   @ApiNotFoundResponse({ description: 'Session introuvable' })
   @ApiConflictResponse({
-    description: 'Session déjà lancée ou sans appareil',
+    description:
+      'Session déjà lancée, sans appareil, ou appareil déjà en capture dans une autre session',
   })
   start(
     @CurrentAuth() auth: AuthContext,
@@ -265,17 +259,17 @@ export class AnalysisSessionsController {
     summary:
       'Ajoute un de ses appareils à une session en préparation, en cours ou en pause',
     description:
-      'Seuls mobile, desktop et raspberry peuvent capturer, et seulement si la capture y est activée. Un appareil n’est que dans une session ouverte à la fois ; un appareil retiré peut être ajouté de nouveau.',
+      'Seuls mobile, desktop et raspberry peuvent capturer. Un appareil peut être dans plusieurs sessions en préparation, mais ne capture que dans une session lancée à la fois ; un appareil retiré peut être ajouté de nouveau.',
   })
   @ApiOkResponse({ type: AnalysisSessionDetailDto })
   @ApiBadRequestResponse({
     description:
-      'Identifiant invalide, appareil qui ne peut pas capturer ou capture désactivée',
+      'Identifiant invalide ou appareil qui ne peut pas capturer (web)',
   })
   @ApiNotFoundResponse({ description: 'Session ou appareil introuvable' })
   @ApiConflictResponse({
     description:
-      'Session terminée, appareil déjà dans cette session ou dans une autre session ouverte',
+      'Session terminée, appareil déjà dans cette session, ou en capture dans une autre session lancée',
   })
   addDevice(
     @CurrentAuth() auth: AuthContext,

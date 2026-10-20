@@ -20,15 +20,12 @@ import { DeviceTile } from '../DeviceTile';
 
 type DeviceState = {
   badge: string;
-  variant: 'default' | 'warning' | 'outline' | 'secondary';
+  variant: 'default' | 'warning' | 'secondary';
   text: string;
 };
 
-/** Badge d'un appareil de capture selon sa session ouverte et sa capture. */
-function deviceState(
-  device: Device,
-  sessionStatus: SessionStatus | undefined,
-): DeviceState {
+/** Badge d'un appareil de capture selon la session lancée où il capture. */
+function deviceState(sessionStatus: SessionStatus | undefined): DeviceState {
   if (sessionStatus === 'running')
     return {
       badge: 'Actif',
@@ -40,12 +37,6 @@ function deviceState(
       badge: 'En pause',
       variant: 'warning',
       text: 'Sa session est en pause',
-    };
-  if (device.captureStatus === 'inactive')
-    return {
-      badge: 'Capture désactivée',
-      variant: 'outline',
-      text: 'Activez la capture dans l’application de l’appareil',
     };
   return { badge: 'Disponible', variant: 'secondary', text: 'Prêt à capturer' };
 }
@@ -81,7 +72,6 @@ export function HomeDevices({
       <CardContent>
         {capturing.map((device, index) => {
           const state = deviceState(
-            device,
             device.openSessionId
               ? statusById.get(device.openSessionId)
               : undefined,

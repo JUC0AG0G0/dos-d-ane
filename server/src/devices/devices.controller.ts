@@ -107,7 +107,7 @@ export class DevicesController {
   @ApiOperation({
     summary: 'Liste ses appareils, du plus ancien au plus récent',
     description:
-      'Avec leur capacité de capture et la session ouverte où chacun est actif.',
+      'Avec leur capacité de capture et la session lancée où chacun capture.',
   })
   @ApiOkResponse({ type: [DeviceDto] })
   @ApiUnauthorizedResponse({ description: 'Non connecté' })
@@ -125,10 +125,12 @@ export class DevicesController {
           type: true,
           model: true,
           captureEligible: true,
-          captureStatus: true,
-          // Au plus une : index unique partiel sur deviceId (endedAt null).
+          // Au plus une : vérifié au lancement et à l'ajout (AnalysisService).
           deviceSessions: {
-            where: { endedAt: null, analysisSession: { endedAt: null } },
+            where: {
+              endedAt: null,
+              analysisSession: { startedAt: { not: null }, endedAt: null },
+            },
             select: { analysisSessionId: true },
             take: 1,
           },

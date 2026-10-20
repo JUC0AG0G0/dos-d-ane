@@ -111,7 +111,7 @@ Déroulé (contrat exact : [liaison-serveur.md](liaison-serveur.md) §2, « Appa
 
 #### Remarques de la recette du 20/10/2026
 
-- Page de session, « Appareils de capture » : le badge « Capture active » vient de `captureStatus` en base, pas de la connexion. Un Pi éteint peut être coché sans avertissement, et la session ne recevra rien. → afficher en ligne / hors ligne d'après les WebSocket ouvertes (`DeviceConnections`).
+- Page de session, « Appareils de capture » : le badge « Capture active » veut seulement dire que l'appareil ne capture pas dans une autre session lancée (`openSessionId` null), pas qu'il est connecté. Un Pi éteint peut être coché sans avertissement, et la session ne recevra rien. → afficher en ligne / hors ligne d'après les WebSocket ouvertes (`DeviceConnections`).
 - Paramètres › Appareils connectés : la WebSocket ne prolonge pas la session de connexion du Pi (seules les requêtes HTTP le font : login, ouverture de la WebSocket, POST d'alertes et de résumés ; `SESSION_TTL_MINUTES` = 60). **Constaté en prod le 20/10** : Pi au repos → session « Expirée » au bout d'1 h, alors que la WebSocket reste ouverte (jeton vérifié seulement à l'ouverture) et que le Pi reçoit toujours `session:start`.
   - Aujourd'hui, il revient tout seul, mais seulement au prochain POST : `401` → `jeton.perime()` → `device-login` → nouvelle session → de nouveau dans « Sessions actives » (jusqu'à 5 min après le début d'une analyse, au premier résumé). Trace dans `journalctl -u dos-dane` : `envoi : nouvel essai dans 1 s`, sans `liaison perdue`.
   - Autre effet : « Déconnecter » sur la ligne du Pi révoque sa session mais ne ferme pas sa WebSocket ; seule la révocation de la clé coupe le Pi tout de suite.

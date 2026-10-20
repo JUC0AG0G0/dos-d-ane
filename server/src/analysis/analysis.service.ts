@@ -16,7 +16,6 @@ import {
 import type { AuthContext } from '../auth/auth.guard.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { CaptureStatus } from '../entities/index.js';
 import { DeviceConnections } from './device-connections.js';
 import { isFinal, type LiveMessage, LiveStates } from './live-states.js';
 import type {
@@ -215,13 +214,14 @@ const isLaunched = (status: AnalysisSessionStatus) =>
   status === AnalysisSessionStatus.Running ||
   status === AnalysisSessionStatus.Paused;
 
-const captureDisabled = () =>
-  new BadRequestException('La capture est désactivée sur cet appareil');
+/** Lancée et pas terminée : l'appareil y capture, même pendant une pause. */
+const launchedWhere = {
+  startedAt: { not: null },
+  endedAt: null,
+} satisfies Prisma.AnalysisSessionWhereInput;
 
 const deviceBusy = () =>
-  new ConflictException(
-    'Appareil déjà dans une autre session en préparation ou en cours',
-  );
+  new ConflictException('Appareil déjà en capture dans une autre session');
 
 @Injectable()
 export class AnalysisService {
@@ -238,37 +238,28 @@ export class AnalysisService {
     let deviceIds = dto.deviceIds;
     if (deviceIds) {
       for (const deviceId of deviceIds) {
-        await this.captureDevice(auth.userId, deviceId, true);
+        await this.captureDevice(auth.userId, deviceId);
       }
     } else {
-      // Par défaut, l'appareil qui fait la requête, s'il peut capturer et que
-      // la capture y est activée.
+      // Par défaut, l'appareil qui fait la requête, s'il peut capturer.
       const deviceId = await this.requestDeviceId(auth);
       const device = await this.prisma.device.findUniqueOrThrow({
         where: { id: deviceId },
-        select: { captureEligible: true, captureStatus: true },
+        select: { captureEligible: true },
       });
-      deviceIds =
-        device.captureEligible &&
-        device.captureStatus !== CaptureStatus.Inactive
-          ? [deviceId]
-          : [];
+      deviceIds = device.captureEligible ? [deviceId] : [];
     }
     const now = new Date();
-    try {
-      const session = await this.prisma.analysisSession.create({
-        data: {
-          userId: auth.userId,
-          deviceSessions: {
-            create: deviceIds.map((deviceId) => ({ deviceId, startedAt: now })),
-          },
+    const session = await this.prisma.analysisSession.create({
+      data: {
+        userId: auth.userId,
+        deviceSessions: {
+          create: deviceIds.map((deviceId) => ({ deviceId, startedAt: now })),
         },
-        select: { id: true },
-      });
-      return this.detail(auth.userId, session.id);
-    } catch (error) {
-      throw isUniqueViolation(error) ? deviceBusy() : error;
-    }
+      },
+      select: { id: true },
+    });
+    return this.detail(auth.userId, session.id);
   }
 
   /**
@@ -465,25 +456,20 @@ export class AnalysisService {
     if (status !== AnalysisSessionStatus.Setup) {
       throw new ConflictException('Session déjà lancée');
     }
-    const devices = await this.prisma.deviceSession.findMany({
-      where: { analysisSessionId: id, endedAt: null },
-      select: { device: { select: { captureStatus: true } } },
-    });
-    if (devices.length === 0) {
+    const deviceIds = await this.openDeviceIds(id);
+    if (deviceIds.length === 0) {
       throw new ConflictException(
         'Ajoutez un appareil avant de lancer la session',
       );
     }
-    if (
-      devices.some((ds) => ds.device.captureStatus === CaptureStatus.Inactive)
-    ) {
-      throw captureDisabled();
-    }
-    await this.prisma.analysisSession.update({
-      where: { id },
-      data: { startedAt: new Date() },
+    await this.prisma.$transaction(async (tx) => {
+      await this.assertFree(tx, id, deviceIds);
+      await tx.analysisSession.update({
+        where: { id },
+        data: { startedAt: new Date() },
+      });
     });
-    this.notify(await this.openDeviceIds(id), 'session:start', id);
+    this.notify(deviceIds, 'session:start', id);
     this.announce(id, AnalysisSessionStatus.Running);
     return this.detail(userId, id);
   }
@@ -603,7 +589,7 @@ export class AnalysisService {
     deviceId: string,
   ): Promise<AnalysisSessionDetailDto> {
     const status = await this.openSession(userId, id);
-    await this.captureDevice(userId, deviceId, true);
+    await this.captureDevice(userId, deviceId);
     const existing = await this.prisma.deviceSession.findUnique({
       where: {
         analysisSessionId_deviceId: { analysisSessionId: id, deviceId },
@@ -614,18 +600,25 @@ export class AnalysisService {
       throw new ConflictException('Appareil déjà dans la session');
     }
     try {
-      if (existing) {
-        await this.prisma.deviceSession.update({
-          where: { id: existing.id },
-          data: { endedAt: null },
-        });
-      } else {
-        await this.prisma.deviceSession.create({
-          data: { analysisSessionId: id, deviceId, startedAt: new Date() },
-        });
-      }
+      await this.prisma.$transaction(async (tx) => {
+        if (isLaunched(status)) {
+          await this.assertFree(tx, id, [deviceId]);
+        }
+        if (existing) {
+          await tx.deviceSession.update({
+            where: { id: existing.id },
+            data: { endedAt: null },
+          });
+        } else {
+          await tx.deviceSession.create({
+            data: { analysisSessionId: id, deviceId, startedAt: new Date() },
+          });
+        }
+      });
     } catch (error) {
-      throw isUniqueViolation(error) ? deviceBusy() : error;
+      throw isUniqueViolation(error)
+        ? new ConflictException('Appareil déjà dans la session')
+        : error;
     }
     if (isLaunched(status)) {
       this.notify([deviceId], 'session:start', id);
@@ -788,18 +781,11 @@ export class AnalysisService {
     return deviceId;
   }
 
-  /**
-   * Vérifie que l'appareil est à l'utilisateur et peut capturer ; avec
-   * requireActive, que la capture y est aussi activée (ajout à une session).
-   */
-  private async captureDevice(
-    userId: string,
-    deviceId: string,
-    requireActive = false,
-  ): Promise<void> {
+  /** Vérifie que l'appareil est à l'utilisateur et peut capturer. */
+  private async captureDevice(userId: string, deviceId: string): Promise<void> {
     const device = await this.prisma.device.findFirst({
       where: { id: deviceId, userId },
-      select: { captureEligible: true, captureStatus: true },
+      select: { captureEligible: true },
     });
     if (!device) {
       throw new NotFoundException('Appareil introuvable');
@@ -809,8 +795,33 @@ export class AnalysisService {
         'Cet appareil ne peut pas envoyer de captures (navigateur web)',
       );
     }
-    if (requireActive && device.captureStatus === CaptureStatus.Inactive) {
-      throw captureDisabled();
+  }
+
+  /**
+   * Refuse un appareil qui capture déjà dans une autre session lancée. Ses
+   * lignes restent verrouillées jusqu'à la fin de la transaction : deux
+   * lancements simultanés ne prennent pas le même appareil.
+   */
+  private async assertFree(
+    tx: Prisma.TransactionClient,
+    sessionId: string,
+    deviceIds: string[],
+  ): Promise<void> {
+    await tx.$queryRaw`
+      SELECT id FROM devices
+      WHERE id = ANY(${deviceIds}::uuid[])
+      ORDER BY id
+      FOR UPDATE`;
+    const busy = await tx.deviceSession.count({
+      where: {
+        deviceId: { in: deviceIds },
+        endedAt: null,
+        analysisSessionId: { not: sessionId },
+        analysisSession: launchedWhere,
+      },
+    });
+    if (busy > 0) {
+      throw deviceBusy();
     }
   }
 

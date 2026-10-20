@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { CaptureStatus, DeviceType } from '../../entities/index.js';
+import { DeviceType } from '../../entities/index.js';
 
 export class DeviceDto {
   @ApiProperty({ format: 'uuid' })
@@ -17,15 +17,6 @@ export class DeviceDto {
   @ApiProperty({ description: 'Peut capturer (jamais un navigateur)' })
   captureEligible: boolean;
 
-  @ApiProperty({
-    type: String,
-    enum: Object.values(CaptureStatus),
-    nullable: true,
-    description:
-      'Capture activée ou coupée sur l’appareil ; null s’il ne peut pas capturer',
-  })
-  captureStatus: string | null;
-
   @ApiProperty({ description: 'Appareil de la requête en cours' })
   current: boolean;
 
@@ -34,7 +25,7 @@ export class DeviceDto {
     format: 'uuid',
     nullable: true,
     description:
-      'Session ouverte (préparation, en cours ou en pause) où l’appareil est actif',
+      'Session lancée (en cours ou en pause) où l’appareil capture ; null s’il est libre',
   })
   openSessionId: string | null;
 

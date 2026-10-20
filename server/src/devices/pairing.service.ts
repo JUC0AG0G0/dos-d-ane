@@ -10,7 +10,7 @@ import {
   sameKeyHash,
 } from '../auth/device-key.js';
 import { SessionDeviceDto } from '../auth/dto/auth-responses.dto.js';
-import { CaptureStatus, DeviceType } from '../entities/index.js';
+import { DeviceType } from '../entities/index.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { PairingStatusDto } from './dto/pairing.dto.js';
 import { hashPairingValue, normalizePairingCode } from './pairing-code.js';
@@ -108,9 +108,8 @@ export class PairingService {
           userId,
           name,
           type: DeviceType.Raspberry,
-          // Sans écran pour activer la capture lui-même ; sa clé, il la relève.
+          // Sa clé, il la relève.
           captureEligible: true,
-          captureStatus: CaptureStatus.Active,
         },
         select: { id: true, name: true, type: true, model: true },
       });

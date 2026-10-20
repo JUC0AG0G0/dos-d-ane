@@ -54,10 +54,9 @@ export function AddDeviceDialog({
 
   const otherSession = (id: string) => {
     const other = others.data?.find((s) => s.id === id);
-    if (!other) return 'Dans une autre session';
-    return other.startedAt
+    return other?.startedAt
       ? `Dans la session de ${formatTime(other.startedAt)}`
-      : 'Dans une session en préparation';
+      : 'Dans une autre session';
   };
 
   const close = () => {
@@ -105,8 +104,7 @@ export function AddDeviceDialog({
               const removed = inSession.get(device.id)?.leftAt;
               const busyElsewhere =
                 device.openSessionId && device.openSessionId !== session.id;
-              const disabled =
-                !!busyElsewhere || device.captureStatus === 'inactive';
+              const disabled = !!busyElsewhere;
               const inputId = `add-${device.id}`;
               return (
                 <label
@@ -129,20 +127,16 @@ export function AddDeviceDialog({
                   <div className="grid min-w-0 flex-1 gap-1 text-sm">
                     <p className="flex flex-wrap items-center gap-2 font-medium">
                       {device.name}
-                      {busyElsewhere ? (
+                      {busyElsewhere && (
                         <Badge variant="outline">
                           {otherSession(device.openSessionId!)}
                         </Badge>
-                      ) : device.captureStatus === 'inactive' ? (
-                        <Badge variant="outline">Capture désactivée</Badge>
-                      ) : null}
+                      )}
                     </p>
                     <p className="text-muted-foreground">
-                      {device.captureStatus === 'inactive' && !busyElsewhere
-                        ? 'Activez la capture dans l’application de l’appareil'
-                        : removed
-                          ? `Retiré à ${formatTime(removed)} · peut revenir dans la session`
-                          : (device.model ?? 'Prêt à capturer')}
+                      {removed
+                        ? `Retiré à ${formatTime(removed)} · peut revenir dans la session`
+                        : (device.model ?? 'Prêt à capturer')}
                     </p>
                   </div>
                 </label>

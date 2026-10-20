@@ -55,10 +55,11 @@ export function TermsOfUse() {
 
       <LegalSection title="Capture de la posture">
         <p>
-          La capture est facultative : vous l'activez et la coupez vous-même,
-          appareil par appareil. Ne cadrez que vous-même. Si une autre personne
-          peut apparaître dans le champ, prévenez-la ou coupez la capture. Le
-          traitement des données est décrit dans la{' '}
+          La capture est facultative : un appareil ne capture que pendant une
+          session que vous lancez vous-même, et s'arrête quand vous la mettez en
+          pause ou l'arrêtez. Ne cadrez que vous-même. Si une autre personne
+          peut apparaître dans le champ, prévenez-la ou mettez la session en
+          pause. Le traitement des données est décrit dans la{' '}
           <Link to="/legal/privacy">politique de confidentialité</Link>.
         </p>
       </LegalSection>

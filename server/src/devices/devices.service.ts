@@ -6,7 +6,7 @@ import {
 import { DeviceConnections } from '../analysis/device-connections.js';
 import { CloseCode } from '../analysis/devices.gateway.js';
 import { hashDeviceKey, newDeviceKey } from '../auth/device-key.js';
-import { CaptureStatus, DeviceType } from '../entities/index.js';
+import { DeviceType } from '../entities/index.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { DeviceKeyDto } from './dto/device-key.dto.js';
 
@@ -30,9 +30,7 @@ export class DevicesService {
         userId,
         name,
         type: DeviceType.Raspberry,
-        // Ajouté pour capturer, et sans écran pour activer la capture lui-même.
         captureEligible: true,
-        captureStatus: CaptureStatus.Active,
         keyHash: hashDeviceKey(key),
         keyCreatedAt,
       },

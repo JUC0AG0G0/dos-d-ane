@@ -48,7 +48,6 @@ Table devices {
   type string [not null, note: 'web, mobile, desktop, raspberry ; seul web ne capture pas']
   model string
   captureEligible boolean [not null, default: false, note: 'Toujours false pour web']
-  captureStatus string [note: 'active / inactive si éligible, null sinon']
   keyHash text [note: 'Empreinte SHA-256 (hex) de la clé d un Raspberry Pi, jamais la clé ; null sans clé']
   keyCreatedAt timestamptz [note: 'Renseigné avec keyHash ; clé réservée aux raspberry']
   createdAt timestamptz [not null, default: `now()`]
@@ -125,7 +124,6 @@ Table deviceSessions {
 
   indexes {
     (analysisSessionId, deviceId) [unique]
-    deviceId [unique, name: 'deviceSessions_deviceId_open_key', note: 'Partiel : WHERE endedAt IS NULL (une seule session ouverte par appareil)']
     deviceId
   }
 }
