@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
 import type { LiveStateDto } from './dto/device-messages.dto.js';
+import type { PostureEventDto } from './dto/posture-results.dto.js';
 
 /** Un Pi envoie au plus une image toutes les 2 s : plus souvent, les états sont ignorés. */
 const MIN_INTERVAL_MS = 500;
@@ -12,10 +13,10 @@ export interface LiveState extends LiveStateDto {
 }
 
 /** Message relayé aux écrans qui suivent une session en direct (SSE). */
-export interface LiveMessage {
-  type: 'state';
-  data: LiveState;
-}
+export type LiveMessage =
+  | { type: 'state'; data: LiveState }
+  /** Début (endedAt null) ou fin d'une alerte, une seule fois même si le Pi la renvoie. */
+  | { type: 'alert'; data: PostureEventDto };
 
 /**
  * Dernier état en direct de chaque session en cours, en mémoire seulement
@@ -37,8 +38,13 @@ export class LiveStates {
     this.lastByDevice.set(deviceId, now);
     const live = { ...state, deviceId, receivedAt: new Date(now) };
     this.bySession.set(state.sessionId, live);
-    this.feeds.get(state.sessionId)?.next({ type: 'state', data: live });
+    this.publish(state.sessionId, { type: 'state', data: live });
     return true;
+  }
+
+  /** Relaie un message à ceux qui suivent la session (personne : rien). */
+  publish(sessionId: string, message: LiveMessage) {
+    this.feeds.get(sessionId)?.next(message);
   }
 
   get(sessionId: string): LiveState | undefined {
