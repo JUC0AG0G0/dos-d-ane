@@ -73,7 +73,7 @@ Page d'une session en cours ou en pause (`LiveView`), seulement si un Raspberry 
 - Site, page « Mes Raspberry Pi » : ajouter un Pi (appairage par code, ci-dessous), liste des Pi avec leur état **en ligne / hors ligne**, renommer, révoquer la clé.
 - **Fini quand** : une personne lance et termine une session depuis son téléphone, sans Swagger.
 
-#### Appairage par code ✅ en dev, test en prod 🔜 (avant la partie app de C3 ; branche `feat/appairage-code`)
+#### Appairage par code ✅ (PR #49, testé en prod sur le vrai Pi le 20/10/2026, voir [poc-raspberry.md](poc-raspberry.md) §7)
 
 Aujourd'hui, aucun bouton ne permet d'ajouter un Pi : il faut lancer `python -m outils.appairer` sur le Pi, en SSH (email et mot de passe tapés une fois, jamais enregistrés). Le but : l'utilisateur branche le Pi, tape un code dans le site, et c'est tout ; jamais de SSH ni de mot de passe sur le Pi.
 
@@ -103,7 +103,9 @@ Déroulé (contrat exact : [liaison-serveur.md](liaison-serveur.md) §2, « Appa
 | P3 ✅ | Pi | `outils/preparer.py` : code et secret de relève dans `edge/.env`, adresse du serveur, service activé, texte de l'étiquette |
 | P4 ✅ | site | « Ajouter un Raspberry Pi » (code + nom), liste des Pi et révocation de la clé, dans Paramètres › Appareils connectés |
 
-- Testé en dev (20/10/2026) : routes (code inconnu, mal formé, déjà utilisé, autre secret `409`, Pi éteint depuis 3 min `404`, jeton d'un Pi `403`) ; limites (6ᵉ `claim` → `429`, 61ᵉ `poll` en rafale → `429`) ; code du Pi contre le serveur de dev (attente, clé reçue en ~10 s, `.env` en `600`, connexion WebSocket) ; bouton du site avec un Pi neuf simulé ; 134 tests du Pi. Reste à tester sur le vrai Pi, en prod : révocation → retour en attente.
+- Testé en dev (20/10/2026) : routes (code inconnu, mal formé, déjà utilisé, autre secret `409`, Pi éteint depuis 3 min `404`, jeton d'un Pi `403`) ; limites (6ᵉ `claim` → `429`, 61ᵉ `poll` en rafale → `429`) ; code du Pi contre le serveur de dev (attente, clé reçue en ~10 s, `.env` en `600`, connexion WebSocket) ; bouton du site avec un Pi neuf simulé ; 134 tests du Pi. En prod sur le vrai Pi : préparé, ajouté par son code, révoqué → retour en attente avec le même code, ré-ajouté.
+- Finitions (branche `feat/appairage-finitions`) : la liste des Pi montre l'état de leur clé (`keyStatus` dans `GET /devices` : active, « En attente », « Clé révoquée ») — sans cela, une révocation ne changeait rien à l'écran ; message du Pi quand sa clé est refusée, juste avec ou sans code.
+- Reste (plus tard) : supprimer un Pi de la liste (pas de route `DELETE /devices/:id` : un Pi révoqué reste affiché).
 - Le Pi actuel (le seul) n'est pas réinstallé : `git pull`, puis `preparer.py`, qui ajoute le code et retire l'ancienne clé (copie de `edge/.env` avant) ; résultats, modèle, `.venv` et service ne bougent pas.
 - **Fini quand** : le Pi, sans clé, branché, apparaît dans le compte après la saisie du code sur le site, sans SSH ; une session lancée depuis le site marche ; une révocation le remet en attente.
 
