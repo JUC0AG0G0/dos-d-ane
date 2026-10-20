@@ -33,12 +33,7 @@ function blockedReason(device: Device, sessionId: string) {
   if (!device.captureEligible)
     return { label: 'Ce navigateur', hint: 'Ne peut pas capturer' };
   if (device.openSessionId && device.openSessionId !== sessionId)
-    return { label: 'Dans une autre session', hint: null };
-  if (device.captureStatus === 'inactive')
-    return {
-      label: 'Capture désactivée',
-      hint: 'Activez la capture dans l’application de l’appareil',
-    };
+    return { label: 'En capture dans une autre session', hint: null };
   return null;
 }
 

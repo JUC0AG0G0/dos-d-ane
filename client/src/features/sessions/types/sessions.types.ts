@@ -153,10 +153,10 @@ export interface Device {
   name: string;
   type: string;
   model: string | null;
+  /** Peut capturer (jamais un navigateur). */
   captureEligible: boolean;
-  captureStatus: 'active' | 'inactive' | null;
   /** Appareil de ce navigateur. */
   current: boolean;
-  /** Session ouverte où il est actif. */
+  /** Session lancée (en cours ou en pause) où il capture. */
   openSessionId: string | null;
 }
