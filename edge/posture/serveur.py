@@ -130,8 +130,8 @@ def login(config, timeout=10):
             donnees = json.load(reponse)
     except urllib.error.HTTPError as e:
         if e.code in (400, 401):
-            raise ErreurLogin(f"clé refusée (HTTP {e.code}) : vérifier DOSDANE_APPAREIL et DOSDANE_CLE "
-                              "(clé révoquée ou remplacée ? en créer une avec POST /devices/:id/key)") from None
+            raise ErreurLogin(f"clé refusée (HTTP {e.code}) : révoquée ou remplacée depuis le site, "
+                              "ou DOSDANE_APPAREIL / DOSDANE_CLE mal recopiés") from None
         raise ConnectionError(f"login : erreur du serveur (HTTP {e.code})") from None
     except urllib.error.URLError as e:
         raise ConnectionError(f"serveur injoignable ({config.serveur}) : {e.reason}") from None
