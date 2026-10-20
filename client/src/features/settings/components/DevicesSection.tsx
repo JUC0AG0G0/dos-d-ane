@@ -24,6 +24,7 @@ import { settingsService } from '../services/settings.service';
 import type { Session, SessionDevice } from '../types/settings.types';
 import { formatDateTime } from '@/utils/format';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { RaspberryCard } from './RaspberryCard';
 import { RenameDeviceDialog } from './RenameDeviceDialog';
 import { useSessions } from '../hooks/useSessions';
 import { ErrorAlert } from '@/components/ErrorAlert';
@@ -63,6 +64,8 @@ export function DevicesSection() {
 
   return (
     <div className="grid gap-6">
+      <RaspberryCard onChange={reload} />
+
       <Card>
         <CardHeader>
           <CardTitle>Sessions actives</CardTitle>
