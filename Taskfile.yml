@@ -3,6 +3,7 @@
 #   task check            # lint + compilation (lancé par Husky avant push)
 #   task dev              # stack Docker de dev
 #   task test:edge        # tests de l'algorithme de posture (edge/, Python)
+#   task mobile:start     # app mobile Expo (mobile/)
 version: "3"
 
 vars:
@@ -115,6 +116,45 @@ tasks:
     deps: [install:edge]
     dir: edge
     cmd: .venv/bin/python -m pytest -q
+
+  # --- Mobile (Expo, dossier mobile/) ---------------------------------------
+  # Pas dans setup ni check : seuls ceux qui travaillent sur mobile/ en ont besoin.
+
+  install:mobile:
+    desc: Installe les dépendances de l'app mobile (seulement si le lockfile a changé)
+    dir: mobile
+    cmd: npm ci --no-audit --no-fund
+    sources: [package.json, package-lock.json]
+    generates: [node_modules/.package-lock.json]
+
+  mobile:build:
+    desc: Compile la page d'analyse de la caméra (mobile/src/features/analysis/*.ts -> public/pose.js)
+    deps: [install:mobile]
+    dir: mobile
+    cmd: npm run build:page
+
+  mobile:start:
+    desc: Lance l'app dans Expo Go, avec le tunnel https cloudflared pour la caméra (`-- --clear` vide le cache)
+    deps: [mobile:build]
+    dir: mobile
+    interactive: true
+    cmd: npm run demarrer -- {{.CLI_ARGS}}
+
+  mobile:test:
+    desc: Tests de l'app mobile (angles, seuils, messages, statistiques, test des postures)
+    deps: [install:mobile]
+    dir: mobile
+    cmd: npm test
+
+  mobile:check:
+    desc: Typecheck, lint, tests et page d'analyse à jour de l'app mobile (lancé par la CI)
+    deps: [install:mobile]
+    dir: mobile
+    cmds:
+      - npm run typecheck
+      - npx expo lint
+      - npm test
+      - npm run check:page
 
   # --- Base de données (Prisma) -------------------------------------------
 
