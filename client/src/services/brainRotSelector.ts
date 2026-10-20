@@ -1,4 +1,4 @@
-import tungSahur from '@/assets/auth/tung sahur.png';
+import tungSahur from '@/assets/auth/tung sahur.webp';
 import asinoRagazzo from '@/assets/auth/Asinoooooo Ragazzo.jpeg';
 import claudio from "@/assets/auth/Claudiooo L'Asino Intelligente e l'Umorismo Italiano.jpeg";
 import donki from '@/assets/auth/Donki donkis Breadi breadis.jpeg';
