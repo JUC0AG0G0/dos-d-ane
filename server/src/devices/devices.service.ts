@@ -6,12 +6,11 @@ import {
 import { DeviceConnections } from '../analysis/device-connections.js';
 import { CloseCode } from '../analysis/devices.gateway.js';
 import { hashDeviceKey, newDeviceKey } from '../auth/device-key.js';
-import { CaptureStatus, DeviceType } from '../entities/index.js';
+import { DeviceType } from '../entities/index.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { DeviceKeyDto } from './dto/device-key.dto.js';
-import type { CaptureStatusDto } from './dto/device.dto.js';
 
-/** Clés des Raspberry Pi (création, remplacement, révocation) et capture. */
+/** Clés des Raspberry Pi : création, remplacement, révocation. */
 @Injectable()
 export class DevicesService {
   constructor(
@@ -31,9 +30,7 @@ export class DevicesService {
         userId,
         name,
         type: DeviceType.Raspberry,
-        // Ajouté pour capturer, et sans écran pour activer la capture lui-même.
         captureEligible: true,
-        captureStatus: CaptureStatus.Active,
         keyHash: hashDeviceKey(key),
         keyCreatedAt,
       },
@@ -72,34 +69,6 @@ export class DevicesService {
       this.revokeSessions(device.id),
     ]);
     this.disconnect(device.id);
-  }
-
-  /** Active la capture si elle est coupée, la coupe sinon. */
-  async toggleCapture(
-    userId: string,
-    deviceId: string,
-  ): Promise<CaptureStatusDto> {
-    const device = await this.prisma.device.findFirst({
-      where: { id: deviceId, userId },
-      select: { captureEligible: true, captureStatus: true },
-    });
-    if (!device) {
-      throw new NotFoundException('Appareil introuvable');
-    }
-    if (!device.captureEligible) {
-      throw new BadRequestException(
-        'Cet appareil ne peut pas capturer (navigateur web)',
-      );
-    }
-    const captureStatus =
-      device.captureStatus === CaptureStatus.Active
-        ? CaptureStatus.Inactive
-        : CaptureStatus.Active;
-    await this.prisma.device.update({
-      where: { id: deviceId },
-      data: { captureStatus },
-    });
-    return { captureStatus };
   }
 
   /**

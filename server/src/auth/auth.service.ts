@@ -7,7 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '../generated/prisma/client.js';
-import { CaptureStatus, DeviceType, Role } from '../entities/index.js';
+import { DeviceType, Role } from '../entities/index.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { AuthContext, SessionKind } from './auth.guard.js';
 import type {
@@ -363,11 +363,8 @@ async function findOrCreateDevice(
       type,
       name: client.deviceName ?? defaultDeviceNames[type],
       model: client.deviceModel,
-      // Mobile, desktop et Raspberry peuvent capturer, mais la capture reste
-      // coupée tant que l'utilisateur ne l'active pas. Un navigateur ne capture
-      // jamais.
+      // Mobile, desktop et Raspberry peuvent capturer ; un navigateur jamais.
       captureEligible: capture,
-      captureStatus: capture ? CaptureStatus.Inactive : null,
     },
     select: { id: true },
   });

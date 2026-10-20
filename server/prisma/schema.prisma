@@ -47,9 +47,9 @@ model User {
 }
 
 /// Appareil lié à un compte : navigateur (web), téléphone (mobile), caméra...
-/// Un navigateur n'est jamais éligible à la capture ; sur mobile, l'utilisateur
-/// active ou coupe la capture. captureStatus vaut active (analyse) ou inactive
-/// pour un appareil éligible, null sinon.
+/// Un navigateur n'est jamais éligible à la capture (captureEligible false).
+/// L'appareil capture tant qu'il est dans une session lancée (en cours ou en
+/// pause) : c'est déduit de deviceSessions, rien n'est stocké ici.
 /// keyHash : empreinte SHA-256 de la clé d'un Raspberry Pi (jamais la clé
 /// elle-même), qu'il échange contre un JWT (POST /auth/device-login) au lieu
 /// d'un mot de passe ; null sans clé ou après révocation.
@@ -61,7 +61,6 @@ model Device {
   type            String
   model           String?
   captureEligible Boolean         @default(false)
-  captureStatus   String?
   keyHash         String?
   keyCreatedAt    DateTime?       @db.Timestamptz(3)
   authSessions    AuthSession[]
@@ -156,9 +155,9 @@ model AnalysisSessionPause {
 }
 
 /// Participation d'un appareil éligible à une session d'analyse.
-/// endedAt null : l'appareil est dans une session en préparation ou en cours.
-/// Un appareil n'est que dans une seule session à la fois : index unique
-/// partiel sur deviceId (endedAt null) ajouté à la main dans la migration.
+/// endedAt null : l'appareil est dans une session en préparation ou lancée.
+/// Il peut être dans plusieurs sessions en préparation, mais dans une seule
+/// session lancée : vérifié par AnalysisService au lancement et à l'ajout.
 /// Supprimer un appareil supprime ses sessions et leurs captures. Un Restrict
 /// bloquerait la suppression d'un utilisateur (droit à l'effacement), car
 /// PostgreSQL supprime ses appareils avant ses sessions d'analyse.
