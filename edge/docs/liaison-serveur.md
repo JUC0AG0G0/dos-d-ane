@@ -49,7 +49,7 @@ Le Pi n'a **aucun mot de passe** : il a un `deviceId` et une **clé** (`dk_` + 2
 
 **Pourquoi la clé contre un JWT**, et pas la clé dans chaque requête (`Authorization: Device <clé>`, prévu au départ) : les deux suppriment le mot de passe et l'expiration gênante et permettent de révoquer un Pi, mais tout le serveur (guard, révocation, routes qui retrouvent l'appareil par la session) repose sur le JWT et sa session de connexion. Échanger la clé contre un JWT ne change que le login ; la clé circule rarement (un login de temps en temps) et le JWT qui circule est de courte durée et révocable. C'est le schéma classique « secret de longue durée → jeton de courte durée » (client credentials d'OAuth).
 
-### Appairage par code 🔜
+### Appairage par code ✅
 
 Pour que le Pi obtienne sa clé **sans SSH ni mot de passe** : l'utilisateur tape dans le site le code imprimé sur l'étiquette du Pi. Pourquoi une étiquette et ce qui a été écarté : [plan-liaison.md](plan-liaison.md), « Appairage par code ».
 
@@ -213,13 +213,21 @@ Variables d'environnement, dans `edge/.env` (ignoré par Git ; modèle commenté
 | Variable | Exemple |
 |---|---|
 | `DOSDANE_SERVEUR` | `http://localhost:3000` en dev, `https://…` en prod (WebSocket en `ws://` ou `wss://` d'après lui) |
-| `DOSDANE_APPAREIL`, `DOSDANE_CLE` | `deviceId` et `key` donnés par `POST /api/devices` (ou `/devices/:id/key`) ; la clé n'est jamais affichée par le Pi |
+| `DOSDANE_CODE`, `DOSDANE_SECRET_APPAIRAGE` | code de l'étiquette et secret de relève, écrits par `outils/preparer.py` (appairage par code, §2) |
+| `DOSDANE_APPAREIL`, `DOSDANE_CLE` | `deviceId` et `key` : écrits par le Pi lui-même quand un compte valide son code (ou par `outils/appairer.py`, ou à la main en dev) ; vides, le Pi attend d'être appairé ; la clé n'est jamais affichée par le Pi |
 
-**Le plus simple : appairer le Pi** (une fois, sur le Pi) — il s'ajoute lui-même au compte et écrit `DOSDANE_APPAREIL` et `DOSDANE_CLE` dans `edge/.env` (`600`) ; le mot de passe est tapé sans écho, sert à un seul login fermé aussitôt, et n'est jamais enregistré :
+**En vrai : préparer le Pi** (une fois, par l'équipe, sur le Pi) — code et secret écrits dans `edge/.env` (`600`, copie de l'ancien dans `.env.avant-preparation`), étiquette affichée ; une clé déjà présente n'est retirée qu'après confirmation. Ensuite, l'utilisateur tape le code dans le site (Paramètres › Appareils connectés › Ajouter un Raspberry Pi) et le service (C1) reçoit sa clé tout seul :
 
 ```bash
 cd edge && source .venv/bin/activate
-python -m outils.appairer --serveur https://<domaine> --nom "Pi du bureau"
+python -m outils.preparer --serveur https://<domaine>     # relancé : garde le même code (--nouveau-code sinon)
+sudo systemctl restart dos-dane                           # journal : « en attente d'appairage : code … »
+```
+
+**En dev : appairer avec un compte** — le Pi s'ajoute lui-même au compte et écrit `DOSDANE_APPAREIL` et `DOSDANE_CLE` ; le mot de passe est tapé sans écho, sert à un seul login fermé aussitôt, et n'est jamais enregistré :
+
+```bash
+python -m outils.appairer --serveur http://<PC>:3000 --nom "Pi du bureau"
 ```
 
 Sinon, à la main : `POST /api/devices` (depuis un PC), puis recopier `deviceId` et `key` dans `edge/.env` :
