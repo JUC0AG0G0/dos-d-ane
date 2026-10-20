@@ -25,6 +25,12 @@ export const sessionsService = {
   pause: (id: string) => http.post<SessionDetail>(R.pause(id)),
   resume: (id: string) => http.post<SessionDetail>(R.resume(id)),
   stop: (id: string) => http.post<SessionDetail>(R.stop(id)),
+  /** Flux en direct (Raspberry Pi) : jusqu'à la fin de la session ou signal.abort(). */
+  live: (
+    id: string,
+    onEvent: (event: string, data: string) => void,
+    signal: AbortSignal,
+  ) => http.events(R.live(id), onEvent, signal),
   remove: (id: string) => http.delete<void>(R.session(id)),
   addDevice: (id: string, deviceId: string) =>
     http.post<SessionDetail>(R.devices(id), { deviceId }),

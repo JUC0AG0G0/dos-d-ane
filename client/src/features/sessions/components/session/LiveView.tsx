@@ -24,6 +24,7 @@ import {
 import { useNow } from '@/hooks/useNow';
 import { usePolling } from '@/hooks/usePolling';
 import { useAction } from '../../hooks/useAction';
+import { useLiveSession } from '../../hooks/useLiveSession';
 import { sessionsService } from '../../services/sessions.service';
 import type { SessionDetail, SessionDevice } from '../../types/sessions.types';
 import {
@@ -38,6 +39,7 @@ import {
 import { StatTile } from '../StatTile';
 import { AddDeviceDialog } from './AddDeviceDialog';
 import { CapturePreview } from './CapturePreview';
+import { LiveStateCard } from './LiveStateCard';
 import { PausesCard } from './PausesCard';
 import { SessionDevicesCard } from './SessionDevicesCard';
 import { SessionHeader } from './SessionHeader';
@@ -64,6 +66,11 @@ export function LiveView({
   const [adding, setAdding] = useState(false);
   const [stopping, setStopping] = useState(false);
   usePolling(reload, paused ? 15_000 : 5_000);
+  // Les Raspberry Pi n'envoient pas de captures : leur état arrive en direct.
+  const piDevices = session.devices.filter(
+    (d) => !d.leftAt && d.type === 'raspberry',
+  );
+  const live = useLiveSession(session.id, piDevices.length > 0);
 
   const act = async (action: () => Promise<SessionDetail>) => {
     const updated = await run(action);
@@ -225,27 +232,38 @@ export function LiveView({
           />
           <PausesCard pauses={session.pauses} now={now} />
         </div>
-        <Card>
-          <CardHeader>
-            <CardTitle>Dernière capture</CardTitle>
-            <CardDescription>
-              {session.lastCapture
-                ? `${formatTime(session.lastCapture.capturedAt)} · ${deviceName(session.lastCapture.deviceId)}`
-                : paused
-                  ? 'Aucune capture reçue avant la pause'
-                  : 'En attente de la première capture'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {session.lastCapture ? (
-              <CapturePreview captureId={session.lastCapture.id} />
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Le squelette de la dernière capture s’affichera ici.
-              </p>
-            )}
-          </CardContent>
-        </Card>
+        <div className="grid gap-6">
+          {piDevices.length > 0 && (
+            <LiveStateCard
+              devices={piDevices}
+              states={live.states}
+              paused={paused}
+              connected={live.connected}
+              now={now}
+            />
+          )}
+          <Card>
+            <CardHeader>
+              <CardTitle>Dernière capture</CardTitle>
+              <CardDescription>
+                {session.lastCapture
+                  ? `${formatTime(session.lastCapture.capturedAt)} · ${deviceName(session.lastCapture.deviceId)}`
+                  : paused
+                    ? 'Aucune capture reçue avant la pause'
+                    : 'En attente de la première capture'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {session.lastCapture ? (
+                <CapturePreview captureId={session.lastCapture.id} />
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Le squelette de la dernière capture s’affichera ici.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       <AddDeviceDialog

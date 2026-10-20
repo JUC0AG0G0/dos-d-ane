@@ -2,6 +2,8 @@ import { Cpu, Monitor, Smartphone, type LucideIcon } from 'lucide-react';
 import type {
   BodyPart,
   Keypoint,
+  LivePosture,
+  PostureEventType,
   SessionDetail,
   SessionPause,
   SessionStatus,
@@ -159,6 +161,22 @@ export function silentDevices(session: SessionDetail, now = Date.now()) {
     return active >= SILENT_DEVICE_MS;
   });
 }
+
+// --- Postures (Raspberry Pi) -------------------------------------------------
+
+export const POSTURE_LABELS: Record<LivePosture, string> = {
+  GOOD: 'Bonne posture',
+  FORWARD_HEAD: 'Tête en avant ou baissée',
+  TRUNK_FORWARD: 'Dos penché en avant',
+  TRUNK_BACKWARD: 'Allongé dans la chaise',
+};
+
+export const EVENT_LABELS: Record<PostureEventType, string> = {
+  FORWARD_HEAD: 'Tête en avant ou baissée',
+  TRUNK_FORWARD: 'Dos penché en avant',
+  TRUNK_BACKWARD: 'Allongé dans la chaise',
+  IMMOBILE: 'Assis trop longtemps',
+};
 
 // --- Articulations (format COCO, 17 points) ----------------------------------
 
