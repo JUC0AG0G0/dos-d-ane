@@ -1,4 +1,11 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -9,8 +16,10 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiTags,
+  ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { SkipThrottle, ThrottlerGuard } from '@nestjs/throttler';
 import type { AuthContext } from '../auth/auth.guard.js';
 import { CurrentAuth, Public } from '../auth/decorators.js';
 import { SessionDeviceDto } from '../auth/dto/auth-responses.dto.js';
@@ -21,15 +30,22 @@ import {
 } from './dto/pairing.dto.js';
 import { PairingService } from './pairing.service.js';
 
-/** Appairage par code d'étiquette (edge/docs/liaison-serveur.md §2). */
+/**
+ * Appairage par code d'étiquette (edge/docs/liaison-serveur.md §2). Nombre de
+ * requêtes limité (DevicesModule) : `poll` est public et chaque nouveau code
+ * crée une ligne ; `claim` ne doit pas permettre de deviner un code.
+ */
 @ApiTags('devices')
 @Controller('devices/pairing')
+@UseGuards(ThrottlerGuard)
+@ApiTooManyRequestsResponse({ description: 'Trop d’essais' })
 export class PairingController {
   constructor(private readonly pairing: PairingService) {}
 
   @Public()
   @Post('poll')
   @HttpCode(HttpStatus.OK)
+  @SkipThrottle({ pairingClaimIp: true, pairingClaimAccount: true })
   @ApiOperation({
     summary: 'Le Raspberry Pi sans clé attend d’être ajouté à un compte',
     description:
@@ -45,6 +61,7 @@ export class PairingController {
   }
 
   @Post('claim')
+  @SkipThrottle({ pairingPoll: true })
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Ajoute au compte le Raspberry Pi dont on a tapé le code',
