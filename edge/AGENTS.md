@@ -18,7 +18,7 @@ Documentation de référence : `docs/poc-raspberry.md` (plan, installation, briq
 | `poc.py` | la vraie session (§5.5) : bocaux, cadence adaptative, événements (sans fenêtre) |
 | `dos-dane.service` | unité systemd : `poc.py --service` lancé à l'allumage sur le Pi (`docs/poc-raspberry.md` §3.6) |
 | `live.py` | outil de debug avec fenêtre (pas utilisé en session) |
-| `outils/` | outils de mesure sur le Pi : `t2_camera.py`, `t4_modeles.py`, `enregistrer.py` (volontaires), `evaluer.py` (F1), `confiance.py` (images ignorées), `connexion.py` (liaison avec le serveur), `appairer.py` (ajoute le Pi à un compte, écrit sa clé) ; puis `t1_vitesse.py` |
+| `outils/` | outils de mesure sur le Pi : `t2_camera.py`, `t4_modeles.py`, `enregistrer.py` (volontaires), `evaluer.py` (F1), `confiance.py` (images ignorées), `connexion.py` (liaison avec le serveur), `appairer.py` (dev : ajoute le Pi à un compte par email et mot de passe, écrit sa clé), `preparer.py` (code d'étiquette et secret de relève pour l'appairage par code) ; puis `t1_vitesse.py` |
 | `tests/` | tests unitaires de l'algorithme (pytest), sans webcam ni modèle : `aide.personne()` fabrique des points avec les angles voulus |
 
 - Toute logique réutilisable va dans `posture/`, dans le module de son étape ; les scripts l'**importent** (`from posture.regles import postures`), ils ne recopient pas de code.
