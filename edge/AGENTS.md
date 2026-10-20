@@ -16,6 +16,7 @@ Documentation de référence : `docs/poc-raspberry.md` (plan, installation, briq
 |---|---|
 | `posture/` | **le cœur, commun à tous** (paquet) : `camera`, `movenet`, `points` (côté, point complété, présence), `angles`, `regles` (`SEUILS`, `postures()`), `filtre` (`Bocal`, `TempsAssis`), `score` (`Resume`), `mesures` (CSV), `chemins`, `pi`, `serveur` (login, WebSocket : `docs/liaison-serveur.md`) |
 | `poc.py` | la vraie session (§5.5) : bocaux, cadence adaptative, événements (sans fenêtre) |
+| `dos-dane.service` | unité systemd : `poc.py --service` lancé à l'allumage sur le Pi (`docs/poc-raspberry.md` §3.6) |
 | `live.py` | outil de debug avec fenêtre (pas utilisé en session) |
 | `outils/` | outils de mesure sur le Pi : `t2_camera.py`, `t4_modeles.py`, `enregistrer.py` (volontaires), `evaluer.py` (F1), `confiance.py` (images ignorées), `connexion.py` (liaison avec le serveur), `appairer.py` (ajoute le Pi à un compte, écrit sa clé) ; puis `t1_vitesse.py` |
 | `tests/` | tests unitaires de l'algorithme (pytest), sans webcam ni modèle : `aide.personne()` fabrique des points avec les angles voulus |

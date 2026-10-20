@@ -36,7 +36,7 @@ Aujourd'hui le Pi ne peut se connecter qu'au serveur de dev d'un PC.
 - Pi : `DOSDANE_SERVEUR=https://<domaine>` (WebSocket en `wss://`, chiffrée), clé créée sur le vrai serveur (`POST /api/devices`).
 - **Fini quand** : `python -m outils.connexion` sur le Pi affiche `Liaison OK` avec le serveur du VPS, sans l'avertissement « non chiffrée ».
 
-### C1. Service systemd sur le Pi 🔜
+### C1. Service systemd sur le Pi ✅ (testé en prod le 20/10/2026, voir [poc-raspberry.md](poc-raspberry.md) §3.6 et §7)
 
 Le Pi devient « branché, ça marche » : plus besoin d'un terminal ouvert.
 
@@ -87,6 +87,7 @@ Point à trancher (avec l'équipe) : **le Pi n'a pas d'écran**, comment montrer
 
 - Page de session, « Appareils de capture » : le badge « Capture active » vient de `captureStatus` en base, pas de la connexion. Un Pi éteint peut être coché sans avertissement, et la session ne recevra rien. → afficher en ligne / hors ligne d'après les WebSocket ouvertes (`DeviceConnections`).
 - Paramètres › Appareils connectés : la WebSocket ne prolonge pas la session de connexion du Pi (seules les requêtes HTTP le font, `SESSION_TTL_MINUTES` = 60). Le Pi risque donc d'être affiché « Expirée » au bout d'1 h alors qu'il est connecté. À vérifier : laisser le Pi connecté plus d'1 h, puis regarder la page ; si c'est le cas, prolonger la session tant que la WebSocket vit.
+- Page de session en cours : « Captures 0 » et le bandeau « n'envoie plus rien depuis 5 minutes » alors que le Pi analyse (test C1). Le site compte les captures (`POST …/captures`, points du corps), que le Pi n'envoie jamais en session normale (audit §7.2). → se baser sur la connexion du Pi, ses `state` (C2) et ses alertes.
 
 ### C4. Test de bout en bout 🔜
 
