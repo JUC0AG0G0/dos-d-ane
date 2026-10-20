@@ -65,7 +65,8 @@ edge/
 python poc.py                          # session normale ; Ctrl+C pour terminer
 python poc.py --rapide                 # durées raccourcies pour essayer (alerte en 10 s…)
 python poc.py --service                # sessions lancées par le serveur (edge/.env, docs/liaison-serveur.md)
-python -m outils.appairer              # une fois : ajoute ce Pi à un compte et écrit sa clé dans edge/.env
+python -m outils.preparer --serveur https://…   # une fois : code d'étiquette pour l'appairage par code
+python -m outils.appairer              # dev : ajoute ce Pi à un compte (email, mot de passe) et écrit sa clé
 python live.py                         # debug en direct (sur le bureau du Pi) ; q pour quitter
 
 python -m outils.t2_camera --court     # T2 : la webcam tient (1 minute ; sans --court : 1 heure)

@@ -36,6 +36,12 @@ CODE_JETON_REFUSE = 4401          # jeton absent, invalide ou expiré : refaire 
 CODE_APPAREIL_REFUSE = 4403       # session ouverte depuis un autre type d'appareil : ne pas réessayer
 VARIABLES = ("DOSDANE_SERVEUR", "DOSDANE_APPAREIL", "DOSDANE_CLE")
 FORMAT_CLE = re.compile(r"dk_[A-Za-z0-9_-]{43}")    # clé donnée par POST /devices
+# Appairage par code d'étiquette (contrat §2) : code de 9 caractères Crockford base32, secret de relève
+VARIABLES_APPAIRAGE = ("DOSDANE_SERVEUR", "DOSDANE_CODE", "DOSDANE_SECRET_APPAIRAGE")
+FORMAT_CODE = re.compile(r"[0-9ABCDEFGHJKMNPQRSTVWXYZ]{9}")
+FORMAT_SECRET = re.compile(r"ps_[A-Za-z0-9_-]{43}")
+ATTENTE_APPAIRAGE = 5             # s entre deux demandes du Pi qui attend d'être ajouté à un compte
+ATTENTE_REFUS = 60                # s après un refus (code pris par un autre secret, trop de demandes)
 ATTENTE_MIN, ATTENTE_MAX = 1, 60  # secondes entre deux tentatives, doublées à chaque échec
 CONSERVATION = timedelta(days=7)  # file d'envoi purgée au-delà (audit §12) : résultats de posture
 PURGE_TOUTES_LES = 3600          # s entre deux purges
@@ -65,12 +71,7 @@ class Config:
 
     @classmethod
     def depuis_env(cls, env=os.environ):
-        manquantes = [nom for nom in VARIABLES if not env.get(nom)]
-        if manquantes:
-            raise ErreurConfig(f"variables manquantes : {', '.join(manquantes)} (modèle : edge/.env.example)")
-        serveur = env["DOSDANE_SERVEUR"].rstrip("/")
-        if not serveur.startswith(("http://", "https://")):
-            raise ErreurConfig("DOSDANE_SERVEUR doit commencer par http:// ou https://")
+        serveur = _serveur(env, VARIABLES)
         if not FORMAT_CLE.fullmatch(env["DOSDANE_CLE"]):
             raise ErreurConfig("DOSDANE_CLE doit être la clé donnée par le serveur (dk_…)")
         return cls(serveur, env["DOSDANE_APPAREIL"], env["DOSDANE_CLE"])
@@ -79,6 +80,44 @@ class Config:
     def url_ws(self):
         """Même hôte que l'API : http → ws, https → wss (chiffré)."""
         return "ws" + self.serveur.removeprefix("http") + CHEMIN_WS
+
+
+@dataclass(frozen=True)
+class ConfigAppairage:
+    """Pi préparé avec un code d'étiquette (outils/preparer.py) : de quoi obtenir sa clé sans SSH."""
+
+    serveur: str
+    code: str                                 # 9 caractères, sans tirets
+    secret: str = field(repr=False)           # secret de relève, connu du Pi seul : jamais affiché
+
+    @classmethod
+    def depuis_env(cls, env=os.environ):
+        """None si le Pi n'a pas de code (préparé avant l'appairage par code : il lui faut une clé)."""
+        if not env.get("DOSDANE_CODE") and not env.get("DOSDANE_SECRET_APPAIRAGE"):
+            return None
+        serveur = _serveur(env, VARIABLES_APPAIRAGE)
+        code = env["DOSDANE_CODE"].upper().replace("-", "")
+        if not FORMAT_CODE.fullmatch(code):
+            raise ErreurConfig("DOSDANE_CODE doit être le code de l'étiquette (9 caractères, ex. K7F-29Q-M4T)")
+        if not FORMAT_SECRET.fullmatch(env["DOSDANE_SECRET_APPAIRAGE"]):
+            raise ErreurConfig("DOSDANE_SECRET_APPAIRAGE doit être le secret créé par outils/preparer.py (ps_…)")
+        return cls(serveur, code, env["DOSDANE_SECRET_APPAIRAGE"])
+
+    @property
+    def code_affiche(self):
+        """Comme sur l'étiquette : K7F-29Q-M4T."""
+        return f"{self.code[:3]}-{self.code[3:6]}-{self.code[6:]}"
+
+
+def _serveur(env, variables):
+    """Vérifie que les variables sont là et renvoie l'adresse du serveur, sans / final."""
+    manquantes = [nom for nom in variables if not env.get(nom)]
+    if manquantes:
+        raise ErreurConfig(f"variables manquantes : {', '.join(manquantes)} (modèle : edge/.env.example)")
+    serveur = env["DOSDANE_SERVEUR"].rstrip("/")
+    if not serveur.startswith(("http://", "https://")):
+        raise ErreurConfig("DOSDANE_SERVEUR doit commencer par http:// ou https://")
+    return serveur
 
 
 def login(config, timeout=10):
@@ -230,6 +269,89 @@ def prochaine_attente(attente):
     return min(attente * 2, ATTENTE_MAX)
 
 
+def requete(serveur, methode, chemin, corps=None, jeton=None, timeout=10):
+    """Appel JSON au serveur : (code HTTP, réponse ou None) ; lève ConnectionError s'il est injoignable."""
+    entetes = {"Content-Type": "application/json", **({"Authorization": f"Bearer {jeton}"} if jeton else {})}
+    donnees = json.dumps(corps).encode() if corps is not None else None
+    try:
+        with urllib.request.urlopen(urllib.request.Request(f"{serveur}{chemin}", data=donnees, method=methode,
+                                                           headers=entetes), timeout=timeout) as reponse:
+            brut = reponse.read()
+            return reponse.status, json.loads(brut) if brut else None
+    except urllib.error.HTTPError as e:
+        try:
+            return e.code, json.loads(e.read(4096))
+        except ValueError:
+            return e.code, None
+    except OSError as e:                         # injoignable, délai dépassé, connexion coupée…
+        raise ConnectionError(f"serveur injoignable ({serveur}) : {e}") from None
+
+
+def mettre_a_jour_env(texte, valeurs):
+    """Remplace (ou ajoute à la fin) les lignes NOM=… de `valeurs` ; garde les autres lignes telles quelles."""
+    restantes, lignes = dict(valeurs), []
+    for ligne in texte.splitlines():
+        nom = ligne.split("=", 1)[0].strip()
+        if not ligne.lstrip().startswith("#") and nom in restantes:
+            lignes.append(f"{nom}={restantes.pop(nom)}")
+        else:
+            lignes.append(ligne)
+    lignes += [f"{nom}={valeur}" for nom, valeur in restantes.items()]
+    return "\n".join(lignes) + "\n"
+
+
+def enregistrer_env(fichier, valeurs):
+    """Écrit `valeurs` dans edge/.env (créé si besoin), lisible par l'utilisateur seul : il contient la clé."""
+    ancien = fichier.read_text() if fichier.exists() else ""
+    masque = os.umask(0o077)
+    try:
+        fichier.write_text(mettre_a_jour_env(ancien, valeurs))
+    finally:
+        os.umask(masque)
+    fichier.chmod(0o600)
+
+
+def attendre_appairage(config, fichier_env):
+    """Attend qu'un compte valide le code de l'étiquette, puis enregistre la clé et renvoie la Config.
+
+    Une demande toutes les 5 s (contrat §2). Seule une erreur de configuration (ErreurConfig) l'arrête :
+    réseau coupé ou serveur absent, il réessaie (attente croissante). Ctrl+C ou SIGTERM l'interrompent.
+    """
+    journal.info("en attente d'appairage : code %s, à taper dans « Ajouter un Raspberry Pi »",
+                 config.code_affiche)
+    attente = ATTENTE_MIN
+    while True:
+        try:
+            code, reponse = requete(config.serveur, "POST", "/api/devices/pairing/poll",
+                                    {"code": config.code, "secret": config.secret})
+        except ConnectionError as e:
+            journal.warning("%s ; nouvel essai dans %d s", e, attente)
+            time.sleep(attente)
+            attente = prochaine_attente(attente)
+            continue
+        attente = ATTENTE_MIN
+        if code == 200 and (reponse or {}).get("status") == "paired":
+            enregistrer_env(fichier_env, {"DOSDANE_APPAREIL": reponse["deviceId"], "DOSDANE_CLE": reponse["key"]})
+            journal.info("ajouté à un compte : clé enregistrée dans %s", fichier_env)
+            return Config(config.serveur, reponse["deviceId"], reponse["key"])
+        if code == 200:
+            pause = ATTENTE_APPAIRAGE
+        elif code == 400:
+            raise ErreurConfig("code ou secret refusé par le serveur : "
+                               "préparer le Pi de nouveau (outils/preparer.py)")
+        elif code == 409:
+            journal.error("ce code est déjà utilisé par un autre appareil : préparer le Pi de nouveau "
+                          "(outils/preparer.py, nouveau code)")
+            pause = ATTENTE_REFUS
+        elif code == 429:
+            journal.warning("trop de demandes : nouvel essai dans %d s", ATTENTE_REFUS)
+            pause = ATTENTE_REFUS
+        else:
+            journal.warning("appairage : erreur du serveur (HTTP %s) ; nouvel essai dans %d s", code, ATTENTE_REFUS)
+            pause = ATTENTE_REFUS
+        time.sleep(pause)
+
+
 class Liaison:
     """Garde la WebSocket ouverte dans un thread à part et la rouvre quand elle tombe.
 
@@ -237,7 +359,8 @@ class Liaison:
     liaison est coupée (le message est perdu : réservé à l'état en direct, que le suivant remplace).
     Les messages du serveur arrivent dans la file `recus`, en (event, data), en commençant par `ready` à
     chaque connexion : les passer à commande() pour savoir quoi démarrer ou arrêter.
-    Après une erreur de configuration (mauvais mot de passe, 4403), la liaison s'arrête et `erreur` dit pourquoi.
+    Après une erreur de configuration (clé refusée, 4403), la liaison s'arrête et `erreur` dit pourquoi ;
+    `cle_refusee` : la clé ne marche plus (révoquée ou remplacée), le Pi peut repasser en attente d'appairage.
     """
 
     def __init__(self, config):
@@ -245,6 +368,7 @@ class Liaison:
         self.jeton = Jeton(config)               # à partager avec Envoi
         self.recus = queue.Queue()
         self.erreur = None
+        self.cle_refusee = False
         self._arret = threading.Event()
         self._ws = None
         self._thread = threading.Thread(target=self._boucle, name="liaison-serveur", daemon=True)
@@ -283,6 +407,7 @@ class Liaison:
                 jeton = self.jeton.valeur()
                 ws, pret = ouvrir(self.config, jeton)
             except ErreurLogin as e:
+                self.cle_refusee = True
                 return self._abandonner(str(e))
             except ConnexionRefusee as e:
                 journal.warning("%s", e)

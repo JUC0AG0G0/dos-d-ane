@@ -35,6 +35,7 @@ Ctrl+C ou SIGTERM (systemd) : l'analyse en cours se termine proprement (dernier 
 import argparse
 import csv
 import logging
+import os
 import queue
 import signal
 import sys
@@ -43,7 +44,7 @@ from datetime import datetime, timezone
 
 from posture.angles import angles
 from posture.camera import capturer, ouvrir_camera
-from posture.chemins import DOSSIER_RESULTATS
+from posture.chemins import DOSSIER_RESULTATS, FICHIER_ENV
 from posture.filtre import Bocal, TempsAssis
 from posture.mesures import COLONNES_CSV, ligne_csv
 from posture.movenet import MoveNet
@@ -51,7 +52,8 @@ from posture.pi import temperature_pi, throttled_pi
 from posture.points import Completeur, CoteStable, Presence
 from posture.regles import postures
 from posture.score import DUREE_RESUME, Resume
-from posture.serveur import Config, Envoi, ErreurConfig, Liaison, Numeros, commande
+from posture.serveur import (Config, ConfigAppairage, Envoi, ErreurConfig, Liaison, Numeros, attendre_appairage,
+                             commande, enregistrer_env)
 
 CADENCE_CALME, CADENCE_DOUTE, CADENCE_ABSENT = 10, 2, 30     # s entre deux images
 ECHECS_REOUVERTURE = 5                                        # captures ratées d'affilée avant de rouvrir la webcam
@@ -312,13 +314,36 @@ def manuel(args):
 
 
 def service(args):
-    """Attend les ordres du serveur : une Analyse par session, la webcam fermée entre deux sessions."""
+    """Attend les ordres du serveur. Sans clé, attend d'abord d'être ajouté à un compte avec le code de
+    l'étiquette ; clé révoquée : efface sa clé et attend de nouveau (docs/liaison-serveur.md §2)."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(message)s", datefmt="%H:%M:%S")
     try:
-        config = Config.depuis_env()
+        appairage = ConfigAppairage.depuis_env()
+        config = Config.depuis_env() if os.environ.get("DOSDANE_CLE") or not appairage else None
     except ErreurConfig as e:
         sys.exit(f"ÉCHEC : {e}")
     movenet = MoveNet()                    # chargé une fois, pour toutes les sessions
+    try:
+        while True:
+            if config is None:
+                config = attendre_appairage(appairage, FICHIER_ENV)
+            liaison = servir(args, config, movenet)
+            if liaison.erreur is None:     # arrêt demandé (Ctrl+C, SIGTERM)
+                return
+            if not (liaison.cle_refusee and appairage):
+                sys.exit(f"ÉCHEC : {liaison.erreur}")
+            enregistrer_env(FICHIER_ENV, {"DOSDANE_APPAREIL": "", "DOSDANE_CLE": ""})
+            print("Clé refusée (révoquée depuis le site ?) : effacée, retour en attente d'appairage")
+            config = None
+    except KeyboardInterrupt:              # pendant l'attente d'appairage
+        pass
+    except ErreurConfig as e:
+        sys.exit(f"ÉCHEC : {e}")
+
+
+def servir(args, config, movenet):
+    """Une Analyse par session, la webcam fermée entre deux sessions. Renvoie la Liaison, arrêtée :
+    `erreur` à None après Ctrl+C ou SIGTERM, sinon la raison (clé refusée…)."""
     liaison = Liaison(config).demarrer()
     envoi = Envoi(config, liaison.jeton).demarrer()     # alertes et résumés, même jeton que la liaison
     analyse, prochaine = None, 0.0         # prochaine : instant de la prochaine image
@@ -353,8 +378,7 @@ def service(args):
         envoi.arreter()                    # après terminer() : le dernier résumé part aussi
         liaison.arreter()
         print(f"Envoyés au serveur : {envoi.envoyes}, refusés : {envoi.rejetes}, non envoyés : {envoi.en_attente}")
-    if liaison.erreur:
-        sys.exit(f"ÉCHEC : {liaison.erreur}")
+    return liaison
 
 
 def main():
