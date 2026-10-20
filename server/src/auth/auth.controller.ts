@@ -32,6 +32,7 @@ import {
   SessionDto,
   UserDto,
 } from './dto/auth-responses.dto.js';
+import { DeviceLoginDto } from './dto/device-login.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import { RegisterDto } from './dto/register.dto.js';
 
@@ -70,6 +71,27 @@ export class AuthController {
     @Req() request: Request,
   ): Promise<LoginResponseDto> {
     return this.auth.login(dto, readClientInfo(request));
+  }
+
+  @Public()
+  @Post('device-login')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Connexion d’un Raspberry Pi par sa clé',
+    description:
+      'Échange la clé d’appareil (POST /devices) contre le même JWT qu’un login, sans mot de passe sur le Pi. ' +
+      'Le Pi la refait seul quand son JWT expire. Ferme la session qui était encore ouverte sur cet appareil.',
+  })
+  @ApiOkResponse({ type: LoginResponseDto })
+  @ApiBadRequestResponse({ description: 'Champs invalides' })
+  @ApiUnauthorizedResponse({
+    description: 'Appareil ou clé invalide (y compris clé révoquée)',
+  })
+  deviceLogin(
+    @Body() dto: DeviceLoginDto,
+    @Req() request: Request,
+  ): Promise<LoginResponseDto> {
+    return this.auth.deviceLogin(dto, readClientInfo(request));
   }
 
   @ApiBearerAuth()

@@ -9,11 +9,13 @@ import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '../generated/prisma/client.js';
 import { CaptureStatus, DeviceType, Role } from '../entities/index.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import type { AuthContext } from './auth.guard.js';
+import type { AuthContext, SessionKind } from './auth.guard.js';
 import type {
   DeviceInputDto,
   LoginDeviceType,
 } from './dto/device-input.dto.js';
+import { hashDeviceKey, sameKeyHash } from './device-key.js';
+import type { DeviceLoginDto } from './dto/device-login.dto.js';
 import type { LoginDto } from './dto/login.dto.js';
 import type { RegisterDto } from './dto/register.dto.js';
 import type {
@@ -143,6 +145,35 @@ export class AuthService {
   }
 
   /**
+   * Connexion d'un Raspberry Pi par sa clé (à la place d'un mot de passe) :
+   * ouvre la même session qu'un login, sur cet appareil. Même erreur si
+   * l'appareil n'existe pas, n'a pas de clé ou si la clé est fausse.
+   */
+  async deviceLogin(
+    dto: DeviceLoginDto,
+    client: ClientInfo,
+  ): Promise<LoginResponseDto> {
+    const device = await this.prisma.device.findUnique({
+      where: { id: dto.deviceId },
+      select: { type: true, keyHash: true, user: { select: userSelect } },
+    });
+    const keyHash = hashDeviceKey(dto.key);
+    if (
+      !device?.keyHash ||
+      device.type !== DeviceType.Raspberry ||
+      !sameKeyHash(keyHash, device.keyHash)
+    ) {
+      throw new UnauthorizedException('Appareil ou clé invalide');
+    }
+    return this.openSession(
+      device.user,
+      { id: dto.deviceId, type: DeviceType.Raspberry },
+      client,
+      'device',
+    );
+  }
+
+  /**
    * Vérifie la signature du JWT, puis que sa session est toujours active :
    * une session révoquée invalide son JWT immédiatement. Prolonge la session
    * (expiresAt = maintenant + SESSION_TTL_MINUTES). Renvoie null si le token
@@ -163,6 +194,7 @@ export class AuthService {
         expiresAt: true,
         revokedAt: true,
         lastUsedAt: true,
+        kind: true,
         user: { select: { role: true } },
       },
     });
@@ -183,6 +215,7 @@ export class AuthService {
       role: session.user.role,
       sessionId: session.id,
       expiresAt,
+      kind: session.kind as SessionKind,
     };
   }
 
@@ -267,6 +300,7 @@ export class AuthService {
     user: UserDto,
     deviceInput: DeviceInputDto = {},
     client: ClientInfo,
+    kind: SessionKind = 'user',
   ): Promise<LoginResponseDto> {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + this.sessionTtlMs);
@@ -284,6 +318,7 @@ export class AuthService {
           expiresAt,
           ipAddress: client.ipAddress,
           userAgent: client.userAgent,
+          kind,
         },
         select: { id: true, deviceId: true },
       });

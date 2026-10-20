@@ -467,6 +467,9 @@ export class AnalysisService {
         ? new ConflictException('Session déjà en pause')
         : error;
     }
+    // Le Pi termine son analyse et éteint sa webcam ; il reprendra au resume.
+    this.notify(await this.openDeviceIds(id), 'session:stop', id);
+    this.liveStates.clear(id);
     return this.detail(userId, id);
   }
 
@@ -480,6 +483,7 @@ export class AnalysisService {
       where: { analysisSessionId: id, endedAt: null },
       data: { endedAt: new Date() },
     });
+    this.notify(await this.openDeviceIds(id), 'session:start', id);
     return this.detail(userId, id);
   }
 
@@ -531,15 +535,20 @@ export class AnalysisService {
   }
 
   /**
-   * Session en cours à laquelle participe l'appareil, ou null : envoyée au Pi
-   * à chaque connexion (`ready`), pour qu'il rattrape un start ou un stop manqué.
+   * Session en cours (lancée, ni en pause ni terminée) à laquelle participe
+   * l'appareil, ou null : envoyée au Pi à chaque connexion (`ready`), pour
+   * qu'il rattrape un start, un stop ou une pause manqués.
    */
   async runningSessionId(deviceId: string): Promise<string | null> {
     const deviceSession = await this.prisma.deviceSession.findFirst({
       where: {
         deviceId,
         endedAt: null,
-        analysisSession: { startedAt: { not: null }, endedAt: null },
+        analysisSession: {
+          startedAt: { not: null },
+          endedAt: null,
+          pauses: { none: { endedAt: null } },
+        },
       },
       select: { analysisSessionId: true },
     });

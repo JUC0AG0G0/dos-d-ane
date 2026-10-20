@@ -57,6 +57,7 @@ Une fois, après le premier déploiement :
    - Domain Names : `dos-d-ane.julescorneille.fr`
    - Scheme `http`, Forward Hostname `dos-d-ane-client-1`, Forward Port `80`
    - **Block Common Exploits** coché
+   - **Websockets Support** coché (le Raspberry Pi se connecte en WebSocket sur `/api/devices/ws`)
    - Onglet **SSL** : *Request a new SSL Certificate*, **Force SSL** et **HTTP/2 Support** cochés.
 
 ## Exploiter

@@ -2,7 +2,7 @@
 
 Partie **edge** du projet Dos d'âne (POC Fil Rouge Master UHA 4.0, 2026) : un Raspberry Pi 4 regarde une personne assise **de profil** avec une webcam, détecte les points du corps (MoveNet), calcule des angles et détecte les mauvaises postures. Le reste du dépôt (`server/` NestJS, mise, Taskfile) ne concerne pas ce dossier.
 
-Documentation de référence : `docs/poc-raspberry.md` (plan, installation, briques §5, tests §6, fiche de résultats §7), `docs/algo-posture.md` (**référence de l'algorithme** : contrôles, angles, seuils et leurs sources, filtre, score) et `docs/Audit_technique_final_Fil_Rouge_Master_UHA_4_0_v3.md` (architecture complète : RGPD, rôle du Pi et du serveur, messages §7.2) ; `docs/liaison-serveur.md` donne le contrat exact avec le serveur (connexion WebSocket, codes de fermeture, messages). `docs/solution-mvp.md` résume la solution. Chaque sujet n'est décrit qu'**une fois** : ailleurs, mettre un lien plutôt que recopier. Lire la section concernée avant de modifier le code correspondant.
+Documentation de référence : `docs/poc-raspberry.md` (plan, installation, briques §5, tests §6, fiche de résultats §7), `docs/algo-posture.md` (**référence de l'algorithme** : contrôles, angles, seuils et leurs sources, filtre, score) et `docs/Audit_technique_final_Fil_Rouge_Master_UHA_4_0_v3.md` (architecture complète : RGPD, rôle du Pi et du serveur, messages §7.2) ; `docs/liaison-serveur.md` donne le contrat exact avec le serveur (connexion WebSocket, codes de fermeture, messages). `docs/plan-liaison.md` suit les étapes faites et à faire. `docs/solution-mvp.md` résume la solution. Chaque sujet n'est décrit qu'**une fois** : ailleurs, mettre un lien plutôt que recopier. Lire la section concernée avant de modifier le code correspondant.
 
 ## Règles à ne jamais enfreindre
 
@@ -17,7 +17,7 @@ Documentation de référence : `docs/poc-raspberry.md` (plan, installation, briq
 | `posture/` | **le cœur, commun à tous** (paquet) : `camera`, `movenet`, `points` (côté, point complété, présence), `angles`, `regles` (`SEUILS`, `postures()`), `filtre` (`Bocal`, `TempsAssis`), `score` (`Resume`), `mesures` (CSV), `chemins`, `pi`, `serveur` (login, WebSocket : `docs/liaison-serveur.md`) |
 | `poc.py` | la vraie session (§5.5) : bocaux, cadence adaptative, événements (sans fenêtre) |
 | `live.py` | outil de debug avec fenêtre (pas utilisé en session) |
-| `outils/` | outils de mesure sur le Pi : `t2_camera.py`, `t4_modeles.py`, `enregistrer.py` (volontaires), `evaluer.py` (F1), `confiance.py` (images ignorées), `connexion.py` (liaison avec le serveur) ; puis `t1_vitesse.py` |
+| `outils/` | outils de mesure sur le Pi : `t2_camera.py`, `t4_modeles.py`, `enregistrer.py` (volontaires), `evaluer.py` (F1), `confiance.py` (images ignorées), `connexion.py` (liaison avec le serveur), `appairer.py` (ajoute le Pi à un compte, écrit sa clé) ; puis `t1_vitesse.py` |
 | `tests/` | tests unitaires de l'algorithme (pytest), sans webcam ni modèle : `aide.personne()` fabrique des points avec les angles voulus |
 
 - Toute logique réutilisable va dans `posture/`, dans le module de son étape ; les scripts l'**importent** (`from posture.regles import postures`), ils ne recopient pas de code.

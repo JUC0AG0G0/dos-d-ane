@@ -699,7 +699,7 @@ Avantages :
 | Sujet | Mesure |
 |---|---|
 | **Enrôlement des devices** (plug n play) | Le device démarre avec un jeton d'enrôlement → `POST /api/devices/enroll` → statut `PENDING` → l'admin approuve → le device reçoit une **clé API**, stockée hachée côté serveur |
-| Authentification des devices | En-tête `Authorization: Device <clé>` ; révocation possible (`REVOKED`) |
+| Authentification des devices | Clé d'appareil révocable ; mise en œuvre : la clé est échangée contre un JWT (`POST /auth/device-login`) au lieu d'être envoyée à chaque requête, voir [liaison-serveur.md](liaison-serveur.md) §2 |
 | Authentification des utilisateurs | JWT court + refresh token ; mots de passe hachés (argon2 ou bcrypt) |
 | Rôles | `USER` (ses propres données), `ADMIN` (agrégats, pseudonymes, seuils, retours « fausse alerte »), `DEVICE` (ingestion uniquement) |
 | Transport | **HTTPS** obligatoire. Le dépôt n'expose aujourd'hui que le port 80 : ajouter un TLS (Caddy, ou nginx + certificat, avec une autorité de certification interne si on reste sur le LAN de l'école) |
