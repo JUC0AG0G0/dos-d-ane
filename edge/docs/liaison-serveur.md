@@ -49,6 +49,30 @@ Le Pi n'a **aucun mot de passe** : il a un `deviceId` et une **clé** (`dk_` + 2
 
 **Pourquoi la clé contre un JWT**, et pas la clé dans chaque requête (`Authorization: Device <clé>`, prévu au départ) : les deux suppriment le mot de passe et l'expiration gênante et permettent de révoquer un Pi, mais tout le serveur (guard, révocation, routes qui retrouvent l'appareil par la session) repose sur le JWT et sa session de connexion. Échanger la clé contre un JWT ne change que le login ; la clé circule rarement (un login de temps en temps) et le JWT qui circule est de courte durée et révocable. C'est le schéma classique « secret de longue durée → jeton de courte durée » (client credentials d'OAuth).
 
+### Appairage par code ✅
+
+Pour que le Pi obtienne sa clé **sans SSH ni mot de passe** : l'utilisateur tape dans le site le code imprimé sur l'étiquette du Pi. Pourquoi une étiquette et ce qui a été écarté : [plan-liaison.md](plan-liaison.md), « Appairage par code ».
+
+Deux secrets, créés une fois par `outils/preparer.py` et gardés dans `edge/.env` (`600`) :
+
+| | Format | Connu de | Sert à |
+|---|---|---|---|
+| **code d'étiquette** `DOSDANE_CODE` | 9 caractères de l'alphabet Crockford base32 (chiffres et lettres sans I, L, O, U : pas de confusion 1/I/L, 0/O), affiché `K7F-29Q-M4T` ; saisie insensible à la casse, tirets et espaces ignorés ; ~45 bits | le Pi, et quiconque voit l'étiquette | dire au serveur « ce Pi est à moi » |
+| **secret de relève** `DOSDANE_SECRET_APPAIRAGE` | `ps_` + 256 bits aléatoires, jamais affiché | le Pi seul | récupérer la clé une fois le code validé |
+
+Le serveur ne garde que leurs **empreintes SHA-256** (table `devicePairings` : empreinte du code, empreinte du secret, dernière demande du Pi, appareil créé). La clé n'est créée qu'au moment où le Pi la relève : elle n'est jamais gardée en clair, même un instant en base.
+
+| Route | Qui | Corps | Réponses |
+|---|---|---|---|
+| `POST /api/devices/pairing/poll` | **le Pi sans clé** (public), toutes les 5 s | `{ code, secret }` | `200 { "status": "waiting" }` : pas encore validé (la 1ʳᵉ demande crée l'attente et lie ce secret au code) ; `200 { "status": "paired", "deviceId", "key" }` : validé, **une seule fois**, l'attente est ensuite supprimée ; `400` : code ou secret mal formé ; `409` : ce code est lié à un autre secret ; `429` : trop de demandes |
+| `POST /api/devices/pairing/claim` | **l'utilisateur connecté** (pas un Pi : `403`) | `{ code, name }` (`name` facultatif, « Raspberry Pi » par défaut) | `201 { id, name, type, model }` : l'appareil, créé dans son compte (Raspberry Pi, capture activée, sans clé jusqu'à ce que le Pi la relève) ; `400 Code invalide : 9 caractères` (le format n'est pas un secret) ; `404 Code inconnu, déjà utilisé ou Raspberry Pi éteint` (même réponse dans tous ces cas : ne dit pas si un code existe) ; `429` : trop d'essais ratés |
+
+- **Le Pi doit être allumé** : un code n'est accepté que si le Pi l'a envoyé il y a moins de 2 min. Une attente sans nouvelle du Pi depuis 10 min est supprimée ; une attente validée mais pas encore relevée est gardée (le Pi la relèvera en revenant).
+- **Limites d'essais** (`@nestjs/throttler`, compteurs en mémoire : une seule instance, remis à zéro au redémarrage) : `claim` 5 essais par 15 min et par compte, 20 par 15 min et par adresse IP (plusieurs comptes d'une même adresse) ; `poll` 60 demandes par minute et par adresse IP (un Pi en fait 12 ; plusieurs Pi d'un même réseau partagent une adresse). Au-delà : `429 Trop d’essais : réessayez dans quelques minutes`. L'adresse IP est la vraie, transmise par les deux nginx (`X-Forwarded-For`, `trust proxy`).
+- **Ce que permet de voler l'étiquette** : au pire, ajouter le Pi à un autre compte avant son propriétaire (qui le voit : « déjà utilisé »), jamais récupérer la clé (il faut le secret de relève). Le premier secret envoyé pour un code est gardé : si quelqu'un a envoyé le code avant le vrai Pi, celui-ci reçoit `409` et l'écrit dans son journal → préparer le Pi de nouveau (nouveau code).
+- **Côté Pi** (`poc.py --service`) : sans `DOSDANE_CLE` mais avec un code, il attend (journal : `en attente d'appairage, code K7F-29Q-M4T`) ; à `200`, il écrit `DOSDANE_APPAREIL` et `DOSDANE_CLE` dans `edge/.env` et se connecte normalement ; clé révoquée (`4401 Clé révoquée`, ou login refusé) → il efface sa clé et repasse en attente avec le même code. Réseau coupé : nouvel essai avec attente croissante, comme la liaison.
+- `outils/appairer.py` (email et mot de passe) reste pour le dev.
+
 ### Codes de fermeture
 
 | Code | Raison envoyée | Cause | Ce que fait le Pi |
@@ -145,7 +169,7 @@ Pour suivre une session pendant qu'elle tourne (couleur, posture, angles, alerte
 | Authentification | header `Authorization: Bearer <accessToken>`, comme les autres routes, **jamais dans l'URL** |
 | Réponse | `text/event-stream`, avec `X-Accel-Buffering: no` (nginx transmet chaque message sans attendre) |
 
-⚠️ **`EventSource` (l'objet SSE intégré au navigateur) ne sait pas envoyer d'en-tête `Authorization`** : il prendrait un `401`. Lire le flux avec `fetch` (corps lu au fil de l'eau), ou une librairie qui accepte les en-têtes : `@microsoft/fetch-event-source` (site), `react-native-sse` (app Expo).
+⚠️ **`EventSource` (l'objet SSE intégré au navigateur) ne sait pas envoyer d'en-tête `Authorization`** : il prendrait un `401`. Lire le flux avec `fetch` (corps lu au fil de l'eau), ou une librairie qui accepte les en-têtes (`react-native-sse` pour l'app Expo). Exemple complet côté site, sans librairie : `events()` dans [`client/src/services/http.ts`](../../client/src/services/http.ts) (découpage des messages) et [`useLiveSession.ts`](../../client/src/features/sessions/hooks/useLiveSession.ts) (reconnexion, fin de session).
 
 Chaque message a un nom (`event:`) et un contenu JSON (`data:`) :
 
@@ -180,7 +204,7 @@ data: {"id":"…","clientId":"evt_…_0001","deviceId":"…","type":"FORWARD_HEA
 - **Aucune limite de tentatives** sur les routes de login (mot de passe comme clé). Sans conséquence pour la clé (256 bits), à ajouter pour le mot de passe (tout le projet).
 - **Une seule instance du serveur** : la liste des Pi connectés (`DeviceConnections`), le dernier état et les flux en direct (`LiveStates`) sont gardés en mémoire. Avec plusieurs instances, il faudrait les partager (Redis…).
 - **Seuils** : `session:start` ne les envoie pas encore (pas stockés côté serveur) ; le Pi garde ses seuils fixes (`SEUILS`).
-- **Prod** : la WebSocket traverse deux nginx, qui doivent tous deux relayer `Upgrade` et `Connection` : `client/nginx.conf` (bloc `/api/devices/ws`) et Nginx Proxy Manager sur le VPS (« Websockets Support », [deployReadME.md](../../deployReadME.md) §5).
+- **Prod** : la WebSocket traverse deux nginx, qui doivent tous deux relayer `Upgrade` et `Connection` : `client/nginx.conf` (bloc `/api/devices/ws`) et Nginx Proxy Manager sur le VPS (« Websockets Support », [deployReadME.md](../../deployReadME.md) §5). Le flux `/live` (§5) a aussi son bloc dans `client/nginx.conf` : ce nginx consomme le `X-Accel-Buffering: no` du serveur et doit le renvoyer, sinon Nginx Proxy Manager garde les messages en tampon (paquets d'une vingtaine de messages toutes les ~40 s).
 
 ## 7. Côté Pi : configuration
 
@@ -189,13 +213,21 @@ Variables d'environnement, dans `edge/.env` (ignoré par Git ; modèle commenté
 | Variable | Exemple |
 |---|---|
 | `DOSDANE_SERVEUR` | `http://localhost:3000` en dev, `https://…` en prod (WebSocket en `ws://` ou `wss://` d'après lui) |
-| `DOSDANE_APPAREIL`, `DOSDANE_CLE` | `deviceId` et `key` donnés par `POST /api/devices` (ou `/devices/:id/key`) ; la clé n'est jamais affichée par le Pi |
+| `DOSDANE_CODE`, `DOSDANE_SECRET_APPAIRAGE` | code de l'étiquette et secret de relève, écrits par `outils/preparer.py` (appairage par code, §2) |
+| `DOSDANE_APPAREIL`, `DOSDANE_CLE` | `deviceId` et `key` : écrits par le Pi lui-même quand un compte valide son code (ou par `outils/appairer.py`, ou à la main en dev) ; vides, le Pi attend d'être appairé ; la clé n'est jamais affichée par le Pi |
 
-**Le plus simple : appairer le Pi** (une fois, sur le Pi) — il s'ajoute lui-même au compte et écrit `DOSDANE_APPAREIL` et `DOSDANE_CLE` dans `edge/.env` (`600`) ; le mot de passe est tapé sans écho, sert à un seul login fermé aussitôt, et n'est jamais enregistré :
+**En vrai : préparer le Pi** (une fois, par l'équipe, sur le Pi) — code et secret écrits dans `edge/.env` (`600`, copie de l'ancien dans `.env.avant-preparation`), étiquette affichée ; une clé déjà présente n'est retirée qu'après confirmation. Ensuite, l'utilisateur tape le code dans le site (Paramètres › Appareils connectés › Ajouter un Raspberry Pi) et le service (C1) reçoit sa clé tout seul :
 
 ```bash
 cd edge && source .venv/bin/activate
-python -m outils.appairer --serveur https://<domaine> --nom "Pi du bureau"
+python -m outils.preparer --serveur https://<domaine>     # relancé : garde le même code (--nouveau-code sinon)
+sudo systemctl restart dos-dane                           # journal : « en attente d'appairage : code … »
+```
+
+**En dev : appairer avec un compte** — le Pi s'ajoute lui-même au compte et écrit `DOSDANE_APPAREIL` et `DOSDANE_CLE` ; le mot de passe est tapé sans écho, sert à un seul login fermé aussitôt, et n'est jamais enregistré :
+
+```bash
+python -m outils.appairer --serveur http://<PC>:3000 --nom "Pi du bureau"
 ```
 
 Sinon, à la main : `POST /api/devices` (depuis un PC), puis recopier `deviceId` et `key` dans `edge/.env` :

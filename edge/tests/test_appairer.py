@@ -1,6 +1,6 @@
-"""Écriture du deviceId et de la clé dans edge/.env par outils/appairer.py, sans réseau."""
+"""Écriture du deviceId et de la clé dans edge/.env (outils/appairer.py, appairage par code), sans réseau."""
 
-from outils.appairer import mettre_a_jour_env
+from posture.serveur import mettre_a_jour_env
 
 VALEURS = {"DOSDANE_SERVEUR": "https://dosdane.example.com", "DOSDANE_APPAREIL": "01a1-…", "DOSDANE_CLE": "dk_x"}
 

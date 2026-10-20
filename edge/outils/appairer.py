@@ -11,47 +11,11 @@ Lancer depuis edge/ avec .venv activé :
 
 import argparse
 import getpass
-import json
 import os
 import sys
-import urllib.error
-import urllib.request
 
-from posture.chemins import DOSSIER_EDGE
-from posture.serveur import Config, ErreurConfig, ErreurLogin, login
-
-FICHIER_ENV = DOSSIER_EDGE / ".env"
-
-
-def mettre_a_jour_env(texte, valeurs):
-    """Remplace (ou ajoute à la fin) les lignes NOM=… de `valeurs` ; garde les autres lignes telles quelles."""
-    restantes, lignes = dict(valeurs), []
-    for ligne in texte.splitlines():
-        nom = ligne.split("=", 1)[0].strip()
-        if not ligne.lstrip().startswith("#") and nom in restantes:
-            lignes.append(f"{nom}={restantes.pop(nom)}")
-        else:
-            lignes.append(ligne)
-    lignes += [f"{nom}={valeur}" for nom, valeur in restantes.items()]
-    return "\n".join(lignes) + "\n"
-
-
-def requete(serveur, methode, chemin, corps=None, jeton=None):
-    """Appel JSON au serveur : (code HTTP, réponse) ; lève ConnectionError si le serveur est injoignable."""
-    entetes = {"Content-Type": "application/json", **({"Authorization": f"Bearer {jeton}"} if jeton else {})}
-    donnees = json.dumps(corps).encode() if corps is not None else None
-    try:
-        with urllib.request.urlopen(urllib.request.Request(f"{serveur}{chemin}", data=donnees, method=methode,
-                                                           headers=entetes), timeout=10) as reponse:
-            brut = reponse.read()
-            return reponse.status, json.loads(brut) if brut else None
-    except urllib.error.HTTPError as e:
-        try:
-            return e.code, json.loads(e.read(4096))
-        except ValueError:
-            return e.code, None
-    except OSError as e:
-        raise ConnectionError(f"serveur injoignable ({serveur}) : {e}") from None
+from posture.chemins import FICHIER_ENV
+from posture.serveur import Config, ErreurConfig, ErreurLogin, enregistrer_env, login, requete
 
 
 def main():
@@ -86,12 +50,7 @@ def main():
 
     # Enregistrée avant tout autre essai : la clé n'est donnée qu'une fois par le serveur.
     valeurs = {"DOSDANE_SERVEUR": serveur, "DOSDANE_APPAREIL": appareil["deviceId"], "DOSDANE_CLE": appareil["key"]}
-    ancien_umask = os.umask(0o077)
-    try:
-        FICHIER_ENV.write_text(mettre_a_jour_env(ancien, valeurs))
-    finally:
-        os.umask(ancien_umask)
-    FICHIER_ENV.chmod(0o600)
+    enregistrer_env(FICHIER_ENV, valeurs)
     print(f"✓ « {appareil['name']} » ajouté au compte ; deviceId et clé enregistrés dans {FICHIER_ENV}")
 
     try:                                         # vérification : le Pi se connecte avec sa clé

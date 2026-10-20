@@ -45,15 +45,27 @@ Le Pi devient « branché, ça marche » : plus besoin d'un terminal ouvert.
 - Journaux dans `journalctl -u dos-dane` ; fichier de l'unité versionné dans `edge/`, installation décrite dans `poc-raspberry.md`.
 - **Fini quand** : après un redémarrage du Pi, une session lancée depuis le site (Swagger est désactivé en prod) démarre l'analyse sans rien toucher sur le Pi ; `systemctl stop` termine proprement.
 
-### C2. État en direct vers l'app (SSE) : serveur fait, test en prod 🔜 (branche `feat/live-sse`)
+### C2. État en direct vers l'app (SSE) ✅ (PR #45 et #46, testé en prod le 20/10/2026, voir [poc-raspberry.md](poc-raspberry.md) §7)
 
 Le serveur reçoit déjà `state` et les alertes, mais personne ne peut encore les voir en direct.
 
 - ✅ `GET /api/analysis-sessions/:id/live` (Server-Sent Events, propriétaire de la session seulement) : statut et dernier `state` à l'ouverture, puis chaque `state`, chaque début et fin d'alerte (une fois, même renvoyée), chaque changement de statut ; fermé à l'arrêt ou à la suppression ; `ping` toutes les 30 s. Contrat : [liaison-serveur.md](liaison-serveur.md) §5.
 - ✅ Authentification tranchée : `Authorization: Bearer`, comme les autres routes ; côté site et app, lire le flux avec `fetch` ou une librairie qui accepte les en-têtes (`EventSource` ne le permet pas). Pas de jeton court dédié, jamais le JWT dans l'URL.
 - Testé en dev avec un Pi simulé (code du Pi) : états reçus dès l'envoi, alerte envoyée 4 fois → 2 messages (début, fin), pause / reprise / arrêt annoncés, flux fermé à l'arrêt.
-- **Fini quand** : `curl -N -H "Authorization: Bearer …" …/live` affiche les états du vrai Pi en direct pendant une session **en prod** (à travers les deux nginx).
-- Ensuite (pas dans C2) : l'afficher sur la page de session du site (et y remplacer « Captures 0 »), puis dans l'app (C3).
+- **Fini quand** : `curl -N -H "Authorization: Bearer …" …/live` affiche les états du vrai Pi en direct pendant une session **en prod** (à travers les deux nginx). ✅ Vérifié depuis la console du navigateur (`fetch`), après la correction du tampon de Nginx Proxy Manager (#46).
+- Ensuite (pas dans C2) : l'afficher sur la page de session du site (et y remplacer « Captures 0 »), puis dans l'app (C3). Site : fait, voir ci-dessous.
+
+### C2 bis. Le direct sur la page de session du site ✅ en dev (branche `feat/live-site`), test en prod 🔜
+
+Page d'une session en cours ou en pause (`LiveView`), seulement si un Raspberry Pi en fait partie : une session avec un téléphone ne change pas.
+
+- Lecture du flux : `http.events()` (`fetch` en flux, jeton dans l'en-tête, `401` → déconnexion comme les autres appels) et le hook `useLiveSession(id)` : statut, dernier état de chaque Pi, alertes ; reconnexion seule (1 s → 30 s) ; arrêt à la fin de la session, sur un refus ou en quittant la page.
+- Carte **« En direct »** : couleur (« Tout va bien », « À surveiller », « Alerte », « Image mal vue », « Personne absente »), posture, angles, score, « il y a X s » ; en pause : « webcam éteinte ».
+- Carte **« Alertes »** : alertes déjà enregistrées (`GET …/events`) puis reçues en direct, « En cours » puis durée.
+- Session avec seulement des Pi : plus de « Captures 0 » (tuile « Alertes » à la place, pas de carte « Dernière capture », pas de « 0 capture » dans les appareils) ; bandeau « n'envoie plus rien depuis 2 minutes » si aucun état n'arrive (`silentPis`), jamais quand c'est le site qui a perdu le flux.
+- Testé en dev avec un faux Pi (script qui se comporte comme `poc.py --service`, sans webcam) : états, alertes, pause, reprise, Pi silencieux 2 min puis de retour.
+- **Fini quand** : une vraie session du Pi en prod s'affiche en direct sur la page, alertes comprises.
+- Reste ailleurs : l'accueil, la liste des sessions et la page d'une session terminée comptent encore les captures (« 0 capture » pour un Pi) et n'affichent ni alertes ni résumés → étape « résultats après la session » (avec C3).
 
 ### C3. Le bouton dans l'app 🔜
 
@@ -61,35 +73,48 @@ Le serveur reçoit déjà `state` et les alertes, mais personne ne peut encore l
 - Site, page « Mes Raspberry Pi » : ajouter un Pi (appairage par code, ci-dessous), liste des Pi avec leur état **en ligne / hors ligne**, renommer, révoquer la clé.
 - **Fini quand** : une personne lance et termine une session depuis son téléphone, sans Swagger.
 
-#### Appairage par code
+#### Appairage par code ✅ en dev, test en prod 🔜 (avant la partie app de C3 ; branche `feat/appairage-code`)
 
-Aujourd'hui, aucun bouton ne permet d'ajouter un Pi : il faut lancer `python -m outils.appairer` sur le Pi (email et mot de passe tapés une fois, jamais enregistrés, puis `POST /devices` et la clé écrite dans `edge/.env`). Le but : ajouter un Pi sans script ni mot de passe sur le Pi, même tapé une fois, comme une télé connectée à un compte.
+Aujourd'hui, aucun bouton ne permet d'ajouter un Pi : il faut lancer `python -m outils.appairer` sur le Pi, en SSH (email et mot de passe tapés une fois, jamais enregistrés). Le but : l'utilisateur branche le Pi, tape un code dans le site, et c'est tout ; jamais de SSH ni de mot de passe sur le Pi.
 
-1. Le Pi démarre sans clé (service C1, `DOSDANE_CLE` vide) → il passe en mode appairage.
-2. Il demande un code au serveur (ex. `POST /devices/pairing`) : code court (`K7F-29Q`), valable 10 min.
-3. L'utilisateur, connecté sur le site, clique sur « Ajouter un Raspberry Pi » et tape le code : le serveur sait ainsi à quel compte rattacher le Pi.
-4. Le Pi demande au serveur toutes les 5 s si son code a été validé ; dès que c'est le cas, le serveur crée l'appareil et lui renvoie son `deviceId` et sa clé (une seule fois).
-5. Le Pi écrit sa clé dans `edge/.env` et se connecte normalement (`POST /auth/device-login`).
+**Décidé le 20/10/2026** : le Pi n'a pas d'écran pour afficher un code comme une télé connectée → **code imprimé sur une étiquette collée sur le Pi** (comme le code Wi-Fi d'une box), créé une fois à la préparation. Écartés : code dans les journaux ou par VNC (il faut aller sur le Pi), Pi trouvé sur le réseau local (fragile sur le Wi-Fi de l'UHA, sous-réseaux différents), petit écran (matériel en plus).
 
-À faire :
+Deux rôles :
 
-- **Serveur** : table de codes temporaires (code, expiration, compte qui l'a validé, nombre d'essais), deux ou trois routes, limite de tentatives (un code court se devine sinon).
-- **Pi** : mode appairage au démarrage (un `appairer.py` sans email ni mot de passe).
-- **Site** : champ du code dans la page « Mes Raspberry Pi ».
-
-Point à trancher (avec l'équipe) : **le Pi n'a pas d'écran**, comment montrer le code ?
-
-| Piste | Pour | Contre |
+| Rôle | Qui | SSH |
 |---|---|---|
-| Code dans les journaux (`journalctl -u dos-dane`) ou par VNC | rien de plus à coder | il faut quand même aller sur le Pi |
-| Le site voit les Pi « en attente » sur le même réseau | rien à taper | compliqué, fragile sur le Wi-Fi de l'UHA (sous-réseaux différents) |
-| Code fixe imprimé sur une étiquette collée sur le Pi, créé une fois à l'installation (comme le code d'une box internet) | le plus simple pour l'utilisateur | le code doit être gardé secret comme une clé ; en refaire un si l'étiquette est perdue |
+| préparer le Pi, comme un fabricant : système, code, `outils/preparer.py` (crée le code, écrit l'adresse du serveur, active le service C1) | l'équipe, une fois par Pi | oui, une fois |
+| l'utiliser : le brancher, taper le code de l'étiquette dans le site (puis l'app), lancer des sessions | l'utilisateur | jamais |
+
+**Réseau** (décidé le 20/10) : préparé à l'avance pour le POC, câble Ethernet ou Wi-Fi rempli à la préparation. Évolution pour le rapport : le Pi sans réseau crée son propre Wi-Fi et une page demande le réseau à rejoindre (comme une Chromecast) ; mise à jour du code sans SSH (le Pi qui se met à jour seul).
+
+Déroulé (contrat exact : [liaison-serveur.md](liaison-serveur.md) §2, « Appairage par code ») :
+
+1. Le Pi démarre **sans clé** (service C1) → au lieu de s'arrêter, il attend : toutes les 5 s, il envoie au serveur son code d'étiquette et son secret de relève.
+2. L'utilisateur, connecté sur le site : « Ajouter un Raspberry Pi », code de l'étiquette, nom du Pi → le serveur crée l'appareil **dans ce compte**.
+3. À sa demande suivante, le Pi reçoit son `deviceId` et sa clé (une seule fois), les écrit dans `edge/.env` et se connecte comme aujourd'hui (`device-login`, WebSocket).
+4. Clé révoquée depuis le site (`4401 Clé révoquée`) → le Pi efface sa clé et **repasse en attente** avec le même code : il peut être donné à quelqu'un d'autre sans SSH.
+
+| Étape | Où | Contenu |
+|---|---|---|
+| P0 ✅ | doc | ce plan et le contrat |
+| P1 ✅ | serveur | table `devicePairings`, `POST /devices/pairing/poll` (Pi), `POST /devices/pairing/claim` (compte), limite d'essais (`@nestjs/throttler`) |
+| P2 ✅ | Pi | `poc.py --service` sans clé → attente avec le code ; clé reçue → `edge/.env` ; clé révoquée → retour en attente |
+| P3 ✅ | Pi | `outils/preparer.py` : code et secret de relève dans `edge/.env`, adresse du serveur, service activé, texte de l'étiquette |
+| P4 ✅ | site | « Ajouter un Raspberry Pi » (code + nom), liste des Pi et révocation de la clé, dans Paramètres › Appareils connectés |
+
+- Testé en dev (20/10/2026) : routes (code inconnu, mal formé, déjà utilisé, autre secret `409`, Pi éteint depuis 3 min `404`, jeton d'un Pi `403`) ; limites (6ᵉ `claim` → `429`, 61ᵉ `poll` en rafale → `429`) ; code du Pi contre le serveur de dev (attente, clé reçue en ~10 s, `.env` en `600`, connexion WebSocket) ; bouton du site avec un Pi neuf simulé ; 134 tests du Pi. Reste à tester sur le vrai Pi, en prod : révocation → retour en attente.
+- Le Pi actuel (le seul) n'est pas réinstallé : `git pull`, puis `preparer.py`, qui ajoute le code et retire l'ancienne clé (copie de `edge/.env` avant) ; résultats, modèle, `.venv` et service ne bougent pas.
+- **Fini quand** : le Pi, sans clé, branché, apparaît dans le compte après la saisie du code sur le site, sans SSH ; une session lancée depuis le site marche ; une révocation le remet en attente.
 
 #### Remarques de la recette du 20/10/2026
 
 - Page de session, « Appareils de capture » : le badge « Capture active » vient de `captureStatus` en base, pas de la connexion. Un Pi éteint peut être coché sans avertissement, et la session ne recevra rien. → afficher en ligne / hors ligne d'après les WebSocket ouvertes (`DeviceConnections`).
-- Paramètres › Appareils connectés : la WebSocket ne prolonge pas la session de connexion du Pi (seules les requêtes HTTP le font, `SESSION_TTL_MINUTES` = 60). Le Pi risque donc d'être affiché « Expirée » au bout d'1 h alors qu'il est connecté. À vérifier : laisser le Pi connecté plus d'1 h, puis regarder la page ; si c'est le cas, prolonger la session tant que la WebSocket vit.
-- Page de session en cours : « Captures 0 » et le bandeau « n'envoie plus rien depuis 5 minutes » alors que le Pi analyse (test C1). Le site compte les captures (`POST …/captures`, points du corps), que le Pi n'envoie jamais en session normale (audit §7.2). → se baser sur la connexion du Pi, ses `state` (C2) et ses alertes.
+- Paramètres › Appareils connectés : la WebSocket ne prolonge pas la session de connexion du Pi (seules les requêtes HTTP le font : login, ouverture de la WebSocket, POST d'alertes et de résumés ; `SESSION_TTL_MINUTES` = 60). **Constaté en prod le 20/10** : Pi au repos → session « Expirée » au bout d'1 h, alors que la WebSocket reste ouverte (jeton vérifié seulement à l'ouverture) et que le Pi reçoit toujours `session:start`.
+  - Aujourd'hui, il revient tout seul, mais seulement au prochain POST : `401` → `jeton.perime()` → `device-login` → nouvelle session → de nouveau dans « Sessions actives » (jusqu'à 5 min après le début d'une analyse, au premier résumé). Trace dans `journalctl -u dos-dane` : `envoi : nouvel essai dans 1 s`, sans `liaison perdue`.
+  - Autre effet : « Déconnecter » sur la ligne du Pi révoque sa session mais ne ferme pas sa WebSocket ; seule la révocation de la clé coupe le Pi tout de suite.
+  - Pistes : (a) la WebSocket prolonge la session tant qu'elle est ouverte ; (b) le serveur ferme la WebSocket en `4401` quand la session expire ou est révoquée (le Pi refait déjà un login seul, mais (b) seul ajoute une ligne « Expirée » par heure dans l'historique) ; (c) afficher le Pi en ligne / hors ligne d'après la WebSocket. **Retenu à discuter : (a) + (b)**, (b) seulement pour la révocation.
+- Page de session en cours : « Captures 0 » et le bandeau « n'envoie plus rien depuis 5 minutes » alors que le Pi analyse (test C1). Le site compte les captures (`POST …/captures`, points du corps), que le Pi n'envoie jamais en session normale (audit §7.2). → se baser sur la connexion du Pi, ses `state` (C2) et ses alertes. **Corrigé sur la page de session en cours (C2 bis)** ; reste l'accueil, la liste et la page de fin.
 
 ### C4. Test de bout en bout 🔜
 

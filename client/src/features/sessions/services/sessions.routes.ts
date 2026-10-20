@@ -18,6 +18,8 @@ export const SESSIONS_ROUTES = {
   pause: (id: string) => `${session(id)}/pause`,
   resume: (id: string) => `${session(id)}/resume`,
   stop: (id: string) => `${session(id)}/stop`,
+  live: (id: string) => `${session(id)}/live`,
+  events: (id: string) => `${session(id)}/events`,
   devices: (id: string) => `${session(id)}/devices`,
   device: (id: string, deviceId: string) =>
     `${session(id)}/devices/${encodeURIComponent(deviceId)}`,

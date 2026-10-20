@@ -59,6 +59,18 @@ Table devices {
   }
 }
 
+Table devicePairings {
+  id uuidv7 [pk, default: `uuidv7()`]
+  codeHash text [not null, unique, note: 'Empreinte SHA-256 (hex) du code de l étiquette du Raspberry Pi, jamais le code']
+  secretHash text [not null, note: 'Empreinte SHA-256 (hex) du secret de relève du Pi, liée au code à sa 1re demande']
+  deviceId uuidv7 [unique, note: 'Appareil créé quand un compte valide le code ; null en attente']
+  claimedAt timestamptz [note: 'Renseigné avec deviceId']
+  lastSeenAt timestamptz [not null, default: `now()`, note: 'Dernière demande du Pi : code accepté seulement s il est allumé']
+  createdAt timestamptz [not null, default: `now()`]
+
+  Note: 'Appairage par code d étiquette : supprimé quand le Pi relève sa clé'
+}
+
 Table authSessions {
   id uuidv7 [pk, default: `uuidv7()`, note: 'sid porté par le JWT']
   userId uuidv7 [not null]
@@ -283,6 +295,7 @@ Table adviceSettings {
 }
 
 Ref: devices.userId > users.id [delete: cascade]
+Ref: devicePairings.deviceId - devices.id [delete: cascade]
 Ref: authSessions.userId > users.id [delete: cascade]
 Ref: authSessions.deviceId > devices.id [delete: cascade]
 Ref: analysisSessions.userId > users.id [delete: cascade]

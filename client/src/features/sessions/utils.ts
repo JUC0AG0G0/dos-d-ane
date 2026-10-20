@@ -2,6 +2,10 @@ import { Cpu, Monitor, Smartphone, type LucideIcon } from 'lucide-react';
 import type {
   BodyPart,
   Keypoint,
+  LivePosture,
+  LiveState,
+  PostureEvent,
+  PostureEventType,
   SessionDetail,
   SessionPause,
   SessionStatus,
@@ -10,6 +14,9 @@ import type {
 
 /** Appareil actif sans capture depuis ce temps de session active : alerte. */
 export const SILENT_DEVICE_MS = 5 * 60 * 1000;
+
+/** Un Pi qui analyse envoie un état au moins toutes les 30 s : 2 min sans rien, il est coupé. */
+export const SILENT_PI_MS = 2 * 60 * 1000;
 
 const DAY = 24 * 60 * 60 * 1000;
 const number = new Intl.NumberFormat('fr-FR');
@@ -141,15 +148,21 @@ export function activeSeconds(session: SessionDetail, now = Date.now()) {
   );
 }
 
-/** Appareils actifs qui n'ont rien envoyé depuis SILENT_DEVICE_MS de session active. */
-export function silentDevices(session: SessionDetail, now = Date.now()) {
-  if (session.status !== 'running') return [];
-  const lastResume = Math.max(
+const lastResumeAt = (session: SessionDetail) =>
+  Math.max(
     0,
     ...session.pauses.map((p) => (p.endedAt ? Date.parse(p.endedAt) : 0)),
   );
+
+/**
+ * Appareils actifs qui n'ont envoyé aucune capture depuis SILENT_DEVICE_MS de
+ * session active. Les Raspberry Pi n'envoient pas de captures : silentPis.
+ */
+export function silentDevices(session: SessionDetail, now = Date.now()) {
+  if (session.status !== 'running') return [];
+  const lastResume = lastResumeAt(session);
   return session.devices.filter((device) => {
-    if (device.leftAt) return false;
+    if (device.leftAt || device.type === 'raspberry') return false;
     const since = Math.max(
       Date.parse(device.joinedAt),
       device.lastCaptureAt ? Date.parse(device.lastCaptureAt) : 0,
@@ -158,6 +171,60 @@ export function silentDevices(session: SessionDetail, now = Date.now()) {
     const active = now - since - pausedBetween(session.pauses, since, now);
     return active >= SILENT_DEVICE_MS;
   });
+}
+
+/**
+ * Raspberry Pi actifs sans état reçu (flux /live) depuis SILENT_PI_MS, comptés
+ * depuis le lancement, la dernière reprise ou leur ajout à la session.
+ */
+export function silentPis(
+  session: SessionDetail,
+  states: Record<string, LiveState>,
+  now = Date.now(),
+) {
+  if (session.status !== 'running' || !session.startedAt) return [];
+  const lastResume = lastResumeAt(session);
+  return session.devices.filter((device) => {
+    if (device.leftAt || device.type !== 'raspberry') return false;
+    const state = states[device.id];
+    const since = Math.max(
+      Date.parse(session.startedAt!),
+      Date.parse(device.joinedAt),
+      lastResume,
+      state ? Date.parse(state.receivedAt) : 0,
+    );
+    return now - since >= SILENT_PI_MS;
+  });
+}
+
+// --- Postures (Raspberry Pi) -------------------------------------------------
+
+export const POSTURE_LABELS: Record<LivePosture, string> = {
+  GOOD: 'Bonne posture',
+  FORWARD_HEAD: 'Tête en avant ou baissée',
+  TRUNK_FORWARD: 'Dos penché en avant',
+  TRUNK_BACKWARD: 'Allongé dans la chaise',
+};
+
+export const EVENT_LABELS: Record<PostureEventType, string> = {
+  FORWARD_HEAD: 'Tête en avant ou baissée',
+  TRUNK_FORWARD: 'Dos penché en avant',
+  TRUNK_BACKWARD: 'Allongé dans la chaise',
+  IMMOBILE: 'Assis trop longtemps',
+};
+
+/**
+ * Alertes enregistrées puis reçues en direct, la plus récente en premier ;
+ * une alerte finie n'est pas remplacée par son début reçu en retard.
+ */
+export function mergeAlerts(saved: PostureEvent[], live: PostureEvent[]) {
+  const byId = new Map(saved.map((alert) => [alert.id, alert]));
+  for (const alert of live) {
+    if (!byId.get(alert.id)?.endedAt) byId.set(alert.id, alert);
+  }
+  return [...byId.values()].sort(
+    (a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt),
+  );
 }
 
 // --- Articulations (format COCO, 17 points) ----------------------------------

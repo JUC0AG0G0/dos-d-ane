@@ -3,6 +3,7 @@ import type {
   Capture,
   CapturePage,
   Device,
+  PostureEvent,
   SessionDetail,
   SessionStats,
   SessionSummary,
@@ -25,6 +26,14 @@ export const sessionsService = {
   pause: (id: string) => http.post<SessionDetail>(R.pause(id)),
   resume: (id: string) => http.post<SessionDetail>(R.resume(id)),
   stop: (id: string) => http.post<SessionDetail>(R.stop(id)),
+  /** Flux en direct (Raspberry Pi) : jusqu'à la fin de la session ou signal.abort(). */
+  live: (
+    id: string,
+    onEvent: (event: string, data: string) => void,
+    signal: AbortSignal,
+  ) => http.events(R.live(id), onEvent, signal),
+  /** Alertes des Raspberry Pi de la session, dans l'ordre. */
+  events: (id: string) => http.get<PostureEvent[]>(R.events(id)),
   remove: (id: string) => http.delete<void>(R.session(id)),
   addDevice: (id: string, deviceId: string) =>
     http.post<SessionDetail>(R.devices(id), { deviceId }),

@@ -8,6 +8,7 @@ import {
   Smartphone,
   Square,
   Timer,
+  TriangleAlert,
   WifiOff,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -21,9 +22,11 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { useApi } from '@/hooks/useApi';
 import { useNow } from '@/hooks/useNow';
 import { usePolling } from '@/hooks/usePolling';
 import { useAction } from '../../hooks/useAction';
+import { useLiveSession } from '../../hooks/useLiveSession';
 import { sessionsService } from '../../services/sessions.service';
 import type { SessionDetail, SessionDevice } from '../../types/sessions.types';
 import {
@@ -32,12 +35,16 @@ import {
   formatClock,
   formatDay,
   formatTime,
+  mergeAlerts,
   plural,
   silentDevices,
+  silentPis,
 } from '../../utils';
 import { StatTile } from '../StatTile';
 import { AddDeviceDialog } from './AddDeviceDialog';
+import { AlertsCard } from './AlertsCard';
 import { CapturePreview } from './CapturePreview';
+import { LiveStateCard } from './LiveStateCard';
 import { PausesCard } from './PausesCard';
 import { SessionDevicesCard } from './SessionDevicesCard';
 import { SessionHeader } from './SessionHeader';
@@ -64,6 +71,19 @@ export function LiveView({
   const [adding, setAdding] = useState(false);
   const [stopping, setStopping] = useState(false);
   usePolling(reload, paused ? 15_000 : 5_000);
+  // Les Raspberry Pi n'envoient pas de captures : leur état arrive en direct.
+  const piDevices = session.devices.filter(
+    (d) => !d.leftAt && d.type === 'raspberry',
+  );
+  const hasPi = piDevices.length > 0;
+  const live = useLiveSession(session.id, hasPi);
+  // Alertes déjà enregistrées (page ouverte en cours de session), puis en direct.
+  const savedAlerts = useApi(
+    () => (hasPi ? sessionsService.events(session.id) : Promise.resolve([])),
+    [session.id, hasPi],
+    'Impossible de charger les alertes.',
+  );
+  const alerts = mergeAlerts(savedAlerts.data ?? [], live.alerts);
 
   const act = async (action: () => Promise<SessionDetail>) => {
     const updated = await run(action);
@@ -79,6 +99,11 @@ export function LiveView({
     session.devices.find((d) => d.id === id)?.name ?? 'Appareil retiré';
   const started = `Démarrée le ${formatDay(session.startedAt!)} à ${formatTime(session.startedAt!)}`;
   const silent = silentDevices(session, now);
+  // Coupé du serveur, le site ne reçoit plus rien : ce n'est pas la faute du Pi.
+  const silentPi = live.connected ? silentPis(session, live.states, now) : [];
+  // Seulement des Pi : aucune capture n'arrivera, les tuiles de captures sont inutiles.
+  const onlyPi = hasPi && active.every((d) => d.type === 'raspberry');
+  const ongoingAlerts = alerts.filter((a) => !a.endedAt).length;
 
   return (
     <section className="grid gap-6">
@@ -134,11 +159,26 @@ export function LiveView({
             La session est en pause depuis {formatTime(session.pausedSince!)}
           </AlertTitle>
           <AlertDescription>
-            Vos appareils n’envoient plus de captures. Le temps de pause n’est
-            pas compté dans la durée.
+            {onlyPi
+              ? 'Le Raspberry Pi a éteint sa webcam.'
+              : 'Vos appareils n’envoient plus de captures.'}{' '}
+            Le temps de pause n’est pas compté dans la durée.
           </AlertDescription>
         </Alert>
       )}
+
+      {silentPi.map((device) => (
+        <Alert key={device.id} variant="warning">
+          <WifiOff />
+          <AlertTitle>
+            {device.name} n’envoie plus rien depuis 2 minutes
+          </AlertTitle>
+          <AlertDescription>
+            Vérifiez que le Raspberry Pi est allumé, que sa webcam est branchée
+            et qu’il est connecté à internet.
+          </AlertDescription>
+        </Alert>
+      ))}
 
       {silent.map((device) => (
         <Alert key={device.id} variant="warning">
@@ -172,18 +212,29 @@ export function LiveView({
             detail={`depuis ${formatTime(session.pausedSince!)}`}
           />
         )}
-        <StatTile
-          icon={Camera}
-          label="Captures"
-          value={session.captureCount.toLocaleString('fr-FR')}
-          detail={
-            paused
-              ? 'aucune pendant la pause'
-              : seconds >= 60
-                ? `${(session.captureCount / (seconds / 60)).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} par minute en moyenne`
-                : 'moins d’une minute de session'
-          }
-        />
+        {onlyPi ? (
+          <StatTile
+            icon={TriangleAlert}
+            label="Alertes"
+            value={alerts.length}
+            detail={
+              ongoingAlerts ? `${ongoingAlerts} en cours` : 'aucune en cours'
+            }
+          />
+        ) : (
+          <StatTile
+            icon={Camera}
+            label="Captures"
+            value={session.captureCount.toLocaleString('fr-FR')}
+            detail={
+              paused
+                ? 'aucune pendant la pause'
+                : seconds >= 60
+                  ? `${(session.captureCount / (seconds / 60)).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} par minute en moyenne`
+                  : 'moins d’une minute de session'
+            }
+          />
+        )}
         <StatTile
           icon={Smartphone}
           label="Appareils"
@@ -198,7 +249,7 @@ export function LiveView({
               : 'aucun retiré'
           }
         />
-        {!paused && (
+        {!paused && !onlyPi && (
           <StatTile
             icon={Clock}
             label="Dernière capture"
@@ -225,27 +276,47 @@ export function LiveView({
           />
           <PausesCard pauses={session.pauses} now={now} />
         </div>
-        <Card>
-          <CardHeader>
-            <CardTitle>Dernière capture</CardTitle>
-            <CardDescription>
-              {session.lastCapture
-                ? `${formatTime(session.lastCapture.capturedAt)} · ${deviceName(session.lastCapture.deviceId)}`
-                : paused
-                  ? 'Aucune capture reçue avant la pause'
-                  : 'En attente de la première capture'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {session.lastCapture ? (
-              <CapturePreview captureId={session.lastCapture.id} />
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Le squelette de la dernière capture s’affichera ici.
-              </p>
-            )}
-          </CardContent>
-        </Card>
+        <div className="grid gap-6">
+          {hasPi && (
+            <LiveStateCard
+              devices={piDevices}
+              states={live.states}
+              paused={paused}
+              connected={live.connected}
+              now={now}
+            />
+          )}
+          {hasPi && (
+            <AlertsCard
+              alerts={alerts}
+              devices={session.devices}
+              error={savedAlerts.error}
+            />
+          )}
+          {!onlyPi && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Dernière capture</CardTitle>
+                <CardDescription>
+                  {session.lastCapture
+                    ? `${formatTime(session.lastCapture.capturedAt)} · ${deviceName(session.lastCapture.deviceId)}`
+                    : paused
+                      ? 'Aucune capture reçue avant la pause'
+                      : 'En attente de la première capture'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {session.lastCapture ? (
+                  <CapturePreview captureId={session.lastCapture.id} />
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Le squelette de la dernière capture s’affichera ici.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
 
       <AddDeviceDialog
@@ -257,7 +328,7 @@ export function LiveView({
       <ConfirmDialog
         open={stopping}
         title="Arrêter la session ?"
-        description={`Elle ne pourra pas être relancée. ${keptCaptures(session.captureCount)}`}
+        description={`Elle ne pourra pas être relancée. ${onlyPi ? 'Les alertes et résumés déjà reçus sont conservés.' : keptCaptures(session.captureCount)}`}
         confirmLabel="Arrêter la session"
         onConfirm={() => {
           setStopping(false);
