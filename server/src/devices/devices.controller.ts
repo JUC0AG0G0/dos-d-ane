@@ -28,7 +28,7 @@ import { SessionDeviceDto } from '../auth/dto/auth-responses.dto.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { DevicesService } from './devices.service.js';
 import { CreateRaspberryDto, DeviceKeyDto } from './dto/device-key.dto.js';
-import { DeviceDto } from './dto/device.dto.js';
+import { CaptureStatusDto, DeviceDto } from './dto/device.dto.js';
 import { RenameDeviceDto } from './dto/rename-device.dto.js';
 
 @ApiTags('devices')
@@ -129,6 +129,25 @@ export class DevicesController {
       current: device.id === currentId,
       openSessionId: deviceSessions[0]?.analysisSessionId ?? null,
     }));
+  }
+
+  @Patch(':id/active')
+  @ApiOperation({
+    summary: 'Active ou coupe la capture d’un de ses appareils',
+    description:
+      'Bascule : active la capture si elle est coupée, la coupe sinon. Renvoie le nouvel état.',
+  })
+  @ApiOkResponse({ type: CaptureStatusDto })
+  @ApiBadRequestResponse({
+    description: 'Navigateur, qui ne peut pas capturer',
+  })
+  @ApiUnauthorizedResponse({ description: 'Non connecté' })
+  @ApiNotFoundResponse({ description: 'Appareil introuvable' })
+  toggleCapture(
+    @CurrentAuth() auth: AuthContext,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<CaptureStatusDto> {
+    return this.devices.toggleCapture(auth.userId, id);
   }
 
   @Patch(':id')

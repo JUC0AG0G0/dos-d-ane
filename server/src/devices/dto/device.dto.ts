@@ -38,3 +38,8 @@ export class DeviceDto {
   })
   openSessionId: string | null;
 }
+
+export class CaptureStatusDto {
+  @ApiProperty({ enum: Object.values(CaptureStatus) })
+  captureStatus: string;
+}
