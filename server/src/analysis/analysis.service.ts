@@ -4,12 +4,21 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import {
+  concat,
+  interval,
+  map,
+  merge,
+  type Observable,
+  of,
+  takeWhile,
+} from 'rxjs';
 import type { AuthContext } from '../auth/auth.guard.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CaptureStatus } from '../entities/index.js';
 import { DeviceConnections } from './device-connections.js';
-import { LiveStates } from './live-states.js';
+import { isFinal, type LiveMessage, LiveStates } from './live-states.js';
 import type {
   CreateCaptureDto,
   SessionStatusFilter,
@@ -24,6 +33,9 @@ import {
   type CapturePageDto,
   type SessionTimelineDto,
 } from './dto/analysis-responses.dto.js';
+
+/** Un message au moins toutes les 30 s : nginx coupe une réponse muette au bout de 60 s. */
+const LIVE_HEARTBEAT_MS = 30_000;
 
 const captureSelect = {
   id: true,
@@ -347,6 +359,31 @@ export class AnalysisService {
   }
 
   /** Captures de la session, de la plus ancienne à la plus récente, par pages. */
+  /**
+   * Flux en direct de la session (SSE) : statut, états du Pi, alertes, et
+   * `ping` quand rien ne passe ; se ferme à l'arrêt ou à la suppression.
+   */
+  async live(userId: string, id: string): Promise<Observable<LiveMessage>> {
+    const status = await this.sessionStatus(userId, id);
+    const opening = of<LiveMessage>({ type: 'status', data: { status } });
+    if (status === AnalysisSessionStatus.Ended) {
+      return opening;
+    }
+    const ping: LiveMessage = { type: 'ping', data: '' };
+    return concat(
+      opening,
+      merge(
+        this.liveStates.watch(id),
+        interval(LIVE_HEARTBEAT_MS).pipe(map(() => ping)),
+      ),
+    ).pipe(takeWhile((message) => !isFinal(message), true));
+  }
+
+  /** Annonce le nouveau statut à ceux qui suivent la session. */
+  private announce(id: string, status: AnalysisSessionStatus | 'deleted') {
+    this.liveStates.publish(id, { type: 'status', data: { status } });
+  }
+
   async captures(
     userId: string,
     id: string,
@@ -447,6 +484,7 @@ export class AnalysisService {
       data: { startedAt: new Date() },
     });
     this.notify(await this.openDeviceIds(id), 'session:start', id);
+    this.announce(id, AnalysisSessionStatus.Running);
     return this.detail(userId, id);
   }
 
@@ -470,6 +508,7 @@ export class AnalysisService {
     // Le Pi termine son analyse et éteint sa webcam ; il reprendra au resume.
     this.notify(await this.openDeviceIds(id), 'session:stop', id);
     this.liveStates.clear(id);
+    this.announce(id, AnalysisSessionStatus.Paused);
     return this.detail(userId, id);
   }
 
@@ -484,6 +523,7 @@ export class AnalysisService {
       data: { endedAt: new Date() },
     });
     this.notify(await this.openDeviceIds(id), 'session:start', id);
+    this.announce(id, AnalysisSessionStatus.Running);
     return this.detail(userId, id);
   }
 
@@ -518,6 +558,7 @@ export class AnalysisService {
     ]);
     this.notify(deviceIds, 'session:stop', id);
     this.liveStates.clear(id);
+    this.announce(id, AnalysisSessionStatus.Ended);
     return this.detail(userId, id);
   }
 
@@ -532,6 +573,7 @@ export class AnalysisService {
     }
     this.notify(deviceIds, 'session:stop', id);
     this.liveStates.clear(id);
+    this.announce(id, 'deleted');
   }
 
   /**

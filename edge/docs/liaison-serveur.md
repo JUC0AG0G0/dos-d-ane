@@ -9,7 +9,8 @@ Légende : ✅ en place · 🔜 prévu (étape de la branche `feat/envoi-serveur
 | Quoi | Sens | Transport | Stocké ? |
 |---|---|---|---|
 | Commandes `session:start` / `session:stop` ✅ | serveur → Pi | WebSocket | non |
-| État en direct `state` ✅ | Pi → serveur | WebSocket | non : dernier état gardé en mémoire, relayé à l'app plus tard (SSE, C2) |
+| État en direct `state` ✅ | Pi → serveur | WebSocket | non : dernier état gardé en mémoire |
+| État en direct, alertes, statut de la session ✅ | serveur → app, site | SSE `GET …/live` (§5) | non : relayés, rien de plus n'est stocké |
 | `heartbeat` 🔜 | Pi → serveur | WebSocket | non |
 | Événements (alertes), résumés ✅ | Pi → serveur | HTTPS POST (§4) | oui |
 
@@ -93,7 +94,7 @@ Le Pi compare toujours avec ce qu'il fait déjà (`commande()` dans `posture/ser
 
 ### `state` : l'état en direct
 
-Envoyé à chaque image analysée (toutes les 2 à 30 s selon la cadence), seulement pendant une session. **Jamais stocké** : le serveur garde le dernier état de chaque session en mémoire, l'oublie au `stop`, et le relaiera à l'app (SSE, étape C2).
+Envoyé à chaque image analysée (toutes les 2 à 30 s selon la cadence), seulement pendant une session. **Jamais stocké** : le serveur garde le dernier état de chaque session en mémoire, l'oublie à la pause et au `stop`, et le relaie à l'app et au site (§5).
 
 ```json
 { "event": "state", "data": { "sessionId": "<uuid>", "at": "2026-10-19T09:24:30Z", "color": "red",
@@ -133,15 +134,55 @@ Ce qui est **stocké** passe par le REST classique (Swagger : `analysis-sessions
 - **Côté Pi** (`Envoi` dans `posture/serveur.py`, utilisé par `poc.py --service`) : les messages partent dans l'ordre, dans un thread à part (l'analyse n'attend jamais) ; un échec est renvoyé (attente 1 s → 60 s), un `401` refait le login (jeton partagé avec la WebSocket : un 2ᵉ login révoquerait le 1ᵉʳ), un refus `4xx` est écrit dans le journal sans être renvoyé. À l'arrêt, il réessaie encore 15 s au plus. **File sur disque** (SQLite, `~/.local/state/dos-dane/envoi.sqlite`, dossier réservé à l'utilisateur) : chaque message est écrit avant d'être envoyé et n'est effacé qu'après un 2xx ; ce qui reste à l'arrêt (serveur injoignable, Pi éteint) part au démarrage suivant, en premier. Les refus `4xx` sont rangés dans la table `rejetes` du même fichier, avec le code et la raison (`sqlite3 ~/.local/state/dos-dane/envoi.sqlite "SELECT * FROM rejetes"`). Messages et refus de plus de **7 jours** sont purgés (au démarrage puis toutes les heures, écrit dans le journal), comme le prévoit l'audit §12. Les CSV de `resultats/` gardent tout, en français.
 - Réponses : `201` enregistré (ou déjà reçu) ; `400` corps invalide, champ en plus, dates incohérentes (ne pas renvoyer) ; `401` jeton (refaire un login) ; `404` session inconnue ; `409` session pas encore lancée ou appareil absent de la session (ne pas renvoyer) ; `5xx` ou réseau : renvoyer plus tard.
 
-## 5. Limites connues
+## 5. Flux en direct pour l'app et le site (SSE) ✅
 
-- **Jeton vérifié à l'ouverture de la WebSocket** : une révocation de la clé coupe le Pi tout de suite ; mais une session de connexion qui expire (60 min sans requête) ou fermée depuis la liste des sessions laisse la WebSocket ouverte jusqu'à la prochaine reconnexion.
+Pour suivre une session pendant qu'elle tourne (couleur, posture, angles, alertes), l'app et le site écoutent un flux **Server-Sent Events** : une réponse HTTP qui ne se termine pas, où le serveur écrit chaque nouveau message dès qu'il arrive. Ils n'envoient rien par là : démarrer, mettre en pause, arrêter restent les routes REST habituelles.
+
+| | |
+|---|---|
+| Adresse | `GET /api/analysis-sessions/:id/live` |
+| Qui | le propriétaire de la session (une autre : `404` ; jeton d'un Pi : `403` ; sans jeton : `401`) |
+| Authentification | header `Authorization: Bearer <accessToken>`, comme les autres routes, **jamais dans l'URL** |
+| Réponse | `text/event-stream`, avec `X-Accel-Buffering: no` (nginx transmet chaque message sans attendre) |
+
+⚠️ **`EventSource` (l'objet SSE intégré au navigateur) ne sait pas envoyer d'en-tête `Authorization`** : il prendrait un `401`. Lire le flux avec `fetch` (corps lu au fil de l'eau), ou une librairie qui accepte les en-têtes : `@microsoft/fetch-event-source` (site), `react-native-sse` (app Expo).
+
+Chaque message a un nom (`event:`) et un contenu JSON (`data:`) :
+
+```text
+event: status
+data: {"status":"running"}
+
+event: state
+data: {"sessionId":"…","deviceId":"…","at":"2026-10-20T08:27:54+00:00","receivedAt":"2026-10-20T08:27:54.385Z",
+       "color":"orange","posture":"FORWARD_HEAD","headAngle":49,"trunkAngle":-8,"score":80}
+
+event: alert
+data: {"id":"…","clientId":"evt_…_0001","deviceId":"…","type":"FORWARD_HEAD","startedAt":"2026-10-20T08:27:56.000Z",
+       "endedAt":null,"durationSeconds":null,"headAngleAvg":null,"trunkAngleAvg":null,"causes":null}
+```
+
+| `event` | Quand | `data` |
+|---|---|---|
+| `status` | **à l'ouverture**, puis à chaque lancement, pause, reprise, arrêt, suppression | `{ "status": "setup" \| "running" \| "paused" \| "ended" \| "deleted" }` |
+| `state` | à l'ouverture (dernier état connu, s'il y en a un), puis à chaque `state` du Pi (§3) | les champs de `state`, plus `deviceId` et `receivedAt` (heure de réception par le serveur : à préférer à `at` pour juger la fraîcheur) |
+| `alert` | début ou fin d'une alerte du Pi (§4), **une seule fois** même si le Pi la renvoie | l'alerte comme `GET …/events` : `endedAt: null` = elle commence, rempli = elle est finie (avec `durationSeconds`) |
+| `ping` | toutes les 30 s | vide : garde la connexion ouverte (nginx coupe une réponse muette au bout de 60 s) ; à ignorer |
+
+- **Fin du flux** : après `status` `ended` ou `deleted`, le serveur ferme la connexion. Sur une session déjà terminée, il envoie `status: ended` et ferme tout de suite.
+- **Pause** : le dernier état est oublié (le Pi a éteint sa webcam) ; les `state` reprennent après `status: running`.
+- **Coupure** (réseau du téléphone, serveur redémarré) : le flux se ferme sans `status` final. Rouvrir la connexion (attente croissante, comme le Pi) : la réouverture redonne le statut et le dernier état. Les alertes passées pendant la coupure ne sont pas rejouées : les relire avec `GET …/events`.
+- Rien de ce flux n'est stocké en plus : les états ne sont jamais écrits en base, les alertes y sont déjà (§4).
+
+## 6. Limites connues
+
+- **Jeton vérifié à l'ouverture de la WebSocket** : une révocation de la clé coupe le Pi tout de suite ; mais une session de connexion qui expire (60 min sans requête) ou fermée depuis la liste des sessions laisse la WebSocket ouverte jusqu'à la prochaine reconnexion. **Même chose pour le flux SSE** (§5) : une déconnexion du compte ne ferme pas un flux déjà ouvert (il ne montre que la session de son propriétaire, et se ferme à la fin de la session).
 - **Aucune limite de tentatives** sur les routes de login (mot de passe comme clé). Sans conséquence pour la clé (256 bits), à ajouter pour le mot de passe (tout le projet).
-- **Une seule instance du serveur** : la liste des Pi connectés est gardée en mémoire (`DeviceConnections`). Avec plusieurs instances, il faudrait la partager (Redis…).
+- **Une seule instance du serveur** : la liste des Pi connectés (`DeviceConnections`), le dernier état et les flux en direct (`LiveStates`) sont gardés en mémoire. Avec plusieurs instances, il faudrait les partager (Redis…).
 - **Seuils** : `session:start` ne les envoie pas encore (pas stockés côté serveur) ; le Pi garde ses seuils fixes (`SEUILS`).
 - **Prod** : la WebSocket traverse deux nginx, qui doivent tous deux relayer `Upgrade` et `Connection` : `client/nginx.conf` (bloc `/api/devices/ws`) et Nginx Proxy Manager sur le VPS (« Websockets Support », [deployReadME.md](../../deployReadME.md) §5).
 
-## 6. Côté Pi : configuration
+## 7. Côté Pi : configuration
 
 Variables d'environnement, dans `edge/.env` (ignoré par Git ; modèle commenté : [`edge/.env.example`](../.env.example)) :
 
@@ -170,7 +211,7 @@ python poc.py --service                   # la vraie session, lancée et arrêt�
 
 `poc.py --service` n'ouvre la webcam que pendant une session : sur `session:start`, une analyse commence (fichiers de `resultats/` au nom de la session du serveur) ; sur `session:stop`, elle se termine comme un Ctrl+C (alertes fermées, dernier résumé, bilan) et le Pi attend la suivante. Ctrl+C ou SIGTERM (systemd) arrêtent le service proprement.
 
-## 7. Tester à la main
+## 8. Tester à la main
 
 ```bash
 # refusé (4401)
@@ -180,6 +221,9 @@ npx wscat -c ws://localhost:3000/api/devices/ws -H "Authorization: Bearer <acces
 < {"event":"ready","data":{"deviceId":"…","sessionId":null}}
 > {"event":"ping","data":"bonjour"}
 < {"event":"pong","data":"bonjour"}
+
+# flux en direct d'une session (jeton d'un compte : POST /api/auth/login) ; -N : afficher sans attendre
+curl -N -H "Authorization: Bearer <accessToken>" http://localhost:3000/api/analysis-sessions/<id>/live
 ```
 
-Code : côté Pi [`edge/posture/serveur.py`](../posture/serveur.py) ; côté serveur, passerelle [`server/src/analysis/devices.gateway.ts`](../../server/src/analysis/devices.gateway.ts), Pi connectés [`device-connections.ts`](../../server/src/analysis/device-connections.ts), envoi des commandes dans [`analysis.service.ts`](../../server/src/analysis/analysis.service.ts), état en direct [`dto/device-messages.dto.ts`](../../server/src/analysis/dto/device-messages.dto.ts) et [`live-states.ts`](../../server/src/analysis/live-states.ts), refus des messages non authentifiés dans [`server/src/auth/auth.guard.ts`](../../server/src/auth/auth.guard.ts).
+Code : côté Pi [`edge/posture/serveur.py`](../posture/serveur.py) ; côté serveur, passerelle [`server/src/analysis/devices.gateway.ts`](../../server/src/analysis/devices.gateway.ts), Pi connectés [`device-connections.ts`](../../server/src/analysis/device-connections.ts), envoi des commandes et flux SSE dans [`analysis.service.ts`](../../server/src/analysis/analysis.service.ts) (`live()`), état en direct [`dto/device-messages.dto.ts`](../../server/src/analysis/dto/device-messages.dto.ts) et [`live-states.ts`](../../server/src/analysis/live-states.ts), alertes relayées dans [`posture-results.service.ts`](../../server/src/analysis/posture-results.service.ts), refus des messages non authentifiés dans [`server/src/auth/auth.guard.ts`](../../server/src/auth/auth.guard.ts).

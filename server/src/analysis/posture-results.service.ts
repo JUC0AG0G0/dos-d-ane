@@ -8,6 +8,7 @@ import type { AuthContext } from '../auth/auth.guard.js';
 import { AuthService } from '../auth/auth.service.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { LiveStates } from './live-states.js';
 import type {
   CreatePostureEventDto,
   CreatePostureSummaryDto,
@@ -67,6 +68,7 @@ export class PostureResultsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auth: AuthService,
+    private readonly liveStates: LiveStates,
   ) {}
 
   async addEvent(
@@ -84,54 +86,65 @@ export class PostureResultsService {
       deviceSessionId_clientId: { deviceSessionId, clientId: dto.clientId },
     };
     // Fin d'une alerte déjà ouverte : seul endedAt change (une fin renvoyée ne fait rien).
-    const close = () =>
-      endedAt &&
-      this.prisma.postureEvent.updateMany({
-        where: {
-          deviceSessionId,
-          clientId: dto.clientId,
-          endedAt: null,
-          startedAt: { lte: endedAt },
-        },
-        data: { endedAt },
-      });
-    await close();
+    // true si elle vient d'être fermée.
+    const close = async () =>
+      !!endedAt &&
+      (
+        await this.prisma.postureEvent.updateMany({
+          where: {
+            deviceSessionId,
+            clientId: dto.clientId,
+            endedAt: null,
+            startedAt: { lte: endedAt },
+          },
+          data: { endedAt },
+        })
+      ).count > 0;
+    // Relayée en direct seulement si quelque chose a changé : un renvoi du Pi ne se voit pas.
+    const changed = (event: PostureEventDto) => {
+      this.liveStates.publish(sessionId, { type: 'alert', data: event });
+      return event;
+    };
+    const closed = await close();
     const existing = await this.prisma.postureEvent.findUnique({
       where: key,
       include: withDevice,
     });
     if (existing) {
-      return toEvent(existing);
+      return closed ? changed(toEvent(existing)) : toEvent(existing);
     }
     // Pas encore reçue : créée (aussi par une fin dont le début s'est perdu).
     try {
-      return toEvent(
-        await this.prisma.postureEvent.create({
-          data: {
-            deviceSessionId,
-            clientId: dto.clientId,
-            type: dto.type,
-            startedAt,
-            endedAt,
-            headAngleAvg: dto.headAngleAvg ?? null,
-            trunkAngleAvg: dto.trunkAngleAvg ?? null,
-            causes: dto.causes ?? undefined,
-          },
-          include: withDevice,
-        }),
+      return changed(
+        toEvent(
+          await this.prisma.postureEvent.create({
+            data: {
+              deviceSessionId,
+              clientId: dto.clientId,
+              type: dto.type,
+              startedAt,
+              endedAt,
+              headAngleAvg: dto.headAngleAvg ?? null,
+              trunkAngleAvg: dto.trunkAngleAvg ?? null,
+              causes: dto.causes ?? undefined,
+            },
+            include: withDevice,
+          }),
+        ),
       );
     } catch (error) {
       if (!isUniqueViolation(error)) {
         throw error;
       }
-      // Même message reçu deux fois en même temps : l'autre requête l'a créé.
-      await close();
-      return toEvent(
+      // Même message reçu deux fois en même temps : l'autre requête l'a créé (et relayé).
+      const closedNow = await close();
+      const event = toEvent(
         await this.prisma.postureEvent.findUniqueOrThrow({
           where: key,
           include: withDevice,
         }),
       );
+      return closedNow ? changed(event) : event;
     }
   }
 
