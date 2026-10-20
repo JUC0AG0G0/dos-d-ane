@@ -85,6 +85,48 @@ async function send<T>(
   return read(response);
 }
 
+/**
+ * Lit un flux Server-Sent Events et appelle onEvent pour chaque message,
+ * jusqu'à la fin du flux ou signal.abort(). Pas d'EventSource : il ne sait pas
+ * envoyer le jeton (Authorization).
+ */
+async function events(
+  path: string,
+  onEvent: (event: string, data: string) => void,
+  signal: AbortSignal,
+): Promise<void> {
+  const token = useAuthStore.getState().accessToken;
+  const response = await fetch(`${env.apiUrl}${path}`, {
+    headers: {
+      Accept: 'text/event-stream',
+      ...(token && { Authorization: `Bearer ${token}` }),
+    },
+    signal,
+  });
+  if (!response.ok || !response.body) {
+    if (response.status === 401 && token) useAuthStore.getState().signOut();
+    throw new ApiError(response.status, undefined);
+  }
+  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+  let pending = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) return;
+    // Un message finit par une ligne vide ; le dernier morceau peut être coupé.
+    const blocks = (pending + value).replace(/\r/g, '').split('\n\n');
+    pending = blocks.pop() ?? '';
+    for (const block of blocks) {
+      let event = 'message';
+      const data: string[] = [];
+      for (const line of block.split('\n')) {
+        if (line.startsWith('event:')) event = line.slice(6).trim();
+        else if (line.startsWith('data:')) data.push(line.slice(5).trimStart());
+      }
+      if (data.length > 0) onEvent(event, data.join('\n'));
+    }
+  }
+}
+
 export const http = {
   get: <T>(path: string) => request<T>('GET', path),
   post: <T>(path: string, body?: unknown) => request<T>('POST', path, body),
@@ -93,4 +135,5 @@ export const http = {
   delete: <T>(path: string) => request<T>('DELETE', path),
   upload,
   blob,
+  events,
 };

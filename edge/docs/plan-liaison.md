@@ -45,15 +45,27 @@ Le Pi devient « branché, ça marche » : plus besoin d'un terminal ouvert.
 - Journaux dans `journalctl -u dos-dane` ; fichier de l'unité versionné dans `edge/`, installation décrite dans `poc-raspberry.md`.
 - **Fini quand** : après un redémarrage du Pi, une session lancée depuis le site (Swagger est désactivé en prod) démarre l'analyse sans rien toucher sur le Pi ; `systemctl stop` termine proprement.
 
-### C2. État en direct vers l'app (SSE) : serveur fait, test en prod 🔜 (branche `feat/live-sse`)
+### C2. État en direct vers l'app (SSE) ✅ (PR #45 et #46, testé en prod le 20/10/2026, voir [poc-raspberry.md](poc-raspberry.md) §7)
 
 Le serveur reçoit déjà `state` et les alertes, mais personne ne peut encore les voir en direct.
 
 - ✅ `GET /api/analysis-sessions/:id/live` (Server-Sent Events, propriétaire de la session seulement) : statut et dernier `state` à l'ouverture, puis chaque `state`, chaque début et fin d'alerte (une fois, même renvoyée), chaque changement de statut ; fermé à l'arrêt ou à la suppression ; `ping` toutes les 30 s. Contrat : [liaison-serveur.md](liaison-serveur.md) §5.
 - ✅ Authentification tranchée : `Authorization: Bearer`, comme les autres routes ; côté site et app, lire le flux avec `fetch` ou une librairie qui accepte les en-têtes (`EventSource` ne le permet pas). Pas de jeton court dédié, jamais le JWT dans l'URL.
 - Testé en dev avec un Pi simulé (code du Pi) : états reçus dès l'envoi, alerte envoyée 4 fois → 2 messages (début, fin), pause / reprise / arrêt annoncés, flux fermé à l'arrêt.
-- **Fini quand** : `curl -N -H "Authorization: Bearer …" …/live` affiche les états du vrai Pi en direct pendant une session **en prod** (à travers les deux nginx).
-- Ensuite (pas dans C2) : l'afficher sur la page de session du site (et y remplacer « Captures 0 »), puis dans l'app (C3).
+- **Fini quand** : `curl -N -H "Authorization: Bearer …" …/live` affiche les états du vrai Pi en direct pendant une session **en prod** (à travers les deux nginx). ✅ Vérifié depuis la console du navigateur (`fetch`), après la correction du tampon de Nginx Proxy Manager (#46).
+- Ensuite (pas dans C2) : l'afficher sur la page de session du site (et y remplacer « Captures 0 »), puis dans l'app (C3). Site : fait, voir ci-dessous.
+
+### C2 bis. Le direct sur la page de session du site ✅ en dev (branche `feat/live-site`), test en prod 🔜
+
+Page d'une session en cours ou en pause (`LiveView`), seulement si un Raspberry Pi en fait partie : une session avec un téléphone ne change pas.
+
+- Lecture du flux : `http.events()` (`fetch` en flux, jeton dans l'en-tête, `401` → déconnexion comme les autres appels) et le hook `useLiveSession(id)` : statut, dernier état de chaque Pi, alertes ; reconnexion seule (1 s → 30 s) ; arrêt à la fin de la session, sur un refus ou en quittant la page.
+- Carte **« En direct »** : couleur (« Tout va bien », « À surveiller », « Alerte », « Image mal vue », « Personne absente »), posture, angles, score, « il y a X s » ; en pause : « webcam éteinte ».
+- Carte **« Alertes »** : alertes déjà enregistrées (`GET …/events`) puis reçues en direct, « En cours » puis durée.
+- Session avec seulement des Pi : plus de « Captures 0 » (tuile « Alertes » à la place, pas de carte « Dernière capture », pas de « 0 capture » dans les appareils) ; bandeau « n'envoie plus rien depuis 2 minutes » si aucun état n'arrive (`silentPis`), jamais quand c'est le site qui a perdu le flux.
+- Testé en dev avec un faux Pi (script qui se comporte comme `poc.py --service`, sans webcam) : états, alertes, pause, reprise, Pi silencieux 2 min puis de retour.
+- **Fini quand** : une vraie session du Pi en prod s'affiche en direct sur la page, alertes comprises.
+- Reste ailleurs : l'accueil, la liste des sessions et la page d'une session terminée comptent encore les captures (« 0 capture » pour un Pi) et n'affichent ni alertes ni résumés → étape « résultats après la session » (avec C3).
 
 ### C3. Le bouton dans l'app 🔜
 
@@ -89,7 +101,7 @@ Point à trancher (avec l'équipe) : **le Pi n'a pas d'écran**, comment montrer
 
 - Page de session, « Appareils de capture » : le badge « Capture active » vient de `captureStatus` en base, pas de la connexion. Un Pi éteint peut être coché sans avertissement, et la session ne recevra rien. → afficher en ligne / hors ligne d'après les WebSocket ouvertes (`DeviceConnections`).
 - Paramètres › Appareils connectés : la WebSocket ne prolonge pas la session de connexion du Pi (seules les requêtes HTTP le font, `SESSION_TTL_MINUTES` = 60). Le Pi risque donc d'être affiché « Expirée » au bout d'1 h alors qu'il est connecté. À vérifier : laisser le Pi connecté plus d'1 h, puis regarder la page ; si c'est le cas, prolonger la session tant que la WebSocket vit.
-- Page de session en cours : « Captures 0 » et le bandeau « n'envoie plus rien depuis 5 minutes » alors que le Pi analyse (test C1). Le site compte les captures (`POST …/captures`, points du corps), que le Pi n'envoie jamais en session normale (audit §7.2). → se baser sur la connexion du Pi, ses `state` (C2) et ses alertes.
+- Page de session en cours : « Captures 0 » et le bandeau « n'envoie plus rien depuis 5 minutes » alors que le Pi analyse (test C1). Le site compte les captures (`POST …/captures`, points du corps), que le Pi n'envoie jamais en session normale (audit §7.2). → se baser sur la connexion du Pi, ses `state` (C2) et ses alertes. **Corrigé sur la page de session en cours (C2 bis)** ; reste l'accueil, la liste et la page de fin.
 
 ### C4. Test de bout en bout 🔜
 

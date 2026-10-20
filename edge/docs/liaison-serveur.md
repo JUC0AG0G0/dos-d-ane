@@ -145,7 +145,7 @@ Pour suivre une session pendant qu'elle tourne (couleur, posture, angles, alerte
 | Authentification | header `Authorization: Bearer <accessToken>`, comme les autres routes, **jamais dans l'URL** |
 | Réponse | `text/event-stream`, avec `X-Accel-Buffering: no` (nginx transmet chaque message sans attendre) |
 
-⚠️ **`EventSource` (l'objet SSE intégré au navigateur) ne sait pas envoyer d'en-tête `Authorization`** : il prendrait un `401`. Lire le flux avec `fetch` (corps lu au fil de l'eau), ou une librairie qui accepte les en-têtes : `@microsoft/fetch-event-source` (site), `react-native-sse` (app Expo).
+⚠️ **`EventSource` (l'objet SSE intégré au navigateur) ne sait pas envoyer d'en-tête `Authorization`** : il prendrait un `401`. Lire le flux avec `fetch` (corps lu au fil de l'eau), ou une librairie qui accepte les en-têtes (`react-native-sse` pour l'app Expo). Exemple complet côté site, sans librairie : `events()` dans [`client/src/services/http.ts`](../../client/src/services/http.ts) (découpage des messages) et [`useLiveSession.ts`](../../client/src/features/sessions/hooks/useLiveSession.ts) (reconnexion, fin de session).
 
 Chaque message a un nom (`event:`) et un contenu JSON (`data:`) :
 
@@ -180,7 +180,7 @@ data: {"id":"…","clientId":"evt_…_0001","deviceId":"…","type":"FORWARD_HEA
 - **Aucune limite de tentatives** sur les routes de login (mot de passe comme clé). Sans conséquence pour la clé (256 bits), à ajouter pour le mot de passe (tout le projet).
 - **Une seule instance du serveur** : la liste des Pi connectés (`DeviceConnections`), le dernier état et les flux en direct (`LiveStates`) sont gardés en mémoire. Avec plusieurs instances, il faudrait les partager (Redis…).
 - **Seuils** : `session:start` ne les envoie pas encore (pas stockés côté serveur) ; le Pi garde ses seuils fixes (`SEUILS`).
-- **Prod** : la WebSocket traverse deux nginx, qui doivent tous deux relayer `Upgrade` et `Connection` : `client/nginx.conf` (bloc `/api/devices/ws`) et Nginx Proxy Manager sur le VPS (« Websockets Support », [deployReadME.md](../../deployReadME.md) §5).
+- **Prod** : la WebSocket traverse deux nginx, qui doivent tous deux relayer `Upgrade` et `Connection` : `client/nginx.conf` (bloc `/api/devices/ws`) et Nginx Proxy Manager sur le VPS (« Websockets Support », [deployReadME.md](../../deployReadME.md) §5). Le flux `/live` (§5) a aussi son bloc dans `client/nginx.conf` : ce nginx consomme le `X-Accel-Buffering: no` du serveur et doit le renvoyer, sinon Nginx Proxy Manager garde les messages en tampon (paquets d'une vingtaine de messages toutes les ~40 s).
 
 ## 7. Côté Pi : configuration
 

@@ -50,7 +50,9 @@ export function SessionDevicesCard({
                   <p className="text-muted-foreground">
                     {[
                       `Ajouté à ${formatTime(device.joinedAt)}`,
-                      plural(device.captureCount, 'capture'),
+                      // Un Raspberry Pi n'envoie jamais de captures (état en direct).
+                      device.type !== 'raspberry' &&
+                        plural(device.captureCount, 'capture'),
                       device.lastCaptureAt &&
                         `dernière à ${formatTime(device.lastCaptureAt)}`,
                       device.leftAt && `retiré à ${formatTime(device.leftAt)}`,

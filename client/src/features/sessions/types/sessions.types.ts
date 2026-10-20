@@ -101,6 +101,52 @@ export interface SessionStats {
   lastWeek: { sessions: number };
 }
 
+// --- En direct (flux /live, envoyé par un Raspberry Pi) ----------------------
+
+/** Couleur de l'alerte en cours : orange = en doute, red = alerte. */
+export type LiveColor = 'green' | 'orange' | 'red' | 'ignored' | 'absent';
+
+export type LivePosture =
+  'GOOD' | 'FORWARD_HEAD' | 'TRUNK_FORWARD' | 'TRUNK_BACKWARD';
+
+/** Dernier état d'un Pi : jamais stocké par le serveur, seulement relayé. */
+export interface LiveState {
+  sessionId: string;
+  deviceId: string;
+  /** Heure de l'image sur le Pi. */
+  at: string;
+  /** Heure de réception par le serveur : à préférer à at pour la fraîcheur. */
+  receivedAt: string;
+  color: LiveColor;
+  /** null si l'image n'est pas jugée (mal vue, personne absente). */
+  posture: LivePosture | null;
+  headAngle: number | null;
+  trunkAngle: number | null;
+  /** % du temps en bonne posture sur la période en cours. */
+  score: number | null;
+}
+
+export type PostureEventType =
+  'FORWARD_HEAD' | 'TRUNK_FORWARD' | 'TRUNK_BACKWARD' | 'IMMOBILE';
+
+/** Alerte de posture d'un Pi ; endedAt null tant qu'elle dure. */
+export interface PostureEvent {
+  id: string;
+  clientId: string;
+  deviceId: string;
+  type: PostureEventType;
+  startedAt: string;
+  endedAt: string | null;
+  durationSeconds: number | null;
+  headAngleAvg: number | null;
+  trunkAngleAvg: number | null;
+  /** Part de chaque cause en %. */
+  causes: Record<string, number> | null;
+}
+
+/** Statut annoncé par le flux : deleted si la session a été supprimée. */
+export type LiveStatus = SessionStatus | 'deleted';
+
 /** Appareil du compte, vu depuis les sessions. */
 export interface Device {
   id: string;
