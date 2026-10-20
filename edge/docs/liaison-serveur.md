@@ -49,6 +49,30 @@ Le Pi n'a **aucun mot de passe** : il a un `deviceId` et une **clé** (`dk_` + 2
 
 **Pourquoi la clé contre un JWT**, et pas la clé dans chaque requête (`Authorization: Device <clé>`, prévu au départ) : les deux suppriment le mot de passe et l'expiration gênante et permettent de révoquer un Pi, mais tout le serveur (guard, révocation, routes qui retrouvent l'appareil par la session) repose sur le JWT et sa session de connexion. Échanger la clé contre un JWT ne change que le login ; la clé circule rarement (un login de temps en temps) et le JWT qui circule est de courte durée et révocable. C'est le schéma classique « secret de longue durée → jeton de courte durée » (client credentials d'OAuth).
 
+### Appairage par code 🔜
+
+Pour que le Pi obtienne sa clé **sans SSH ni mot de passe** : l'utilisateur tape dans le site le code imprimé sur l'étiquette du Pi. Pourquoi une étiquette et ce qui a été écarté : [plan-liaison.md](plan-liaison.md), « Appairage par code ».
+
+Deux secrets, créés une fois par `outils/preparer.py` et gardés dans `edge/.env` (`600`) :
+
+| | Format | Connu de | Sert à |
+|---|---|---|---|
+| **code d'étiquette** `DOSDANE_CODE` | 9 caractères de l'alphabet Crockford base32 (chiffres et lettres sans I, L, O, U : pas de confusion 1/I/L, 0/O), affiché `K7F-29Q-M4T` ; saisie insensible à la casse, tirets et espaces ignorés ; ~45 bits | le Pi, et quiconque voit l'étiquette | dire au serveur « ce Pi est à moi » |
+| **secret de relève** `DOSDANE_SECRET_APPAIRAGE` | `ps_` + 256 bits aléatoires, jamais affiché | le Pi seul | récupérer la clé une fois le code validé |
+
+Le serveur ne garde que leurs **empreintes SHA-256** (table `devicePairings` : empreinte du code, empreinte du secret, dernière demande du Pi, appareil créé). La clé n'est créée qu'au moment où le Pi la relève : elle n'est jamais gardée en clair, même un instant en base.
+
+| Route | Qui | Corps | Réponses |
+|---|---|---|---|
+| `POST /api/devices/pairing/poll` | **le Pi sans clé** (public), toutes les 5 s | `{ code, secret }` | `202 { "status": "waiting" }` : pas encore validé (la 1ʳᵉ demande crée l'attente et lie ce secret au code) ; `200 { "status": "paired", "deviceId", "key" }` : validé, **une seule fois**, l'attente est ensuite supprimée ; `409` : ce code est lié à un autre secret ; `429` : trop de demandes |
+| `POST /api/devices/pairing/claim` | **l'utilisateur connecté** (pas un Pi : `403`) | `{ code, name }` | `201` : l'appareil (`DeviceDto`), créé dans son compte (Raspberry Pi, capture activée) ; `404 Code inconnu, déjà utilisé ou Raspberry Pi éteint` (même réponse dans tous les cas : ne dit pas si un code existe) ; `429` : trop d'essais ratés |
+
+- **Le Pi doit être allumé** : un code n'est accepté que si le Pi l'a envoyé il y a moins de 2 min. Une attente sans nouvelle du Pi depuis 10 min est supprimée ; une attente validée mais pas encore relevée est gardée (le Pi la relèvera en revenant).
+- **Limites d'essais** (`@nestjs/throttler`, en mémoire, une seule instance) : `claim` 5 essais ratés par 15 min, par compte et par adresse IP ; `poll` 20 demandes par minute et par adresse IP. L'adresse IP est la vraie, transmise par les deux nginx (`X-Forwarded-For`, `trust proxy`).
+- **Ce que permet de voler l'étiquette** : au pire, ajouter le Pi à un autre compte avant son propriétaire (qui le voit : « déjà utilisé »), jamais récupérer la clé (il faut le secret de relève). Le premier secret envoyé pour un code est gardé : si quelqu'un a envoyé le code avant le vrai Pi, celui-ci reçoit `409` et l'écrit dans son journal → préparer le Pi de nouveau (nouveau code).
+- **Côté Pi** (`poc.py --service`) : sans `DOSDANE_CLE` mais avec un code, il attend (journal : `en attente d'appairage, code K7F-29Q-M4T`) ; à `200`, il écrit `DOSDANE_APPAREIL` et `DOSDANE_CLE` dans `edge/.env` et se connecte normalement ; clé révoquée (`4401 Clé révoquée`, ou login refusé) → il efface sa clé et repasse en attente avec le même code. Réseau coupé : nouvel essai avec attente croissante, comme la liaison.
+- `outils/appairer.py` (email et mot de passe) reste pour le dev.
+
 ### Codes de fermeture
 
 | Code | Raison envoyée | Cause | Ce que fait le Pi |

@@ -73,29 +73,38 @@ Page d'une session en cours ou en pause (`LiveView`), seulement si un Raspberry 
 - Site, page « Mes Raspberry Pi » : ajouter un Pi (appairage par code, ci-dessous), liste des Pi avec leur état **en ligne / hors ligne**, renommer, révoquer la clé.
 - **Fini quand** : une personne lance et termine une session depuis son téléphone, sans Swagger.
 
-#### Appairage par code
+#### Appairage par code 🔜 (à faire avant la partie app de C3 ; branche `feat/appairage-code`)
 
-Aujourd'hui, aucun bouton ne permet d'ajouter un Pi : il faut lancer `python -m outils.appairer` sur le Pi (email et mot de passe tapés une fois, jamais enregistrés, puis `POST /devices` et la clé écrite dans `edge/.env`). Le but : ajouter un Pi sans script ni mot de passe sur le Pi, même tapé une fois, comme une télé connectée à un compte.
+Aujourd'hui, aucun bouton ne permet d'ajouter un Pi : il faut lancer `python -m outils.appairer` sur le Pi, en SSH (email et mot de passe tapés une fois, jamais enregistrés). Le but : l'utilisateur branche le Pi, tape un code dans le site, et c'est tout ; jamais de SSH ni de mot de passe sur le Pi.
 
-1. Le Pi démarre sans clé (service C1, `DOSDANE_CLE` vide) → il passe en mode appairage.
-2. Il demande un code au serveur (ex. `POST /devices/pairing`) : code court (`K7F-29Q`), valable 10 min.
-3. L'utilisateur, connecté sur le site, clique sur « Ajouter un Raspberry Pi » et tape le code : le serveur sait ainsi à quel compte rattacher le Pi.
-4. Le Pi demande au serveur toutes les 5 s si son code a été validé ; dès que c'est le cas, le serveur crée l'appareil et lui renvoie son `deviceId` et sa clé (une seule fois).
-5. Le Pi écrit sa clé dans `edge/.env` et se connecte normalement (`POST /auth/device-login`).
+**Décidé le 20/10/2026** : le Pi n'a pas d'écran pour afficher un code comme une télé connectée → **code imprimé sur une étiquette collée sur le Pi** (comme le code Wi-Fi d'une box), créé une fois à la préparation. Écartés : code dans les journaux ou par VNC (il faut aller sur le Pi), Pi trouvé sur le réseau local (fragile sur le Wi-Fi de l'UHA, sous-réseaux différents), petit écran (matériel en plus).
 
-À faire :
+Deux rôles :
 
-- **Serveur** : table de codes temporaires (code, expiration, compte qui l'a validé, nombre d'essais), deux ou trois routes, limite de tentatives (un code court se devine sinon).
-- **Pi** : mode appairage au démarrage (un `appairer.py` sans email ni mot de passe).
-- **Site** : champ du code dans la page « Mes Raspberry Pi ».
-
-Point à trancher (avec l'équipe) : **le Pi n'a pas d'écran**, comment montrer le code ?
-
-| Piste | Pour | Contre |
+| Rôle | Qui | SSH |
 |---|---|---|
-| Code dans les journaux (`journalctl -u dos-dane`) ou par VNC | rien de plus à coder | il faut quand même aller sur le Pi |
-| Le site voit les Pi « en attente » sur le même réseau | rien à taper | compliqué, fragile sur le Wi-Fi de l'UHA (sous-réseaux différents) |
-| Code fixe imprimé sur une étiquette collée sur le Pi, créé une fois à l'installation (comme le code d'une box internet) | le plus simple pour l'utilisateur | le code doit être gardé secret comme une clé ; en refaire un si l'étiquette est perdue |
+| préparer le Pi, comme un fabricant : système, code, `outils/preparer.py` (crée le code, écrit l'adresse du serveur, active le service C1) | l'équipe, une fois par Pi | oui, une fois |
+| l'utiliser : le brancher, taper le code de l'étiquette dans le site (puis l'app), lancer des sessions | l'utilisateur | jamais |
+
+**Réseau** (décidé le 20/10) : préparé à l'avance pour le POC, câble Ethernet ou Wi-Fi rempli à la préparation. Évolution pour le rapport : le Pi sans réseau crée son propre Wi-Fi et une page demande le réseau à rejoindre (comme une Chromecast) ; mise à jour du code sans SSH (le Pi qui se met à jour seul).
+
+Déroulé (contrat exact : [liaison-serveur.md](liaison-serveur.md) §2, « Appairage par code ») :
+
+1. Le Pi démarre **sans clé** (service C1) → au lieu de s'arrêter, il attend : toutes les 5 s, il envoie au serveur son code d'étiquette et son secret de relève.
+2. L'utilisateur, connecté sur le site : « Ajouter un Raspberry Pi », code de l'étiquette, nom du Pi → le serveur crée l'appareil **dans ce compte**.
+3. À sa demande suivante, le Pi reçoit son `deviceId` et sa clé (une seule fois), les écrit dans `edge/.env` et se connecte comme aujourd'hui (`device-login`, WebSocket).
+4. Clé révoquée depuis le site (`4401 Clé révoquée`) → le Pi efface sa clé et **repasse en attente** avec le même code : il peut être donné à quelqu'un d'autre sans SSH.
+
+| Étape | Où | Contenu |
+|---|---|---|
+| P0 | doc | ce plan et le contrat |
+| P1 | serveur | table `devicePairings`, `POST /devices/pairing/poll` (Pi), `POST /devices/pairing/claim` (compte), limite d'essais (`@nestjs/throttler`) |
+| P2 | Pi | `poc.py --service` sans clé → attente avec le code ; clé reçue → `edge/.env` ; clé révoquée → retour en attente |
+| P3 | Pi | `outils/preparer.py` : code et secret de relève dans `edge/.env`, adresse du serveur, service activé, texte de l'étiquette |
+| P4 | site | « Ajouter un Raspberry Pi » (code + nom), dans les paramètres des appareils |
+
+- Le Pi actuel (le seul) n'est pas réinstallé : `git pull`, puis `preparer.py`, qui ajoute le code et retire l'ancienne clé (copie de `edge/.env` avant) ; résultats, modèle, `.venv` et service ne bougent pas.
+- **Fini quand** : le Pi, sans clé, branché, apparaît dans le compte après la saisie du code sur le site, sans SSH ; une session lancée depuis le site marche ; une révocation le remet en attente.
 
 #### Remarques de la recette du 20/10/2026
 
