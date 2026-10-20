@@ -43,7 +43,7 @@ Le Pi devient « branché, ça marche » : plus besoin d'un terminal ouvert.
 - Unité `dos-dane.service` : `poc.py --service` lancé à l'allumage (après le réseau), relancé s'il s'arrête, `EnvironmentFile=` pour `edge/.env`, utilisateur `uha40` (pas root).
 - Arrêt par SIGTERM : déjà géré (dernier résumé, file gardée sur disque).
 - Journaux dans `journalctl -u dos-dane` ; fichier de l'unité versionné dans `edge/`, installation décrite dans `poc-raspberry.md`.
-- **Fini quand** : après un redémarrage du Pi, une session lancée depuis Swagger démarre l'analyse sans rien toucher sur le Pi ; `systemctl stop` termine proprement.
+- **Fini quand** : après un redémarrage du Pi, une session lancée depuis le site (Swagger est désactivé en prod) démarre l'analyse sans rien toucher sur le Pi ; `systemctl stop` termine proprement.
 
 ### C2. État en direct vers l'app (SSE) 🔜
 
@@ -56,9 +56,37 @@ Le serveur reçoit déjà `state` et les alertes, mais personne ne peut encore l
 ### C3. Le bouton dans l'app 🔜
 
 - Avec Eron (app Expo, branche `mobile`) : choisir le Pi, Démarrer / Terminer (`POST …/start`, `…/stop`), état en direct (C2), puis les résultats (`GET …/events`, `…/summaries`).
-- Site : « ajouter un Raspberry Pi » (`POST /devices`, clé affichée une fois), liste et révocation des clés.
-- Appairage par code (comme une télé connectée) : le Pi sans clé affiche un code court, l'utilisateur le tape dans l'app ou le site, le Pi reçoit sa clé tout seul ; jamais de mot de passe sur le Pi, même tapé une fois. Demande une table de codes temporaires (10 min) et une limite de tentatives. En attendant : `python -m outils.appairer` sur le Pi (email et mot de passe tapés une fois, jamais enregistrés).
+- Site, page « Mes Raspberry Pi » : ajouter un Pi (appairage par code, ci-dessous), liste des Pi avec leur état **en ligne / hors ligne**, renommer, révoquer la clé.
 - **Fini quand** : une personne lance et termine une session depuis son téléphone, sans Swagger.
+
+#### Appairage par code
+
+Aujourd'hui, aucun bouton ne permet d'ajouter un Pi : il faut lancer `python -m outils.appairer` sur le Pi (email et mot de passe tapés une fois, jamais enregistrés, puis `POST /devices` et la clé écrite dans `edge/.env`). Le but : ajouter un Pi sans script ni mot de passe sur le Pi, même tapé une fois, comme une télé connectée à un compte.
+
+1. Le Pi démarre sans clé (service C1, `DOSDANE_CLE` vide) → il passe en mode appairage.
+2. Il demande un code au serveur (ex. `POST /devices/pairing`) : code court (`K7F-29Q`), valable 10 min.
+3. L'utilisateur, connecté sur le site, clique sur « Ajouter un Raspberry Pi » et tape le code : le serveur sait ainsi à quel compte rattacher le Pi.
+4. Le Pi demande au serveur toutes les 5 s si son code a été validé ; dès que c'est le cas, le serveur crée l'appareil et lui renvoie son `deviceId` et sa clé (une seule fois).
+5. Le Pi écrit sa clé dans `edge/.env` et se connecte normalement (`POST /auth/device-login`).
+
+À faire :
+
+- **Serveur** : table de codes temporaires (code, expiration, compte qui l'a validé, nombre d'essais), deux ou trois routes, limite de tentatives (un code court se devine sinon).
+- **Pi** : mode appairage au démarrage (un `appairer.py` sans email ni mot de passe).
+- **Site** : champ du code dans la page « Mes Raspberry Pi ».
+
+Point à trancher (avec l'équipe) : **le Pi n'a pas d'écran**, comment montrer le code ?
+
+| Piste | Pour | Contre |
+|---|---|---|
+| Code dans les journaux (`journalctl -u dos-dane`) ou par VNC | rien de plus à coder | il faut quand même aller sur le Pi |
+| Le site voit les Pi « en attente » sur le même réseau | rien à taper | compliqué, fragile sur le Wi-Fi de l'UHA (sous-réseaux différents) |
+| Code fixe imprimé sur une étiquette collée sur le Pi, créé une fois à l'installation (comme le code d'une box internet) | le plus simple pour l'utilisateur | le code doit être gardé secret comme une clé ; en refaire un si l'étiquette est perdue |
+
+#### Remarques de la recette du 20/10/2026
+
+- Page de session, « Appareils de capture » : le badge « Capture active » vient de `captureStatus` en base, pas de la connexion. Un Pi éteint peut être coché sans avertissement, et la session ne recevra rien. → afficher en ligne / hors ligne d'après les WebSocket ouvertes (`DeviceConnections`).
+- Paramètres › Appareils connectés : la WebSocket ne prolonge pas la session de connexion du Pi (seules les requêtes HTTP le font, `SESSION_TTL_MINUTES` = 60). Le Pi risque donc d'être affiché « Expirée » au bout d'1 h alors qu'il est connecté. À vérifier : laisser le Pi connecté plus d'1 h, puis regarder la page ; si c'est le cas, prolonger la session tant que la WebSocket vit.
 
 ### C4. Test de bout en bout 🔜
 
