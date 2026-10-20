@@ -25,11 +25,23 @@ import {
 import type { AuthContext } from '../auth/auth.guard.js';
 import { CurrentAuth } from '../auth/decorators.js';
 import { SessionDeviceDto } from '../auth/dto/auth-responses.dto.js';
+import { DeviceType } from '../entities/index.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { DevicesService } from './devices.service.js';
 import { CreateRaspberryDto, DeviceKeyDto } from './dto/device-key.dto.js';
 import { DeviceDto } from './dto/device.dto.js';
 import { RenameDeviceDto } from './dto/rename-device.dto.js';
+
+/** État de la clé d'un Raspberry Pi pour la liste (DeviceDto.keyStatus). */
+const keyStatus = (
+  type: string,
+  keyHash: string | null,
+  pairing: { id: string } | null,
+): DeviceDto['keyStatus'] => {
+  if (type !== DeviceType.Raspberry) return null;
+  if (keyHash) return 'active';
+  return pairing ? 'pending' : 'revoked';
+};
 
 @ApiTags('devices')
 @ApiBearerAuth()
@@ -122,14 +134,18 @@ export class DevicesController {
             select: { analysisSessionId: true },
             take: 1,
           },
+          // Seulement savoir s'il y en a une : la clé ne quitte jamais la base.
+          keyHash: true,
+          pairing: { select: { id: true } },
         },
         orderBy: { createdAt: 'asc' },
       }),
     ]);
-    return devices.map(({ deviceSessions, ...device }) => ({
+    return devices.map(({ deviceSessions, keyHash, pairing, ...device }) => ({
       ...device,
       current: device.id === currentId,
       openSessionId: deviceSessions[0]?.analysisSessionId ?? null,
+      keyStatus: keyStatus(device.type, keyHash, pairing),
     }));
   }
 

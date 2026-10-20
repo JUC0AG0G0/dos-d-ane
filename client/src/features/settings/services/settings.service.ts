@@ -1,5 +1,9 @@
 import { http } from '@/services';
-import type { Session, SessionDevice } from '../types/settings.types';
+import type {
+  Session,
+  SessionDevice,
+  UserDevice,
+} from '../types/settings.types';
 import { SETTINGS_ROUTES } from './settings.routes';
 
 export const settingsService = {
@@ -10,7 +14,7 @@ export const settingsService = {
   renameDevice: (id: string, name: string) =>
     http.patch<SessionDevice>(SETTINGS_ROUTES.device(id), { name }),
   /** Appareils du compte (les Raspberry Pi, même jamais connectés). */
-  devices: () => http.get<SessionDevice[]>(SETTINGS_ROUTES.devices),
+  devices: () => http.get<UserDevice[]>(SETTINGS_ROUTES.devices),
   /** Ajoute le Raspberry Pi dont on a tapé le code d'étiquette ; il relève sa clé tout seul. */
   claimRaspberry: (code: string, name: string) =>
     http.post<SessionDevice>(SETTINGS_ROUTES.pairingClaim, { code, name }),
