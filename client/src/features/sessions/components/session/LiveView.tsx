@@ -21,6 +21,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { useApi } from '@/hooks/useApi';
 import { useNow } from '@/hooks/useNow';
 import { usePolling } from '@/hooks/usePolling';
 import { useAction } from '../../hooks/useAction';
@@ -33,11 +34,13 @@ import {
   formatClock,
   formatDay,
   formatTime,
+  mergeAlerts,
   plural,
   silentDevices,
 } from '../../utils';
 import { StatTile } from '../StatTile';
 import { AddDeviceDialog } from './AddDeviceDialog';
+import { AlertsCard } from './AlertsCard';
 import { CapturePreview } from './CapturePreview';
 import { LiveStateCard } from './LiveStateCard';
 import { PausesCard } from './PausesCard';
@@ -70,7 +73,15 @@ export function LiveView({
   const piDevices = session.devices.filter(
     (d) => !d.leftAt && d.type === 'raspberry',
   );
-  const live = useLiveSession(session.id, piDevices.length > 0);
+  const hasPi = piDevices.length > 0;
+  const live = useLiveSession(session.id, hasPi);
+  // Alertes déjà enregistrées (page ouverte en cours de session), puis en direct.
+  const savedAlerts = useApi(
+    () => (hasPi ? sessionsService.events(session.id) : Promise.resolve([])),
+    [session.id, hasPi],
+    'Impossible de charger les alertes.',
+  );
+  const alerts = mergeAlerts(savedAlerts.data ?? [], live.alerts);
 
   const act = async (action: () => Promise<SessionDetail>) => {
     const updated = await run(action);
@@ -233,13 +244,20 @@ export function LiveView({
           <PausesCard pauses={session.pauses} now={now} />
         </div>
         <div className="grid gap-6">
-          {piDevices.length > 0 && (
+          {hasPi && (
             <LiveStateCard
               devices={piDevices}
               states={live.states}
               paused={paused}
               connected={live.connected}
               now={now}
+            />
+          )}
+          {hasPi && (
+            <AlertsCard
+              alerts={alerts}
+              devices={session.devices}
+              error={savedAlerts.error}
             />
           )}
           <Card>

@@ -3,6 +3,7 @@ import type {
   BodyPart,
   Keypoint,
   LivePosture,
+  PostureEvent,
   PostureEventType,
   SessionDetail,
   SessionPause,
@@ -177,6 +178,20 @@ export const EVENT_LABELS: Record<PostureEventType, string> = {
   TRUNK_BACKWARD: 'Allongé dans la chaise',
   IMMOBILE: 'Assis trop longtemps',
 };
+
+/**
+ * Alertes enregistrées puis reçues en direct, la plus récente en premier ;
+ * une alerte finie n'est pas remplacée par son début reçu en retard.
+ */
+export function mergeAlerts(saved: PostureEvent[], live: PostureEvent[]) {
+  const byId = new Map(saved.map((alert) => [alert.id, alert]));
+  for (const alert of live) {
+    if (!byId.get(alert.id)?.endedAt) byId.set(alert.id, alert);
+  }
+  return [...byId.values()].sort(
+    (a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt),
+  );
+}
 
 // --- Articulations (format COCO, 17 points) ----------------------------------
 
