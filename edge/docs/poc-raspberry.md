@@ -343,7 +343,7 @@ Tous attendent une image carrée en `uint8` et renvoient **17 points × (y, x, s
 
 Pour un vrai usage, `poc.py --service` ne se lance pas à la main : **systemd** (le programme qui démarre les autres à l'allumage) le lance tout seul, le relance s'il s'arrête, et garde ses messages dans le journal. Le Pi est alors « branché, ça marche » : il se connecte au serveur et attend qu'une session soit lancée depuis le site ou l'app. La webcam n'est allumée que pendant une session.
 
-Avant : le Pi est appairé (`edge/.env` rempli, [liaison-serveur.md](liaison-serveur.md) §6) et `python -m outils.connexion` affiche `Liaison OK`.
+Avant : le Pi est appairé (`edge/.env` rempli, [liaison-serveur.md](liaison-serveur.md) §7) et `python -m outils.connexion` affiche `Liaison OK`.
 
 ```bash
 cd ~/dos-d-ane

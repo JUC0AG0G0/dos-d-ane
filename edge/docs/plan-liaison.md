@@ -45,13 +45,15 @@ Le Pi devient « branché, ça marche » : plus besoin d'un terminal ouvert.
 - Journaux dans `journalctl -u dos-dane` ; fichier de l'unité versionné dans `edge/`, installation décrite dans `poc-raspberry.md`.
 - **Fini quand** : après un redémarrage du Pi, une session lancée depuis le site (Swagger est désactivé en prod) démarre l'analyse sans rien toucher sur le Pi ; `systemctl stop` termine proprement.
 
-### C2. État en direct vers l'app (SSE) 🔜
+### C2. État en direct vers l'app (SSE) : serveur fait, test en prod 🔜 (branche `feat/live-sse`)
 
 Le serveur reçoit déjà `state` et les alertes, mais personne ne peut encore les voir en direct.
 
-- `GET /api/analysis-sessions/:id/live` (Server-Sent Events, propriétaire de la session seulement) : le dernier `state` puis chaque nouveau, les débuts et fins d'alerte, et la fin de session.
-- Authentification : l'app ne peut pas mettre d'en-tête sur un `EventSource` de navigateur → client SSE qui accepte les en-têtes (fetch en flux), ou jeton court dédié ; à trancher, jamais le JWT dans l'URL.
-- **Fini quand** : `curl -N -H "Authorization: Bearer …" …/live` affiche les états du Pi en direct pendant une session.
+- ✅ `GET /api/analysis-sessions/:id/live` (Server-Sent Events, propriétaire de la session seulement) : statut et dernier `state` à l'ouverture, puis chaque `state`, chaque début et fin d'alerte (une fois, même renvoyée), chaque changement de statut ; fermé à l'arrêt ou à la suppression ; `ping` toutes les 30 s. Contrat : [liaison-serveur.md](liaison-serveur.md) §5.
+- ✅ Authentification tranchée : `Authorization: Bearer`, comme les autres routes ; côté site et app, lire le flux avec `fetch` ou une librairie qui accepte les en-têtes (`EventSource` ne le permet pas). Pas de jeton court dédié, jamais le JWT dans l'URL.
+- Testé en dev avec un Pi simulé (code du Pi) : états reçus dès l'envoi, alerte envoyée 4 fois → 2 messages (début, fin), pause / reprise / arrêt annoncés, flux fermé à l'arrêt.
+- **Fini quand** : `curl -N -H "Authorization: Bearer …" …/live` affiche les états du vrai Pi en direct pendant une session **en prod** (à travers les deux nginx).
+- Ensuite (pas dans C2) : l'afficher sur la page de session du site (et y remplacer « Captures 0 »), puis dans l'app (C3).
 
 ### C3. Le bouton dans l'app 🔜
 
