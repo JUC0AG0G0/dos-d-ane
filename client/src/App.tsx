@@ -1,3 +1,4 @@
+import { type ComponentType, lazy, Suspense } from 'react';
 import {
   createBrowserRouter,
   Navigate,
@@ -9,23 +10,79 @@ import { CenteredLayout } from '@/components/layouts/CenteredLayout';
 import { LegalLayout } from '@/components/layouts/LegalLayout';
 import { Toaster } from '@/components/ui/sonner';
 import { RedirectIfSignedIn, RequireAdmin, RequireAuth } from '@/features/auth';
-import { AdminAdvicePage } from '@/pages/AdminAdvicePage';
-import { AdminMediaPage } from '@/pages/AdminMediaPage';
-import { AdminUsersPage } from '@/pages/AdminUsersPage';
-import { AdviceExercisesPage } from '@/pages/AdviceExercisesPage';
-import { AdviceInstallationPage } from '@/pages/AdviceInstallationPage';
-import { AdvicePainPage } from '@/pages/AdvicePainPage';
-import { HomePage } from '@/pages/HomePage';
-import { LegalNoticePage } from '@/pages/LegalNoticePage';
-import { LoginPage } from '@/pages/LoginPage';
-import { NotFoundPage } from '@/pages/NotFoundPage';
-import { PrivacyPolicyPage } from '@/pages/PrivacyPolicyPage';
-import { RegisterPage } from '@/pages/RegisterPage';
-import { SessionPage } from '@/pages/SessionPage';
-import { SessionsPage } from '@/pages/SessionsPage';
-import { SettingsPage } from '@/pages/SettingsPage';
-import { StatusPage } from '@/pages/StatusPage';
-import { TermsPage } from '@/pages/TermsPage';
+
+function lazyPage<K extends string>(
+  load: () => Promise<Record<K, ComponentType>>,
+  name: K,
+) {
+  const Page = lazy<ComponentType>(() =>
+    load().then((m) => ({ default: m[name] })),
+  );
+  return function LazyPage() {
+    return (
+      <Suspense fallback={null}>
+        <Page />
+      </Suspense>
+    );
+  };
+}
+
+const AdminAdvicePage = lazyPage(
+  () => import('@/pages/AdminAdvicePage'),
+  'AdminAdvicePage',
+);
+const AdminMediaPage = lazyPage(
+  () => import('@/pages/AdminMediaPage'),
+  'AdminMediaPage',
+);
+const AdminUsersPage = lazyPage(
+  () => import('@/pages/AdminUsersPage'),
+  'AdminUsersPage',
+);
+const AdviceExercisesPage = lazyPage(
+  () => import('@/pages/AdviceExercisesPage'),
+  'AdviceExercisesPage',
+);
+const AdviceInstallationPage = lazyPage(
+  () => import('@/pages/AdviceInstallationPage'),
+  'AdviceInstallationPage',
+);
+const AdvicePainPage = lazyPage(
+  () => import('@/pages/AdvicePainPage'),
+  'AdvicePainPage',
+);
+const HomePage = lazyPage(() => import('@/pages/HomePage'), 'HomePage');
+const LegalNoticePage = lazyPage(
+  () => import('@/pages/LegalNoticePage'),
+  'LegalNoticePage',
+);
+const LoginPage = lazyPage(() => import('@/pages/LoginPage'), 'LoginPage');
+const NotFoundPage = lazyPage(
+  () => import('@/pages/NotFoundPage'),
+  'NotFoundPage',
+);
+const PrivacyPolicyPage = lazyPage(
+  () => import('@/pages/PrivacyPolicyPage'),
+  'PrivacyPolicyPage',
+);
+const RegisterPage = lazyPage(
+  () => import('@/pages/RegisterPage'),
+  'RegisterPage',
+);
+const SessionPage = lazyPage(
+  () => import('@/pages/SessionPage'),
+  'SessionPage',
+);
+const SessionsPage = lazyPage(
+  () => import('@/pages/SessionsPage'),
+  'SessionsPage',
+);
+const SettingsPage = lazyPage(
+  () => import('@/pages/SettingsPage'),
+  'SettingsPage',
+);
+const StatusPage = lazyPage(() => import('@/pages/StatusPage'), 'StatusPage');
+const TermsPage = lazyPage(() => import('@/pages/TermsPage'), 'TermsPage');
 
 const router = createBrowserRouter([
   {
