@@ -19,7 +19,9 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useApi } from '@/hooks/useApi';
+import { usePolling } from '@/hooks/usePolling';
 import { formatDateTime } from '@/utils/format';
+import { piState } from '@/utils/raspberry';
 import { useAction } from '../../hooks/useAction';
 import { sessionsService } from '../../services/sessions.service';
 import type { Device, SessionDetail } from '../../types/sessions.types';
@@ -32,6 +34,8 @@ import { NoCaptureAlert, PrivacyAlert } from './SessionAlerts';
 function blockedReason(device: Device, sessionId: string) {
   if (!device.captureEligible)
     return { label: 'Ce navigateur', hint: 'Ne peut pas capturer' };
+  const pi = piState(device);
+  if (pi && !pi.usable) return pi;
   if (device.openSessionId && device.openSessionId !== sessionId)
     return { label: 'En capture dans une autre session', hint: null };
   return null;
@@ -53,6 +57,8 @@ export function SetupView({
     [],
     'Impossible de charger vos appareils.',
   );
+  // Un Pi qui s'allume ou se coupe change d'état sans recharger la page.
+  usePolling(devices.reload, 15_000);
   const selected = new Set(
     session.devices.filter((d) => !d.leftAt).map((d) => d.id),
   );
@@ -112,6 +118,7 @@ export function SetupView({
                 shown.map((device, index) => {
                   const blocked = blockedReason(device, session.id);
                   const checked = selected.has(device.id);
+                  const pi = piState(device);
                   const inputId = `device-${device.id}`;
                   return (
                     <div key={device.id}>
@@ -127,7 +134,10 @@ export function SetupView({
                         <Checkbox
                           id={inputId}
                           checked={checked}
-                          disabled={!!blocked || pending === device.id}
+                          // Déjà coché puis coupé ou révoqué : on peut encore le retirer.
+                          disabled={
+                            (!!blocked && !checked) || pending === device.id
+                          }
                           onCheckedChange={(value) =>
                             toggle(device, value === true)
                           }
@@ -139,7 +149,9 @@ export function SetupView({
                             {blocked ? (
                               <Badge variant="outline">{blocked.label}</Badge>
                             ) : (
-                              <Badge variant="secondary">Capture active</Badge>
+                              <Badge variant={pi?.variant ?? 'secondary'}>
+                                {pi?.label ?? 'Disponible'}
+                              </Badge>
                             )}
                           </p>
                           {(blocked?.hint ?? device.model) && (

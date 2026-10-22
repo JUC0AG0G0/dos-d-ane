@@ -12,29 +12,24 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { useApi } from '@/hooks/useApi';
+import { usePolling } from '@/hooks/usePolling';
+import { piState } from '@/utils/raspberry';
 import { settingsService } from '../services/settings.service';
 import type { UserDevice } from '../types/settings.types';
 import { AddRaspberryDialog } from './AddRaspberryDialog';
 
-/** Ce que l'utilisateur voit à la place de « Révoquer la clé ». */
-const KEY_STATUS = {
-  pending: {
-    label: 'En attente',
-    hint: 'Ajouté : le Raspberry Pi récupère sa clé dans quelques secondes.',
-  },
-  revoked: {
-    label: 'Clé révoquée',
-    hint: 'Il ne se connecte plus. Ajoute-le de nouveau avec le code de son étiquette.',
-  },
-};
-
-/** Raspberry Pi du compte : ajout par le code de l'étiquette, révocation de la clé. */
+/**
+ * Raspberry Pi du compte : état (clé, en ligne), ajout par le code de
+ * l'étiquette, révocation de la clé.
+ */
 export function RaspberryCard({ onChange }: { onChange: () => void }) {
   const devices = useApi(
     settingsService.devices,
     [],
     'Impossible de charger les Raspberry Pi.',
   );
+  // En attente → en ligne, ou Pi qui se coupe : visible sans recharger.
+  usePolling(devices.reload, 15_000);
   const [adding, setAdding] = useState(false);
   const [revoking, setRevoking] = useState<UserDevice | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -84,10 +79,7 @@ export function RaspberryCard({ onChange }: { onChange: () => void }) {
           </p>
         )}
         {pis.map((device) => {
-          const status =
-            device.keyStatus === 'pending' || device.keyStatus === 'revoked'
-              ? KEY_STATUS[device.keyStatus]
-              : null;
+          const status = piState(device);
           return (
             <div
               key={device.id}
@@ -100,16 +92,10 @@ export function RaspberryCard({ onChange }: { onChange: () => void }) {
                 <p className="flex flex-wrap items-center gap-2 font-medium">
                   {device.name}
                   {status && (
-                    <Badge
-                      variant={
-                        device.keyStatus === 'pending' ? 'warning' : 'outline'
-                      }
-                    >
-                      {status.label}
-                    </Badge>
+                    <Badge variant={status.variant}>{status.label}</Badge>
                   )}
                 </p>
-                {status && (
+                {status?.hint && (
                   <p className="text-muted-foreground">{status.hint}</p>
                 )}
               </div>

@@ -70,7 +70,7 @@ Page d'une session en cours ou en pause (`LiveView`), seulement si un Raspberry 
 ### C3. Le bouton dans l'app 🔜
 
 - Avec Eron (app Expo, branche `mobile`) : choisir le Pi, Démarrer / Terminer (`POST …/start`, `…/stop`), état en direct (C2), puis les résultats (`GET …/events`, `…/summaries`).
-- Site, page « Mes Raspberry Pi » : ajouter un Pi (appairage par code, ci-dessous), liste des Pi avec leur état **en ligne / hors ligne**, renommer, révoquer la clé.
+- Site, page « Mes Raspberry Pi » : ajouter un Pi (appairage par code, ci-dessous), liste des Pi avec leur état **en ligne / hors ligne** ✅ (ci-dessous), renommer, révoquer la clé.
 - **Fini quand** : une personne lance et termine une session depuis son téléphone, sans Swagger.
 
 #### Appairage par code ✅ (PR #49, testé en prod sur le vrai Pi le 20/10/2026, voir [poc-raspberry.md](poc-raspberry.md) §7)
@@ -111,7 +111,10 @@ Déroulé (contrat exact : [liaison-serveur.md](liaison-serveur.md) §2, « Appa
 
 #### Remarques de la recette du 20/10/2026
 
-- Page de session, « Appareils de capture » : le badge « Capture active » veut seulement dire que l'appareil ne capture pas dans une autre session lancée (`openSessionId` null), pas qu'il est connecté. Un Pi éteint peut être coché sans avertissement, et la session ne recevra rien. → afficher en ligne / hors ligne d'après les WebSocket ouvertes (`DeviceConnections`).
+- Page de session, « Appareils de capture » : le badge « Capture active » veut seulement dire que l'appareil ne capture pas dans une autre session lancée (`openSessionId` null), pas qu'il est connecté. Un Pi éteint peut être coché sans avertissement, et la session ne recevra rien. → afficher en ligne / hors ligne d'après les WebSocket ouvertes (`DeviceConnections`). **Corrigé** (branche `feat/pi-en-ligne`, testé en dev le 22/10/2026, prod 🔜) :
+  - serveur : `online` dans `GET /devices` (WebSocket ouverte) ; ping toutes les 30 s, un Pi qui ne répond plus est coupé (faux Pi figé par `kill -STOP` : hors ligne en 56 s) ; ajout à une session refusé (`409`) pour un Pi sans clé (révoquée ou en attente) ou hors ligne, lancement refusé pour un Pi sans clé (hors ligne accepté : `ready` à son retour) ;
+  - site : un seul état par Pi (`piState` : En ligne, Hors ligne, En attente, Clé révoquée) dans Nouvelle session, Ajouter un appareil, l'accueil et Paramètres ; un Pi inutilisable est grisé (décochable s'il était déjà coché) ; liste relue toutes les 15 s ;
+  - reste à voir en prod : le vrai Pi qui revient « En ligne » seul après une coupure (le faux Pi de test ne se reconnecte pas).
 - Paramètres › Appareils connectés : la WebSocket ne prolonge pas la session de connexion du Pi (seules les requêtes HTTP le font : login, ouverture de la WebSocket, POST d'alertes et de résumés ; `SESSION_TTL_MINUTES` = 60). **Constaté en prod le 20/10** : Pi au repos → session « Expirée » au bout d'1 h, alors que la WebSocket reste ouverte (jeton vérifié seulement à l'ouverture) et que le Pi reçoit toujours `session:start`.
   - Aujourd'hui, il revient tout seul, mais seulement au prochain POST : `401` → `jeton.perime()` → `device-login` → nouvelle session → de nouveau dans « Sessions actives » (jusqu'à 5 min après le début d'une analyse, au premier résumé). Trace dans `journalctl -u dos-dane` : `envoi : nouvel essai dans 1 s`, sans `liaison perdue`.
   - Autre effet : « Déconnecter » sur la ligne du Pi révoque sa session mais ne ferme pas sa WebSocket ; seule la révocation de la clé coupe le Pi tout de suite.
