@@ -20,4 +20,6 @@ export class Device extends TimestampedEntity implements DeviceRow {
   /** Empreinte SHA-256 de la clé d'un Raspberry Pi (jamais à renvoyer au client). */
   keyHash: string | null;
   keyCreatedAt: Date | null;
+  /** Empreinte du code d'étiquette d'un Pi ajouté par son code (jamais à renvoyer au client). */
+  pairingCodeHash: string | null;
 }

@@ -53,6 +53,9 @@ model User {
 /// keyHash : empreinte SHA-256 de la clé d'un Raspberry Pi (jamais la clé
 /// elle-même), qu'il échange contre un JWT (POST /auth/device-login) au lieu
 /// d'un mot de passe ; null sans clé ou après révocation.
+/// pairingCodeHash : empreinte du code d'étiquette d'un Pi ajouté par son
+/// code ; le même code tapé de nouveau dans ce compte reprend cet appareil
+/// (même deviceId, nom et historique) au lieu d'en créer un autre.
 model Device {
   id              String          @id @default(dbgenerated("uuidv7()")) @db.Uuid
   userId          String          @db.Uuid
@@ -63,12 +66,14 @@ model Device {
   captureEligible Boolean         @default(false)
   keyHash         String?
   keyCreatedAt    DateTime?       @db.Timestamptz(3)
+  pairingCodeHash String?
   authSessions    AuthSession[]
   deviceSessions  DeviceSession[]
   pairing         DevicePairing?
   createdAt       DateTime        @default(now()) @db.Timestamptz(3)
   updatedAt       DateTime        @default(now()) @updatedAt @db.Timestamptz(3)
 
+  @@unique([userId, pairingCodeHash])
   @@index([userId])
   @@map("devices")
 }
