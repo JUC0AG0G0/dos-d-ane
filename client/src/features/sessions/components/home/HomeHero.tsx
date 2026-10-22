@@ -5,7 +5,13 @@ import { Button } from '@/components/ui/button';
 import { useNow } from '@/hooks/useNow';
 import { useNewSession } from '../../hooks/useNewSession';
 import type { SessionSummary } from '../../types/sessions.types';
-import { formatAgo, formatRelative, formatTime, plural } from '../../utils';
+import {
+  formatAgo,
+  formatRelative,
+  formatTime,
+  plural,
+  sessionResult,
+} from '../../utils';
 
 const NO_CAPTURE =
   'Le navigateur ne capture pas : ce sont vos appareils (téléphone, ordinateur, Raspberry) qui analysent votre posture.';
@@ -37,7 +43,7 @@ function LiveSession({ session }: { session: SessionSummary }) {
   const paused = session.status === 'paused';
   const details = [
     `Démarrée à ${formatTime(session.startedAt!)}`,
-    plural(session.captureCount, 'capture'),
+    sessionResult(session),
     session.lastCaptureAt &&
       `dernière ${formatAgo(session.lastCaptureAt, now)}`,
   ]
@@ -99,7 +105,7 @@ function LiveSessions({ sessions }: { sessions: SessionSummary[] }) {
             </span>
             <span className="flex-1">
               {[
-                plural(session.captureCount, 'capture'),
+                sessionResult(session),
                 plural(activeDevices(session), 'appareil'),
                 session.status === 'paused'
                   ? 'en pause'

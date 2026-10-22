@@ -46,6 +46,7 @@ import { AlertsCard } from './AlertsCard';
 import { CapturePreview } from './CapturePreview';
 import { LiveStateCard } from './LiveStateCard';
 import { PausesCard } from './PausesCard';
+import { PostureSummaryCard } from './PostureSummaryCard';
 import { SessionDevicesCard } from './SessionDevicesCard';
 import { SessionHeader } from './SessionHeader';
 
@@ -84,6 +85,13 @@ export function LiveView({
     'Impossible de charger les alertes.',
   );
   const alerts = mergeAlerts(savedAlerts.data ?? [], live.alerts);
+  // Bilan depuis le début : un résumé arrive toutes les 5 min, relu toutes les 30 s.
+  const summaries = useApi(
+    () => (hasPi ? sessionsService.summaries(session.id) : Promise.resolve([])),
+    [session.id, hasPi],
+    'Impossible de charger le bilan.',
+  );
+  usePolling(summaries.reload, 30_000, hasPi && !paused);
 
   const act = async (action: () => Promise<SessionDetail>) => {
     const updated = await run(action);
@@ -284,6 +292,13 @@ export function LiveView({
               paused={paused}
               connected={live.connected}
               now={now}
+            />
+          )}
+          {hasPi && (
+            <PostureSummaryCard
+              summaries={summaries.data}
+              error={summaries.error}
+              live
             />
           )}
           {hasPi && (

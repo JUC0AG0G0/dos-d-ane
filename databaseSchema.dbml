@@ -50,11 +50,13 @@ Table devices {
   captureEligible boolean [not null, default: false, note: 'Toujours false pour web']
   keyHash text [note: 'Empreinte SHA-256 (hex) de la clé d un Raspberry Pi, jamais la clé ; null sans clé']
   keyCreatedAt timestamptz [note: 'Renseigné avec keyHash ; clé réservée aux raspberry']
+  pairingCodeHash text [note: 'Empreinte SHA-256 (hex) du code d étiquette d un Raspberry Pi ajouté par son code : le même code dans le même compte reprend cet appareil']
   createdAt timestamptz [not null, default: `now()`]
   updatedAt timestamptz [not null, default: `now()`]
 
   indexes {
     userId
+    (userId, pairingCodeHash) [unique]
   }
 }
 

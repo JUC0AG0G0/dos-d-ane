@@ -20,6 +20,7 @@ export const SESSIONS_ROUTES = {
   stop: (id: string) => `${session(id)}/stop`,
   live: (id: string) => `${session(id)}/live`,
   events: (id: string) => `${session(id)}/events`,
+  summaries: (id: string) => `${session(id)}/summaries`,
   devices: (id: string) => `${session(id)}/devices`,
   device: (id: string, deviceId: string) =>
     `${session(id)}/devices/${encodeURIComponent(deviceId)}`,

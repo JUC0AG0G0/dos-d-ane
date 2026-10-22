@@ -5,7 +5,7 @@ import {
 } from '@/components/ui/hover-card';
 import type { SessionSummary } from '../../types/sessions.types';
 import { Monitor } from 'lucide-react';
-import { DEVICE_ICONS, formatTime, plural } from '../../utils';
+import { DEVICE_ICONS, deviceResult, formatTime, plural } from '../../utils';
 
 /**
  * Cellule Appareils : le nom s'il n'y en a qu'un, « — » sans appareil, sinon
@@ -46,7 +46,7 @@ export function DevicesCell({ session }: { session: SessionSummary }) {
                 <span className="text-muted-foreground">
                   {removed
                     ? `retiré à ${formatTime(removed)}`
-                    : plural(device.captureCount, 'capture')}
+                    : deviceResult(device)}
                 </span>
               </li>
             );

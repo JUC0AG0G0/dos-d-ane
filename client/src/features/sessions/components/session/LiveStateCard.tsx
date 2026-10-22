@@ -14,17 +14,14 @@ import type {
   LiveState,
   SessionDevice,
 } from '../../types/sessions.types';
-import { formatAgo, POSTURE_LABELS } from '../../utils';
+import { COLOR_LABELS, formatAgo, POSTURE_LABELS } from '../../utils';
 
-const COLORS: Record<
-  LiveColor,
-  { label: string; variant: ComponentProps<typeof Badge>['variant'] }
-> = {
-  green: { label: 'Tout va bien', variant: 'success' },
-  orange: { label: 'À surveiller', variant: 'warning' },
-  red: { label: 'Alerte', variant: 'destructive' },
-  ignored: { label: 'Image mal vue', variant: 'outline' },
-  absent: { label: 'Personne absente', variant: 'secondary' },
+const VARIANTS: Record<LiveColor, ComponentProps<typeof Badge>['variant']> = {
+  green: 'success',
+  orange: 'warning',
+  red: 'destructive',
+  ignored: 'outline',
+  absent: 'secondary',
 };
 
 const degrees = (value: number | null) =>
@@ -86,7 +83,11 @@ export function LiveStateCard({
 }
 
 function LiveStateDetails({ state, now }: { state: LiveState; now: number }) {
-  const color = COLORS[state.color];
+  // Couleur inconnue (Pi plus récent que le site) : affichée telle quelle.
+  const color = {
+    label: COLOR_LABELS[state.color] ?? state.color,
+    variant: VARIANTS[state.color] ?? 'outline',
+  };
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">

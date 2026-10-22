@@ -63,6 +63,10 @@ export class AnalysisSessionsController {
     description: 'Corps invalide ou appareil qui ne peut pas capturer (web)',
   })
   @ApiNotFoundResponse({ description: 'Appareil introuvable' })
+  @ApiConflictResponse({
+    description:
+      'Raspberry Pi sans clé (révoquée ou pas encore relevée) ou hors ligne',
+  })
   create(
     @CurrentAuth() auth: AuthContext,
     @Body() dto: StartAnalysisSessionDto,
@@ -122,7 +126,7 @@ export class AnalysisSessionsController {
   @ApiNotFoundResponse({ description: 'Session introuvable' })
   @ApiConflictResponse({
     description:
-      'Session déjà lancée, sans appareil, ou appareil déjà en capture dans une autre session',
+      'Session déjà lancée, sans appareil, appareil déjà en capture dans une autre session, ou Raspberry Pi sans clé (un Pi hors ligne est accepté : il reçoit la session à sa reconnexion)',
   })
   start(
     @CurrentAuth() auth: AuthContext,
@@ -269,7 +273,7 @@ export class AnalysisSessionsController {
   @ApiNotFoundResponse({ description: 'Session ou appareil introuvable' })
   @ApiConflictResponse({
     description:
-      'Session terminée, appareil déjà dans cette session, ou en capture dans une autre session lancée',
+      'Session terminée, appareil déjà dans cette session, en capture dans une autre session lancée, ou Raspberry Pi sans clé ou hors ligne',
   })
   addDevice(
     @CurrentAuth() auth: AuthContext,

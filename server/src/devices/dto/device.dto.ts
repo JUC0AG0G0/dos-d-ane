@@ -37,4 +37,12 @@ export class DeviceDto {
       'Clé d’un Raspberry Pi : active ; pending, ajouté par son code mais clé pas encore relevée ; revoked, révoquée (le Pi attend d’être ajouté de nouveau). null si ce n’est pas un Raspberry Pi',
   })
   keyStatus: 'active' | 'pending' | 'revoked' | null;
+
+  @ApiProperty({
+    type: Boolean,
+    nullable: true,
+    description:
+      'Raspberry Pi connecté au serveur (WebSocket ouverte) ; null si ce n’est pas un Raspberry Pi',
+  })
+  online: boolean | null;
 }

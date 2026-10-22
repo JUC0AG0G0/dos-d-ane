@@ -22,6 +22,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { DeviceConnections } from '../analysis/device-connections.js';
 import type { AuthContext } from '../auth/auth.guard.js';
 import { CurrentAuth } from '../auth/decorators.js';
 import { SessionDeviceDto } from '../auth/dto/auth-responses.dto.js';
@@ -50,6 +51,7 @@ export class DevicesController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly devices: DevicesService,
+    private readonly connections: DeviceConnections,
   ) {}
 
   @Post()
@@ -146,6 +148,10 @@ export class DevicesController {
       current: device.id === currentId,
       openSessionId: deviceSessions[0]?.analysisSessionId ?? null,
       keyStatus: keyStatus(device.type, keyHash, pairing),
+      online:
+        device.type === DeviceType.Raspberry
+          ? this.connections.isConnected(device.id)
+          : null,
     }));
   }
 
