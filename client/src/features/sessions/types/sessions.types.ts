@@ -8,6 +8,8 @@ export interface SessionDeviceSummary {
   name: string;
   type: string;
   captureCount: number;
+  /** Alertes de posture (Raspberry Pi). */
+  alertCount: number;
   /** Retrait de la session (ou fin de la session) ; null si actif. */
   leftAt: string | null;
 }
@@ -23,6 +25,10 @@ export interface SessionSummary {
   pausedSeconds: number;
   pausedSince: string | null;
   captureCount: number;
+  /** Alertes de posture des Raspberry Pi. */
+  alertCount: number;
+  /** % du temps suivi en bonne posture (résumés des Raspberry Pi) ; null sans résumé. */
+  score: number | null;
   deviceCount: number;
   lastCaptureAt: string | null;
   devices: SessionDeviceSummary[];
@@ -99,7 +105,13 @@ export interface SessionTimeline {
 }
 
 export interface SessionStats {
-  thisWeek: { sessions: number; durationSeconds: number; captures: number };
+  thisWeek: {
+    sessions: number;
+    durationSeconds: number;
+    captures: number;
+    /** Alertes de posture (Raspberry Pi) de la semaine. */
+    alerts: number;
+  };
   lastWeek: { sessions: number };
 }
 

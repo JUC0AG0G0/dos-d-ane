@@ -16,22 +16,21 @@ import {
   formatTime,
   isLive,
   isSingleCapture,
-  plural,
+  sessionResult,
   sessionTitle,
 } from '../../utils';
 import { DeviceTile } from '../DeviceTile';
 import { SessionStatusBadge } from '../SessionStatusBadge';
 
-/** « 09:02 → 11:58 · 2 h 56 min · 1 058 captures » */
+/** « 09:02 → 11:58 · 2 h 56 min · 1 058 captures » (ou « · 78 % · 3 alertes ») */
 function sessionMeta(session: SessionSummary) {
-  const captures = plural(session.captureCount, 'capture');
   if (!session.startedAt) return `créée à ${formatTime(session.createdAt)}`;
   if (isSingleCapture(session)) return formatTime(session.startedAt);
   const end = session.endedAt ? formatTime(session.endedAt) : 'maintenant';
   return [
     `${formatTime(session.startedAt)} → ${end}`,
     formatDuration(session.durationSeconds ?? 0),
-    captures,
+    sessionResult(session),
   ].join(' · ');
 }
 

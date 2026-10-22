@@ -126,11 +126,20 @@ const sessionSelect = {
       startedAt: true,
       endedAt: true,
       device: { select: { id: true, name: true, type: true } },
-      _count: { select: { captures: true } },
+      _count: { select: { captures: true, postureEvents: true } },
       captures: {
         select: { id: true, capturedAt: true },
         orderBy: [{ capturedAt: 'desc' }, { id: 'desc' }],
         take: 1,
+      },
+      // Pour le score : une ligne toutes les 5 min par Pi, peu de données.
+      postureSummaries: {
+        select: {
+          score: true,
+          secondsGreen: true,
+          secondsOrange: true,
+          secondsRed: true,
+        },
       },
     },
     orderBy: { startedAt: 'asc' },
@@ -150,6 +159,31 @@ const lastCaptureOf = (session: SessionRow) =>
       null,
     );
 
+/**
+ * Score de résumés : le score d'un résumé est le temps en bonne posture sur
+ * son temps suivi (vert, orange, rouge), d'où une moyenne pondérée par ce
+ * temps. Même calcul que le bilan du site (postureTotals) ; null sans temps suivi.
+ */
+const scoreOf = (
+  summaries: {
+    score: number | null;
+    secondsGreen: number;
+    secondsOrange: number;
+    secondsRed: number;
+  }[],
+): number | null => {
+  let good = 0;
+  let tracked = 0;
+  for (const s of summaries) {
+    const seconds = s.secondsGreen + s.secondsOrange + s.secondsRed;
+    if (s.score !== null && seconds > 0) {
+      good += (s.score / 100) * seconds;
+      tracked += seconds;
+    }
+  }
+  return tracked ? Math.round((100 * good) / tracked) : null;
+};
+
 const toSummary = (session: SessionRow): AnalysisSessionSummaryDto => ({
   id: session.id,
   status: statusOf(session),
@@ -161,11 +195,17 @@ const toSummary = (session: SessionRow): AnalysisSessionSummaryDto => ({
     (sum, ds) => sum + ds._count.captures,
     0,
   ),
+  alertCount: session.deviceSessions.reduce(
+    (sum, ds) => sum + ds._count.postureEvents,
+    0,
+  ),
+  score: scoreOf(session.deviceSessions.flatMap((ds) => ds.postureSummaries)),
   deviceCount: session.deviceSessions.length,
   lastCaptureAt: lastCaptureOf(session)?.capturedAt ?? null,
   devices: session.deviceSessions.map((ds) => ({
     ...ds.device,
     captureCount: ds._count.captures,
+    alertCount: ds._count.postureEvents,
     leftAt: ds.endedAt,
   })),
 });
@@ -311,6 +351,7 @@ export class AnalysisService {
         joinedAt: ds.startedAt,
         leftAt: ds.endedAt,
         captureCount: ds._count.captures,
+        alertCount: ds._count.postureEvents,
         lastCaptureAt: ds.captures[0]?.capturedAt ?? null,
       })),
       lastCapture: lastCaptureOf(session),
@@ -321,7 +362,8 @@ export class AnalysisService {
   /**
    * Chiffres de la semaine (du lundi 00:00, heure de Paris, à maintenant) et
    * nombre de sessions de la semaine précédente. Une session compte dans la
-   * semaine où elle a été lancée ; les captures selon leur propre heure.
+   * semaine où elle a été lancée ; les captures et les alertes selon leur
+   * propre heure.
    */
   async stats(userId: string): Promise<AnalysisStatsDto> {
     const [week] = await this.prisma.$queryRaw<
@@ -331,7 +373,7 @@ export class AnalysisService {
                AT TIME ZONE 'Europe/Paris' AS "thisWeek",
              (date_trunc('week', now() AT TIME ZONE 'Europe/Paris') - interval '7 days')
                AT TIME ZONE 'Europe/Paris' AS "lastWeek"`;
-    const [sessions, lastWeekSessions, captures] = await Promise.all([
+    const [sessions, lastWeekSessions, captures, alerts] = await Promise.all([
       this.prisma.analysisSession.findMany({
         where: { userId, startedAt: { gte: week.thisWeek } },
         select: { startedAt: true, endedAt: true, pauses: pauseSelect },
@@ -348,6 +390,12 @@ export class AnalysisService {
           deviceSession: { analysisSession: { userId } },
         },
       }),
+      this.prisma.postureEvent.count({
+        where: {
+          startedAt: { gte: week.thisWeek },
+          deviceSession: { analysisSession: { userId } },
+        },
+      }),
     ]);
     return {
       thisWeek: {
@@ -357,6 +405,7 @@ export class AnalysisService {
           0,
         ),
         captures,
+        alerts,
       },
       lastWeek: { sessions: lastWeekSessions },
     };
