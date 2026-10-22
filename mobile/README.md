@@ -57,14 +57,8 @@ Puis **scanner le QR code affiché** avec l'appareil photo de l'iPhone (il ouvre
 l'adresse `exp://…` affichée dans Safari. L'iPhone et le PC doivent être sur le même Wi-Fi : l'app
 se charge par le réseau local, et seule **la page caméra** passe par le tunnel.
 
-`cloudflared` n'est pas installé en standard. Binaire unique, sans compte :
-
-```bash
-mkdir -p ~/.local/bin
-wget -O ~/.local/bin/cloudflared \
-  https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
-chmod +x ~/.local/bin/cloudflared
-```
+`cloudflared` est installé par **mise** comme Node et Task (`mise.toml`) : rien à faire à la main,
+`task mobile:start` le télécharge au premier lancement (binaire unique, sans compte, toutes plateformes).
 
 Note : charger **toute l'app** par le tunnel ne marche pas — le manifeste Expo renvoie alors un
 `launchAsset` en `https://…trycloudflare.com:8081`, port qui n'existe pas côté tunnel.
