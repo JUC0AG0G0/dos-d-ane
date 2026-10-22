@@ -80,7 +80,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: jdx/mise-action@v3
-      - name: Lint et compilation du serveur
+      - name: Lint et typecheck du serveur
         run: task server:check
 
   client:

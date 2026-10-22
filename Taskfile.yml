@@ -92,7 +92,7 @@ tasks:
 
   typecheck:server:
     internal: true
-    deps: [install]
+    deps: [install:server]
     dir: server
     cmd: npm run typecheck
 
@@ -110,12 +110,11 @@ tasks:
 
   # Une app à la fois, pour la CI (seules les apps modifiées sont vérifiées).
   server:check:
-    desc: Lint + compilation du serveur
+    desc: Lint + typecheck du serveur
     cmds:
       - task: lint:app
         vars: { APP: server }
-      - task: build:app
-        vars: { APP: server }
+      - task: typecheck:server
 
   client:check:
     desc: Lint + compilation du client
