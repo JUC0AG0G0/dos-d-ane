@@ -22,10 +22,17 @@ import { AddRaspberryDialog } from './AddRaspberryDialog';
  * Raspberry Pi du compte : état (clé, en ligne), ajout par le code de
  * l'étiquette, révocation de la clé.
  */
-export function RaspberryCard({ onChange }: { onChange: () => void }) {
+export function RaspberryCard({
+  onChange,
+  version,
+}: {
+  onChange: () => void;
+  /** Change quand un Pi a été modifié ailleurs sur la page : la liste est relue. */
+  version: number;
+}) {
   const devices = useApi(
     settingsService.devices,
-    [],
+    [version],
     'Impossible de charger les Raspberry Pi.',
   );
   // En attente → en ligne, ou Pi qui se coupe : visible sans recharger.

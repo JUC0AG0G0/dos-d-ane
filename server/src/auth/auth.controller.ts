@@ -143,7 +143,11 @@ export class AuthController {
 
   @ApiBearerAuth()
   @Delete('sessions')
-  @ApiOperation({ summary: 'Déconnecte tous les autres appareils' })
+  @ApiOperation({
+    summary: 'Déconnecte tous les autres appareils',
+    description:
+      'Seulement les sessions ouvertes par mot de passe : un Raspberry Pi se reconnecterait seul avec sa clé, il se coupe avec DELETE /devices/:id/key.',
+  })
   @ApiOkResponse({
     schema: {
       type: 'object',

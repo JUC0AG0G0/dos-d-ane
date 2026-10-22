@@ -201,7 +201,7 @@ data: {"id":"…","clientId":"evt_…_0001","deviceId":"…","type":"FORWARD_HEA
 
 ## 6. Limites connues
 
-- **Jeton vérifié à l'ouverture de la WebSocket** : une révocation de la clé coupe le Pi tout de suite ; mais une session de connexion qui expire (60 min sans requête) ou fermée depuis la liste des sessions laisse la WebSocket ouverte jusqu'à la prochaine reconnexion. **Même chose pour le flux SSE** (§5) : une déconnexion du compte ne ferme pas un flux déjà ouvert (il ne montre que la session de son propriétaire, et se ferme à la fin de la session).
+- **Jeton vérifié à l'ouverture de la WebSocket** : une révocation de la clé coupe le Pi tout de suite. Sa session de connexion n'expire pas tant que la WebSocket répond au ping (chaque `pong` la prolonge) ; le site ne propose pas de la fermer (sur la ligne d'un Pi : « Révoquer la clé »), et « Déconnecter les autres appareils » ne la touche pas. Fermée par l'API (`DELETE /auth/sessions/:id`), elle laisse la WebSocket ouverte jusqu'à la prochaine reconnexion. **Même chose pour le flux SSE** (§5) : une déconnexion du compte ne ferme pas un flux déjà ouvert (il ne montre que la session de son propriétaire, et se ferme à la fin de la session).
 - **Aucune limite de tentatives** sur les routes de login (mot de passe comme clé). Sans conséquence pour la clé (256 bits), à ajouter pour le mot de passe (tout le projet).
 - **Une seule instance du serveur** : la liste des Pi connectés (`DeviceConnections`), le dernier état et les flux en direct (`LiveStates`) sont gardés en mémoire. Avec plusieurs instances, il faudrait les partager (Redis…).
 - **Seuils** : `session:start` ne les envoie pas encore (pas stockés côté serveur) ; le Pi garde ses seuils fixes (`SEUILS`).

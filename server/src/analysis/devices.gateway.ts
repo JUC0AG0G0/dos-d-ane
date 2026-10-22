@@ -108,6 +108,14 @@ export class DevicesGateway
     client.alive = true;
     client.on('pong', () => {
       client.alive = true;
+      // Connecté = session active : sans ça, elle expire au bout d'1 h sans requête.
+      if (client.auth) {
+        this.auth
+          .extendSession(client.auth.sessionId)
+          .catch((err: unknown) =>
+            this.logger.error('Échec de la prolongation de session', err),
+          );
+      }
     });
     // Une promesse rejetée ici arrêterait le serveur : tout passe par le catch.
     try {
