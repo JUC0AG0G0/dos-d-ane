@@ -6,7 +6,7 @@ min_version = "2026.1.0"
 node = "26"
 python = "3.13"   # edge/ (Raspberry Pi) : même version que le Pi
 task = "3"
-cloudflared = "latest"   # mobile/ : tunnel https de la caméra (task mobile:start)
+cloudflared = "2026.10.3"   # mobile/ : tunnel https de la caméra (task mobile:start)
 
 [settings]
 # Nécessaire pour les hooks ci-dessous.
