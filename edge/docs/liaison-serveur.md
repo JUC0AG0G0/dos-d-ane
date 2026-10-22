@@ -26,6 +26,7 @@ C'est **le Pi** qui ouvre la connexion, et il la rouvre si elle tombe.
 | Authentification | header `Authorization: Bearer <accessToken>` |
 | Jeton | `accessToken` de `POST /api/auth/device-login` (clé d'appareil, ci-dessous) |
 | Taille max d'un message | 16 Ko (au-delà, le serveur coupe la connexion) |
+| Ping du serveur | toutes les 30 s (ping WebSocket, le Pi répond tout seul) ; sans réponse au ping précédent, le serveur coupe la connexion : un Pi débranché passe hors ligne en 30 à 60 s (`online` dans `GET /api/devices`) |
 
 Le jeton passe **toujours dans le header, jamais dans l'URL** (`?token=…`) : les URL sont écrites dans les journaux (nginx, proxys).
 
