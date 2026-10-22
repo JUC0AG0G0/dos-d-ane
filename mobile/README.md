@@ -5,8 +5,10 @@ côté filmé, reliés par la nuque et le tronc) dessinés par-dessus, parmi les
 colorés selon la posture, **dans Expo Go uniquement** (pas de development build).
 
 Aucune image n'est enregistrée ni envoyée : les images servent à l'affichage et au calcul, puis
-sont jetées. TensorFlow.js est inclus dans la page (dépendances npm, compilées par esbuild) ; seul
-le modèle MoveNet est téléchargé (tfhub.dev → Kaggle), au premier chargement de la page.
+sont jetées. Seules la position de 3 points du corps (oreille, épaule, hanche), toutes les 30 s,
+partent au serveur (voir [Envoi au serveur](#envoi-au-serveur)). TensorFlow.js est inclus dans la
+page (dépendances npm, compilées par esbuild) ; seul le modèle MoveNet est téléchargé (tfhub.dev →
+Kaggle), au premier chargement de la page.
 
 ## Résultat du test (8 octobre 2026)
 
@@ -69,6 +71,11 @@ chmod +x ~/.local/bin/cloudflared
 Note : charger **toute l'app** par le tunnel ne marche pas — le manifeste Expo renvoie alors un
 `launchAsset` en `https://…trycloudflare.com:8081`, port qui n'existe pas côté tunnel.
 
+**« Cloudflare Tunnel error » dans la caméra** : l'adresse du tunnel n'est reliée à aucun PC.
+Chaque `task mobile:start` crée une nouvelle adresse ; après une relance, l'app du téléphone garde
+l'ancienne tant qu'elle n'est pas rechargée. Fermer complètement Expo Go et rescanner le QR code.
+Le script attend que cloudflared annonce sa connexion à Cloudflare avant de lancer Expo.
+
 ## Versions
 
 | Élément | Version | Pourquoi |
@@ -77,6 +84,8 @@ Note : charger **toute l'app** par le tunnel ne marche pas — le manifeste Expo
 | `react-native-webview` | **13.16.1** | Version embarquée dans Expo Go 57 (`bundledNativeModules.json`). |
 | TensorFlow.js | **4.22.0** (figée) | Versions figées : un mélange de versions entre `tfjs-core` et `tfjs-converter` casse le chargement du modèle. |
 | `@tensorflow-models/pose-detection` | **2.1.3** | MoveNet SinglePose **Lightning** (le plus rapide). |
+| `expo-notifications` | **~57.0** | Notifications **locales** (alerte de posture) : elles marchent dans Expo Go, contrairement aux notifications push. |
+| `expo-video` | **~57.0** | Vidéos des exercices, chargées avec le jeton de session (`headers`). |
 
 ⚠️ Ne pas passer le projet à un SDK plus récent : l'Expo Go de l'App Store refusera de l'ouvrir.
 iOS 16.4 minimum (contrainte d'Expo Go).
@@ -88,7 +97,7 @@ Depuis la racine du dépôt (`task --list` pour tout voir) :
 ```bash
 task mobile:start    # installe, compile la page, ouvre le tunnel caméra et lance Expo
 task mobile:build    # compile la page d'analyse : src/features/analysis/*.ts -> public/pose.js
-task mobile:test     # tests (angles, seuils, messages, statistiques, test des postures), sans téléphone
+task mobile:test     # tests (angles, seuils, messages, statistiques, bilan, alerte, conseils), sans téléphone
 task mobile:check    # typecheck + lint + tests + page à jour (lancé par la CI)
 ```
 
@@ -110,6 +119,53 @@ défaut, elle appelle le serveur de l'équipe `http://dos-dane.julescorneille.fr
 ```bash
 EXPO_PUBLIC_API_URL=http://<IP du PC>:3000/api npx expo start
 ```
+
+Routes de l'API utilisées par l'app :
+
+| Route | Pour |
+| --- | --- |
+| `/auth/register`, `/auth/login`, `/auth/logout`, `/auth/me` | compte (connexion en appareil `mobile`) |
+| `POST /analysis-sessions`, `…/start`, `…/pause`, `…/resume`, `…/stop`, `DELETE …/:id` | session d'analyse sur le serveur, en même temps que la session locale |
+| `POST /analysis-sessions/:id/captures` | les 3 points du corps, toutes les 30 s |
+| `GET /analysis-sessions/:id`, `…/:id/captures`, `GET /captures/:id` | captures envoyées et leur aperçu (squelette), dans le bilan |
+| `GET /devices` | session restée ouverte (app tuée en pleine session), arrêtée avant d'en créer une |
+| `GET /advice/exercises`, `/advice/exercises/:id`, `/advice/media/:id` | exercices gérés par l'admin sur le site, et leurs médias |
+
+## Envoi au serveur
+
+À l'ouverture de l'écran « Session en cours », l'app crée et lance une session d'analyse sur le
+serveur (sans corps, le serveur y met l'appareil qui fait la requête), puis envoie une **capture
+toutes les 30 s au plus** ([`useSessionServeur.ts`](src/features/sessions/hooks/useSessionServeur.ts)) :
+
+```json
+{
+  "capturedAt": "2026-10-22T09:43:12.000Z",
+  "imageWidth": 480,
+  "imageHeight": 640,
+  "keypoints": [
+    { "bodyPart": "right_ear", "x": 318, "y": 315, "confidence": 0.81 },
+    { "bodyPart": "right_shoulder", "x": 316, "y": 346, "confidence": 0.90 },
+    { "bodyPart": "right_hip", "x": 320, "y": 502, "confidence": 0.74 }
+  ]
+}
+```
+
+- **3 points seulement** : l'oreille, l'épaule et la hanche du côté filmé, ceux des deux angles.
+  Minimisation (RGPD art. 5) : le nez, les yeux et le reste du corps ne partent pas. Sans le nez,
+  le serveur peut recalculer les angles, mais pas le sens (tête en arrière, dos avachi).
+- **30 s** : environ 120 captures par heure (jusqu'à 2 200 lignes en base), au lieu de 4 mesures
+  par seconde ; les postures changent rarement (« limiter le nombre de captures » du sujet).
+- Points **fiables** seulement (confiance ≥ 0,3), **non redressés**, arrondis et ramenés dans
+  l'image ([`pointsDansImage`](src/features/analysis/cadrage.ts)) : le serveur refuse toute la
+  capture si un point sort de l'image.
+- Rien ne part si personne n'est vu, ou si le téléphone bouge ou penche.
+- Les angles, les couleurs et l'historique (temps en vert, orange, rouge) **restent sur le
+  téléphone**. L'image, jamais envoyée.
+- Un échec réseau n'interrompt pas la session locale : la capture est perdue, sans file d'attente
+  (ce n'est qu'un échantillon). « Terminer » n'attend pas le serveur plus de 5 s.
+
+La session apparaît sur le site (« Mes sessions ») avec ses captures. Le site ne trace que les
+traits de son squelette standard : l'oreille n'y est pas reliée à l'épaule.
 
 ## Caméra
 
@@ -158,10 +214,43 @@ En dessous, le conseil nomme l'angle en cause (tête en avant ou en arrière, bu
 avachi), le cou d'abord à égalité. L'app ne calcule **pas de score** : elle dit seulement si la
 posture est bonne.
 
+**Notification** : si la posture reste orange ou rouge pendant **30 s**, une notification locale
+donne le même conseil (« Tête en avant : rentrez légèrement le menton »). Seuils dans
+`SEUILS_ALERTE` de [`mesure.ts`](src/features/sessions/mesure.ts) :
+
+| Règle | Valeur | Source |
+| --- | --- | --- |
+| Durée avant notification | 30 s | choisi pour que l'app réagisse vite ; le Pi confirme pendant 1 min |
+| Redressement toléré | < 5 s | choisi à la main (boire, s'étirer) |
+| Rappel si la posture reste mauvaise | toutes les 10 min au plus | comme l'anti-rafale du Pi |
+
+Les mesures sans posture jugée (personne absente, téléphone qui bouge) ne comptent pas ; une
+interruption de plus de 5 s ou la pause remettent le compte à zéro. L'autorisation est demandée au
+début de la première session ; refusée, rien n'est envoyé.
+
 L'accueil et l'écran Résultats montrent la **part du temps en bonne posture** (cou et tronc verts)
 sur le jour, la semaine ou le mois : chaque mesure compte pour la durée écoulée depuis la précédente
 (au plus 1 s). Les mesures sont cumulées par heure sur le téléphone (AsyncStorage) : angles moyens,
 temps en vert, orange et rouge. Aucune image.
+
+**Bilan de session** : « Terminer » ouvre le bilan, comme la page d'une session terminée du site :
+début, fin, durée active (dont pause), captures envoyées, temps en bonne posture, angles moyens,
+répartition des postures, problème principal (« Dos avachi : 25 % du temps », s'il dépasse 20 %
+du temps) avec son conseil, les captures envoyées avec l’aperçu de chacune (une mascotte assise dont
+la forme suit le tronc et le cou mesurés ; seuls les 3 points capturés y sont marqués, reliés par
+le cou et le tronc colorés selon leur niveau, avec leur angle ; squelette brut s’il manque un point) et 2 exercices conseillés.
+Le bilan est gardé avec la session sur le
+téléphone ([`bilanSession`](src/features/history/statistiques.ts)). L'onglet **Sessions** liste
+les sessions faites sur ce téléphone ; toucher une session rouvre son bilan. Une session se lance
+depuis l'accueil.
+
+**Conseils** : les exercices viennent du serveur (gérés par l'admin sur le site, `GET
+/advice/exercises`), plus d'un catalogue dans l'app. L'app les trie selon les postures des 7
+derniers jours ([`exercices.ts`](src/features/advice/exercices.ts)) : nuque, puis épaules, pour la
+tête en avant ; dos pour le buste penché ou avachi ; jambes après une session d'au moins 50 min ;
+yeux et poignets en prévention. La fiche montre le média (image, GIF ou vidéo), les étapes et les
+précautions. Hors ligne, l'onglet Conseils affiche une erreur ; le conseil du jour de l'accueil,
+calculé sur le téléphone, reste disponible.
 
 Le côté mesuré (gauche/droite) est choisi automatiquement : meilleure confiance moyenne sur
 oreille + épaule + hanche.
@@ -247,23 +336,27 @@ Même organisation que le site web (`client/src`), avec les mêmes règles :
 ```
 src/app/                         routes Expo Router : quelques lignes chacune
   _layout.tsx                    racine : police Inter, écrans réservés aux connectés
-  (onglets)/_layout.tsx          barre d'onglets : Accueil, Session, Résultats, Conseils
+  (onglets)/_layout.tsx          barre d'onglets : Accueil, Sessions, Résultats, Conseils
+  bilan/[debut].tsx              bilan d'une session (identifiée par son début)
 src/features/
-  home/                          accueil : temps en bonne posture du jour, conseil du jour
+  home/                          accueil : démarrer, temps en bonne posture du jour, conseil du jour
   sessions/                      session d'analyse : caméra (WebView), état du téléphone, message de
-                                 posture, enregistrement des mesures
+                                 posture, notification, enregistrement local, envoi au serveur,
+                                 bilan et liste des sessions
+    mesure.ts                    message de posture, capture pour le serveur, suivi de l'alerte
   analysis/                      page d'analyse exécutée dans la WebView (-> public/pose.js)
     pose.ts                      caméra, MoveNet, dessin du canvas, envoi des mesures à l'app
     posture.ts                   angles, seuils, couleurs, sens du tronc (partagé page ↔ app ↔ tests)
-    cadrage.ts                   capture recadrée au format 3/4
+    cadrage.ts                   capture recadrée au format 3/4, points ramenés dans l'image
     messages.ts                  forme et lecture des messages page -> app
-  history/                       résultats : historique sur le téléphone, statistiques
-  advice/                        conseils et fiches d'exercices selon les postures détectées
+  history/                       résultats : historique sur le téléphone, statistiques, bilan d'une
+                                 session
+  advice/                        exercices du serveur, triés selon les postures détectées
   auth/                          connexion, inscription, déconnexion (API /auth)
 src/components/                  composants partagés (cartes, formulaire, icônes, anneau de %)
   layouts/                       cadres d'écran (Ecran, CadreAuth)
 src/hooks/                       hooks partagés (chargement des données d'un écran)
-src/services/http.ts             appels à l'API (jeton, erreurs, 401 -> déconnexion)
+src/services/http.ts             appels à l'API (jeton, erreurs, 401 -> déconnexion), médias avec jeton
 src/store/auth.store.tsx         session de l'utilisateur (jeton dans expo-secure-store)
 src/types/user.ts                utilisateur renvoyé par l'API
 src/styles/theme.ts              couleurs, polices, rayons et marges de la maquette
@@ -280,6 +373,6 @@ Les fichiers testés par Node (`posture.ts`, `statistiques.ts`, `telephone.ts`�
 **types** des autres fichiers : Node exécute le TypeScript sans bundler et ne trouve pas un import
 sans extension.
 
-Les données de chaque compte (historique) sont gardées sur le téléphone, séparées par
-utilisateur. Le serveur a maintenant des routes de sessions d'analyse (`/analysis-sessions`,
-`/captures`), pas encore utilisées par l'app.
+Les données de chaque compte (historique, bilans) sont gardées sur le téléphone, séparées par
+utilisateur. Le serveur reçoit les sessions et leurs captures (3 points du corps toutes les 30 s,
+voir [Envoi au serveur](#envoi-au-serveur)).
