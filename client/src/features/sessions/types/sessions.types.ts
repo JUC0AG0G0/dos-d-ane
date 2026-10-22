@@ -146,6 +146,24 @@ export interface PostureEvent {
   causes: Record<string, number> | null;
 }
 
+/** Résumé d'une période (5 min) envoyé par un Pi. */
+export interface PostureSummary {
+  id: string;
+  clientId: string;
+  deviceId: string;
+  periodStart: string;
+  periodEnd: string;
+  /** % du temps suivi (vert, orange, rouge) en bonne posture ; null si rien n'a été suivi. */
+  score: number | null;
+  secondsGreen: number;
+  secondsOrange: number;
+  secondsRed: number;
+  /** Image mal vue : pas comptée dans le score. */
+  secondsIgnored: number;
+  /** Personne absente : pas comptée dans le score. */
+  secondsAbsent: number;
+}
+
 /** Statut annoncé par le flux : deleted si la session a été supprimée. */
 export type LiveStatus = SessionStatus | 'deleted';
 

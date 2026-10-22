@@ -66,6 +66,8 @@ Page d'une session en cours ou en pause (`LiveView`), seulement si un Raspberry 
 - Testé en dev avec un faux Pi (script qui se comporte comme `poc.py --service`, sans webcam) : états, alertes, pause, reprise, Pi silencieux 2 min puis de retour.
 - **Fini quand** : une vraie session du Pi en prod s'affiche en direct sur la page, alertes comprises.
 - Reste ailleurs : l'accueil, la liste des sessions et la page d'une session terminée comptent encore les captures (« 0 capture » pour un Pi) et n'affichent ni alertes ni résumés → étape « résultats après la session » (avec C3).
+  - ✅ Page d'une session terminée et bilan pendant la session (branche `feat/bilan-pi`, testé en dev le 22/10/2026 avec un Pi simulé qui envoie un résumé toutes les ~26 s) : `GET …/summaries` lu par le site ; tuile **Score** (% du temps suivi en bonne posture, moyenne des résumés pondérée par le temps suivi) et nombre d'alertes à la place de « Captures » ; carte **Bilan** (score, répartition du temps : tout va bien, à surveiller, alerte, image mal vue, absent) ; carte **Score toutes les 5 minutes** (une ligne par Pi) ; carte **Alertes** ; cartes de captures seulement s'il y a un autre appareil. En cours : la carte Bilan « depuis le début », relue toutes les 30 s. Au passage, une couleur `state` inconnue n'efface plus la page (`LiveStateCard`).
+  - 🔜 Liste des sessions et accueil : score et alertes à la place de « 0 capture » (à calculer côté serveur dans la liste).
 
 ### C3. Le bouton dans l'app 🔜
 

@@ -2,10 +2,12 @@ import { Cpu, Monitor, Smartphone, type LucideIcon } from 'lucide-react';
 import type {
   BodyPart,
   Keypoint,
+  LiveColor,
   LivePosture,
   LiveState,
   PostureEvent,
   PostureEventType,
+  PostureSummary,
   SessionDetail,
   SessionPause,
   SessionStatus,
@@ -212,6 +214,52 @@ export const EVENT_LABELS: Record<PostureEventType, string> = {
   TRUNK_BACKWARD: 'Allongé dans la chaise',
   IMMOBILE: 'Assis trop longtemps',
 };
+
+/** État d'une image (ou d'une période) : en direct et dans les bilans. */
+export const COLOR_LABELS: Record<LiveColor, string> = {
+  green: 'Tout va bien',
+  orange: 'À surveiller',
+  red: 'Alerte',
+  ignored: 'Image mal vue',
+  absent: 'Personne absente',
+};
+
+export interface PostureTotals {
+  /** Secondes passées dans chaque état. */
+  seconds: Record<LiveColor, number>;
+  total: number;
+  /** % du temps suivi (vert, orange, rouge) en bonne posture ; null si rien n'a été suivi. */
+  score: number | null;
+}
+
+/**
+ * Bilan de plusieurs résumés. Le score d'un résumé est le temps en bonne
+ * posture sur son temps suivi : le score d'ensemble est leur moyenne pondérée
+ * par le temps suivi (une période presque vide ne pèse presque rien).
+ */
+export function postureTotals(summaries: PostureSummary[]): PostureTotals {
+  const seconds = { green: 0, orange: 0, red: 0, ignored: 0, absent: 0 };
+  let good = 0;
+  let scored = 0;
+  for (const s of summaries) {
+    seconds.green += s.secondsGreen;
+    seconds.orange += s.secondsOrange;
+    seconds.red += s.secondsRed;
+    seconds.ignored += s.secondsIgnored;
+    seconds.absent += s.secondsAbsent;
+    const tracked = s.secondsGreen + s.secondsOrange + s.secondsRed;
+    if (s.score !== null && tracked > 0) {
+      good += (s.score / 100) * tracked;
+      scored += tracked;
+    }
+  }
+  const total = Object.values(seconds).reduce((sum, value) => sum + value, 0);
+  return {
+    seconds,
+    total,
+    score: scored ? Math.round((100 * good) / scored) : null,
+  };
+}
 
 /**
  * Alertes enregistrées puis reçues en direct, la plus récente en premier ;
