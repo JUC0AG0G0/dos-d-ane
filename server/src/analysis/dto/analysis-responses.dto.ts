@@ -27,6 +27,12 @@ export class SessionDeviceSummaryDto {
   captureCount: number;
 
   @ApiProperty({
+    example: 3,
+    description: 'Alertes de posture envoyées dans la session (Raspberry Pi)',
+  })
+  alertCount: number;
+
+  @ApiProperty({
     type: Date,
     nullable: true,
     description: 'Retrait de la session ou fin de la session ; null si actif',
@@ -87,6 +93,21 @@ export class AnalysisSessionSummaryDto {
 
   @ApiProperty({ example: 42 })
   captureCount: number;
+
+  @ApiProperty({
+    example: 3,
+    description: 'Alertes de posture des Raspberry Pi de la session',
+  })
+  alertCount: number;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    example: 78,
+    description:
+      '% du temps suivi en bonne posture d’après les résumés des Raspberry Pi (moyenne pondérée par le temps suivi) ; null sans résumé',
+  })
+  score: number | null;
 
   @ApiProperty({ example: 1 })
   deviceCount: number;
@@ -214,6 +235,12 @@ export class WeekStatsDto {
     description: 'Captures prises dans la semaine',
   })
   captures: number;
+
+  @ApiProperty({
+    example: 5,
+    description: 'Alertes de posture (Raspberry Pi) commencées dans la semaine',
+  })
+  alerts: number;
 }
 
 export class LastWeekStatsDto {

@@ -49,6 +49,11 @@ export class DeviceConnections {
     }
   }
 
+  /** L'appareil a une connexion ouverte (en ligne). */
+  isConnected(deviceId: string): boolean {
+    return this.connections.has(deviceId);
+  }
+
   /** Ferme la connexion de l'appareil, s'il en a une (clé révoquée…). */
   close(deviceId: string, code: number, reason: string) {
     this.connections.get(deviceId)?.socket.close(code, reason);

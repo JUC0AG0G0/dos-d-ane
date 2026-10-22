@@ -1,3 +1,5 @@
+import type { KeyStatus } from '@/utils/raspberry';
+
 /** setup : en préparation ; running : en cours ; paused : en pause ; ended : terminée. */
 export type SessionStatus = 'setup' | 'running' | 'paused' | 'ended';
 
@@ -6,6 +8,8 @@ export interface SessionDeviceSummary {
   name: string;
   type: string;
   captureCount: number;
+  /** Alertes de posture (Raspberry Pi). */
+  alertCount: number;
   /** Retrait de la session (ou fin de la session) ; null si actif. */
   leftAt: string | null;
 }
@@ -21,6 +25,10 @@ export interface SessionSummary {
   pausedSeconds: number;
   pausedSince: string | null;
   captureCount: number;
+  /** Alertes de posture des Raspberry Pi. */
+  alertCount: number;
+  /** % du temps suivi en bonne posture (résumés des Raspberry Pi) ; null sans résumé. */
+  score: number | null;
   deviceCount: number;
   lastCaptureAt: string | null;
   devices: SessionDeviceSummary[];
@@ -97,7 +105,13 @@ export interface SessionTimeline {
 }
 
 export interface SessionStats {
-  thisWeek: { sessions: number; durationSeconds: number; captures: number };
+  thisWeek: {
+    sessions: number;
+    durationSeconds: number;
+    captures: number;
+    /** Alertes de posture (Raspberry Pi) de la semaine. */
+    alerts: number;
+  };
   lastWeek: { sessions: number };
 }
 
@@ -144,6 +158,24 @@ export interface PostureEvent {
   causes: Record<string, number> | null;
 }
 
+/** Résumé d'une période (5 min) envoyé par un Pi. */
+export interface PostureSummary {
+  id: string;
+  clientId: string;
+  deviceId: string;
+  periodStart: string;
+  periodEnd: string;
+  /** % du temps suivi (vert, orange, rouge) en bonne posture ; null si rien n'a été suivi. */
+  score: number | null;
+  secondsGreen: number;
+  secondsOrange: number;
+  secondsRed: number;
+  /** Image mal vue : pas comptée dans le score. */
+  secondsIgnored: number;
+  /** Personne absente : pas comptée dans le score. */
+  secondsAbsent: number;
+}
+
 /** Statut annoncé par le flux : deleted si la session a été supprimée. */
 export type LiveStatus = SessionStatus | 'deleted';
 
@@ -159,4 +191,8 @@ export interface Device {
   current: boolean;
   /** Session lancée (en cours ou en pause) où il capture. */
   openSessionId: string | null;
+  /** Clé d'un Raspberry Pi ; null pour un autre appareil. */
+  keyStatus: KeyStatus;
+  /** Raspberry Pi connecté au serveur ; null pour un autre appareil. */
+  online: boolean | null;
 }

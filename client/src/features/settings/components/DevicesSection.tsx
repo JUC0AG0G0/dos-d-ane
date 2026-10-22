@@ -43,13 +43,28 @@ export function DevicesSection() {
   const logout = useLogout();
   const [renaming, setRenaming] = useState<SessionDevice | null>(null);
   const [revoking, setRevoking] = useState<Session | null>(null);
+  const [revokingKey, setRevokingKey] = useState<SessionDevice | null>(null);
   const [revokingOthers, setRevokingOthers] = useState(false);
+  // Relit la carte Raspberry Pi après une révocation faite depuis cette liste.
+  const [pisVersion, setPisVersion] = useState(0);
+  // « Déconnecter les autres » ne touche pas aux Raspberry Pi (serveur).
+  const othersToRevoke = active.filter(
+    (s) => !s.current && s.device.type !== 'raspberry',
+  );
 
   async function revoke(session: Session) {
     setRevoking(null);
     if (session.current) return logout();
     await settingsService.revokeSession(session.id).catch(() => undefined);
     reload();
+  }
+
+  /** Un Pi refait un login seul avec sa clé : on le coupe en la révoquant. */
+  async function revokeKey(device: SessionDevice) {
+    setRevokingKey(null);
+    await settingsService.revokeDeviceKey(device.id).catch(() => undefined);
+    reload();
+    setPisVersion((v) => v + 1);
   }
 
   async function revokeOthers() {
@@ -64,7 +79,7 @@ export function DevicesSection() {
 
   return (
     <div className="grid gap-6">
-      <RaspberryCard onChange={reload} />
+      <RaspberryCard onChange={reload} version={pisVersion} />
 
       <Card>
         <CardHeader>
@@ -72,7 +87,7 @@ export function DevicesSection() {
           <CardDescription>
             Les appareils actuellement connectés à ton compte.
           </CardDescription>
-          {active.length > 1 && (
+          {othersToRevoke.length > 0 && (
             <CardAction>
               <Button
                 variant="outline"
@@ -113,13 +128,23 @@ export function DevicesSection() {
                 >
                   Renommer
                 </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setRevoking(session)}
-                >
-                  Déconnecter
-                </Button>
+                {session.device.type === 'raspberry' ? (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setRevokingKey(session.device)}
+                  >
+                    Révoquer la clé
+                  </Button>
+                ) : (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setRevoking(session)}
+                  >
+                    Déconnecter
+                  </Button>
+                )}
               </div>
             </div>
           ))}
@@ -196,10 +221,18 @@ export function DevicesSection() {
       <ConfirmDialog
         open={revokingOthers}
         title="Déconnecter tous les autres appareils ?"
-        description="Seul cet appareil restera connecté. Les autres devront se reconnecter."
+        description="Seul cet appareil restera connecté. Les autres devront se reconnecter. Les Raspberry Pi restent connectés : pour en couper un, révoque sa clé."
         confirmLabel="Tout déconnecter"
         onConfirm={() => void revokeOthers()}
         onClose={() => setRevokingOthers(false)}
+      />
+      <ConfirmDialog
+        open={revokingKey !== null}
+        title="Révoquer la clé de ce Raspberry Pi ?"
+        description={`« ${revokingKey?.name} » est déconnecté tout de suite et attend d’être ajouté de nouveau avec le code de son étiquette, par toi ou par quelqu’un d’autre.`}
+        confirmLabel="Révoquer"
+        onConfirm={() => revokingKey && void revokeKey(revokingKey)}
+        onClose={() => setRevokingKey(null)}
       />
     </div>
   );

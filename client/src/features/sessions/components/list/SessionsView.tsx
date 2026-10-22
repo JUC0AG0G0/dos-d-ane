@@ -28,11 +28,11 @@ import { useNewSession } from '../../hooks/useNewSession';
 import { sessionsService } from '../../services/sessions.service';
 import type { SessionSummary } from '../../types/sessions.types';
 import {
-  formatCount,
   formatDuration,
   formatTime,
   isLive,
   plural,
+  sessionResult,
 } from '../../utils';
 import { SessionStatusBadge } from '../SessionStatusBadge';
 import { DevicesCell } from './DevicesCell';
@@ -205,7 +205,7 @@ export function SessionsView() {
                   <TableHead>Statut</TableHead>
                   <TableHead>Durée active</TableHead>
                   <TableHead>Appareils</TableHead>
-                  <TableHead className="text-right">Captures</TableHead>
+                  <TableHead className="text-right">Résultat</TableHead>
                   <TableHead className="w-8" />
                 </TableRow>
               </TableHeader>
@@ -238,7 +238,7 @@ export function SessionsView() {
                       <DevicesCell session={session} />
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {formatCount(session.captureCount)}
+                      {session.startedAt ? sessionResult(session) : '—'}
                     </TableCell>
                     <TableCell>
                       <ChevronRight className="size-4 text-muted-foreground" />

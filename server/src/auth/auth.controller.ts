@@ -64,7 +64,10 @@ export class AuthController {
       'Le nom et le modèle de l’appareil sont déduits du User-Agent, l’adresse IP est enregistrée avec la session.',
   })
   @ApiOkResponse({ type: LoginResponseDto })
-  @ApiBadRequestResponse({ description: 'Champs invalides' })
+  @ApiBadRequestResponse({
+    description:
+      'Champs invalides, dont le type raspberry : un Raspberry Pi se connecte avec sa clé (POST /auth/device-login)',
+  })
   @ApiUnauthorizedResponse({ description: 'Email ou mot de passe incorrect' })
   login(
     @Body() dto: LoginDto,
@@ -143,7 +146,11 @@ export class AuthController {
 
   @ApiBearerAuth()
   @Delete('sessions')
-  @ApiOperation({ summary: 'Déconnecte tous les autres appareils' })
+  @ApiOperation({
+    summary: 'Déconnecte tous les autres appareils',
+    description:
+      'Seulement les sessions ouvertes par mot de passe : un Raspberry Pi se reconnecterait seul avec sa clé, il se coupe avec DELETE /devices/:id/key.',
+  })
   @ApiOkResponse({
     schema: {
       type: 'object',

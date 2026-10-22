@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { piState } from '@/utils/raspberry';
 import type {
   Device,
   SessionStatus,
@@ -20,12 +21,21 @@ import { DeviceTile } from '../DeviceTile';
 
 type DeviceState = {
   badge: string;
-  variant: 'default' | 'warning' | 'secondary';
+  variant: 'default' | 'warning' | 'secondary' | 'success' | 'outline';
   text: string;
 };
 
-/** Badge d'un appareil de capture selon la session lancée où il capture. */
-function deviceState(sessionStatus: SessionStatus | undefined): DeviceState {
+/**
+ * Badge d'un appareil de capture : un Raspberry Pi inutilisable (clé, hors
+ * ligne) d'abord, sinon selon la session lancée où il capture.
+ */
+function deviceState(
+  device: Device,
+  sessionStatus: SessionStatus | undefined,
+): DeviceState {
+  const pi = piState(device);
+  if (pi && !pi.usable)
+    return { badge: pi.label, variant: pi.variant, text: pi.hint ?? '' };
   if (sessionStatus === 'running')
     return {
       badge: 'Actif',
@@ -72,6 +82,7 @@ export function HomeDevices({
       <CardContent>
         {capturing.map((device, index) => {
           const state = deviceState(
+            device,
             device.openSessionId
               ? statusById.get(device.openSessionId)
               : undefined,
