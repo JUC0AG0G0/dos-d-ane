@@ -84,7 +84,7 @@ tasks:
 
   lint:app:
     internal: true
-    deps: [install]
+    deps: [{ task: "install:{{.APP}}" }]
     dir: "{{.APP}}"
     cmds:
       - npm run lint
@@ -92,13 +92,13 @@ tasks:
 
   typecheck:server:
     internal: true
-    deps: [install]
+    deps: [install:server]
     dir: server
     cmd: npm run typecheck
 
   build:app:
     internal: true
-    deps: [install]
+    deps: [{ task: "install:{{.APP}}" }]
     dir: "{{.APP}}"
     cmd: npm run build
 
@@ -107,6 +107,22 @@ tasks:
     cmds:
       - task: lint
       - task: build
+
+  # Une app à la fois, pour la CI (seules les apps modifiées sont vérifiées).
+  server:check:
+    desc: Lint + typecheck du serveur
+    cmds:
+      - task: lint:app
+        vars: { APP: server }
+      - task: typecheck:server
+
+  client:check:
+    desc: Lint + compilation du client
+    cmds:
+      - task: lint:app
+        vars: { APP: client }
+      - task: build:app
+        vars: { APP: client }
 
   # --- Edge (Raspberry Pi, Python) -----------------------------------------
   # Pas dans setup ni check : seuls ceux qui travaillent sur edge/ ont besoin de Python.

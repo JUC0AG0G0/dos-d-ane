@@ -127,6 +127,8 @@ Chaque merge sur `develop` déploie l'application sur le VPS, via un runner GitH
 
 `develop` ne reçoit que des pull requests. Une branche par tâche, créée depuis `develop`.
 
+La CI d'une PR ne vérifie que les apps modifiées. Pour en vérifier une autre, ajouter le label à son nom sur la PR : `server`, `client`, `docker`, `edge` ou `mobile` (la CI se relance). Après le merge, tout est vérifié avant le déploiement.
+
 
 ## Licence
 

@@ -1,12 +1,16 @@
 name: CI
 
-# Lint et compilation du serveur et du client, tests de l'algorithme edge
-# (Python), vérifications de l'app mobile, stack de production lancée dans Docker,
-# secrets de production, puis déploiement sur le VPS à chaque push sur develop.
-# Le job « ci-ok » résume les vérifications pour la protection de branche.
+# Sur une PR, seules les apps dont les fichiers ont changé sont vérifiées
+# (serveur, client, stack Docker, algorithme edge, app mobile). Un label au nom
+# de l'app (server, client, docker, edge, mobile) force en plus sa vérification.
+# Au push sur develop et en relance manuelle, tout est vérifié avant le
+# déploiement sur le VPS. Le job « ci-ok » résume les vérifications pour la
+# protection de branche (un job sauté compte comme réussi).
 on:
   pull_request:
     branches: [develop]
+    # labeled : relance la CI quand un label est ajouté.
+    types: [opened, synchronize, reopened, labeled]
   push:
     branches: [develop]
   workflow_dispatch:
@@ -20,21 +24,78 @@ permissions:
   contents: read
 
 jobs:
+  # Choisit les apps à vérifier : fichiers modifiés par la PR, labels de la PR,
+  # ou tout hors PR. Un changement de la CI ou des outils vérifie tout.
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      server: ${{ github.event_name != 'pull_request' || steps.filter.outputs.server == 'true' || contains(github.event.pull_request.labels.*.name, 'server') }}
+      client: ${{ github.event_name != 'pull_request' || steps.filter.outputs.client == 'true' || contains(github.event.pull_request.labels.*.name, 'client') }}
+      docker: ${{ github.event_name != 'pull_request' || steps.filter.outputs.docker == 'true' || contains(github.event.pull_request.labels.*.name, 'docker') }}
+      edge: ${{ github.event_name != 'pull_request' || steps.filter.outputs.edge == 'true' || contains(github.event.pull_request.labels.*.name, 'edge') }}
+      mobile: ${{ github.event_name != 'pull_request' || steps.filter.outputs.mobile == 'true' || contains(github.event.pull_request.labels.*.name, 'mobile') }}
+    steps:
+      - uses: dorny/paths-filter@v3
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            common: &common
+              - .github/workflows/ci.yml
+              - Taskfile.yml
+              - mise.toml
+            server:
+              - *common
+              - server/**
+            client:
+              - *common
+              - client/**
+            docker:
+              - *common
+              - compose*.yaml
+              - .env.*.example
+              - server/Dockerfile
+              - server/.dockerignore
+              - server/package*.json
+              - server/prisma/**
+              - client/Dockerfile
+              - client/.dockerignore
+              - client/package*.json
+              - client/nginx.conf
+            edge:
+              - *common
+              - edge/**
+            mobile:
+              - *common
+              - mobile/**
+
   # Mêmes tâches (Taskfile.yml) que les hooks Husky en local.
   # mise-action installe Node et task aux versions de mise.toml.
-  apps:
+  server:
+    needs: changes
+    if: needs.changes.outputs.server == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - uses: jdx/mise-action@v3
-      - name: Installer
-        run: task setup
-      - name: Lint
-        run: task lint
-      - name: Compilation
-        run: task build
+      - name: Lint et typecheck du serveur
+        run: task server:check
+
+  client:
+    needs: changes
+    if: needs.changes.outputs.client == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: jdx/mise-action@v3
+      - name: Lint et compilation du client
+        run: task client:check
 
   docker:
+    needs: changes
+    if: needs.changes.outputs.docker == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -64,6 +125,8 @@ jobs:
 
   # Tests de l'algorithme de posture du Raspberry Pi (edge/), sans webcam ni modèle.
   edge:
+    needs: changes
+    if: needs.changes.outputs.edge == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -73,6 +136,8 @@ jobs:
 
   # App mobile (Expo) : typecheck, lint, tests et page d'analyse à jour.
   mobile:
+    needs: changes
+    if: needs.changes.outputs.mobile == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -94,7 +159,7 @@ jobs:
 
   ci-ok:
     if: always()
-    needs: [apps, edge, mobile, docker, prod-secrets]
+    needs: [changes, server, client, edge, mobile, docker, prod-secrets]
     runs-on: ubuntu-latest
     steps:
       - name: Vérifier que tous les jobs ont réussi
