@@ -1,19 +1,29 @@
 /*
  * Tests de features/history/statistiques.ts et features/advice/exercices.ts :
- * moyenne dans le temps, périodes, répartition, libellés et choix des conseils.
+ * moyenne dans le temps, périodes, répartition, libellés, bilan d'une session
+ * et tri des exercices du serveur.
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { conseilDuJour, exercicesRecommandes } from '../src/features/advice/exercices.ts';
+import {
+  conseilDuJour,
+  exercicesRecommandes,
+  problemePrincipal,
+  raison,
+  texteDureeExercice,
+} from '../src/features/advice/exercices.ts';
+import type { ExerciseSummary, ExerciseZone } from '../src/features/advice/types/advice.types.ts';
 import type { Niveau, SensTronc } from '../src/features/analysis/posture.ts';
 import {
   ajouterEchantillon,
+  bilanSession,
   bornes,
   fusionnerTranches,
   libellePeriode,
   resumer,
   situation,
+  situationSession,
   texteDuree,
   type Echantillon,
   type Historique,
@@ -122,6 +132,25 @@ test('temps suivi', () => {
   assert.equal(texteDuree(128 * 3600 + 20 * 60), '128 h');
 });
 
+/** Exercices tels que les renvoie le serveur, dans son ordre. */
+const exercice = (id: string, zone: ExerciseZone): ExerciseSummary => ({
+  id,
+  title: id,
+  zone,
+  isPreventive: true,
+  isForPain: false,
+  durationSeconds: 60,
+  posture: 'assis',
+  media: null,
+});
+const SERVEUR = [
+  exercice('yeux', 'yeux'),
+  exercice('dos', 'dos'),
+  exercice('poignets', 'poignets'),
+  exercice('nuque', 'nuque'),
+  exercice('epaules', 'epaules'),
+];
+
 test('conseils : la tête en avant fréquente fait passer les exercices du cou en premier', () => {
   const historique: Historique = {
     tranches: tranchesDe(
@@ -133,15 +162,55 @@ test('conseils : la tête en avant fréquente fait passer les exercices du cou e
   const s = situation(historique, le(7, 18));
   assert.equal(s.teteEnAvant, 0.75);
   assert.equal(s.bustePenche, 0);
-  assert.equal(exercicesRecommandes(s)[0].cible, 'teteEnAvant');
+  const tries = exercicesRecommandes(SERVEUR, s);
+  assert.deepEqual(
+    tries.slice(0, 2).map((e) => e.zone),
+    ['nuque', 'epaules'],
+  );
+  assert.equal(raison(tries[0], s), 'Pour la tête en avant');
+  assert.equal(raison(exercice('yeux', 'yeux'), s), null);
   assert.match(conseilDuJour(s), /écran/);
-  assert.ok(exercicesRecommandes(s, 'dos').every((e) => e.filtre === 'dos'));
+  assert.deepEqual(problemePrincipal(s), { libelle: 'Tête en avant', part: 0.75 });
+  assert.ok(exercicesRecommandes(SERVEUR, s, 'dos').every((e) => e.zone === 'dos'));
 });
 
-test('conseils sans données : conseil général, tous les exercices', () => {
+test('conseils sans données : conseil général, tous les exercices dans l’ordre du serveur', () => {
   const s = situation({ tranches: [], sessions: [] }, le(7));
   assert.equal(conseilDuJour(s), 'Levez-vous 2 min toutes les heures');
-  assert.ok(exercicesRecommandes(s).length >= 7);
+  assert.equal(problemePrincipal(s), null);
+  assert.equal(exercicesRecommandes(SERVEUR, s).length, SERVEUR.length);
+  assert.equal(exercicesRecommandes(SERVEUR, s)[0].zone, 'yeux');
+});
+
+test('durée d’un exercice, comme le site', () => {
+  assert.equal(texteDureeExercice(40), '40 s');
+  assert.equal(texteDureeExercice(60), '1 min');
+  assert.equal(texteDureeExercice(90), '1 min 30 s');
+});
+
+test('bilan d’une session : bonne posture, répartition, problème principal', () => {
+  const bilan = bilanSession(
+    tranchesDe(
+      echantillon(le(7, 10, 0), 30, 'vert', 'vert'),
+      echantillon(le(7, 10, 1), 10, 'vert', 'rouge', 'arriere'),
+    ),
+  );
+  assert.equal(bilan.secondes, 40);
+  assert.equal(bilan.bonne, 75);
+  assert.deepEqual(bilan.repartition, { bonne: 75, moyenne: 0, ameliorer: 25 });
+  assert.equal(bilan.avachi, 0.25);
+  const s = situationSession({ debut: 0, fin: 40_000, secondes: 40, bilan });
+  assert.equal(s.sessionLongue, false);
+  assert.deepEqual(problemePrincipal(s), { libelle: 'Dos avachi', part: 0.25 });
+  assert.equal(exercicesRecommandes(SERVEUR, s)[0].zone, 'dos');
+  assert.equal(raison(exercice('dos', 'dos'), s), 'Pour le dos avachi');
+});
+
+test('bilan sans mesure : rien de calculé, sans planter', () => {
+  const bilan = bilanSession([]);
+  assert.equal(bilan.bonne, null);
+  assert.equal(bilan.repartition, null);
+  assert.equal(situationSession({ debut: 0, fin: 1, secondes: 1 }).secondes, 0);
 });
 
 test('conseils : le dos avachi fait passer ses exercices en premier', () => {
@@ -156,7 +225,8 @@ test('conseils : le dos avachi fait passer ses exercices en premier', () => {
   const s = situation(historique, le(7, 18));
   assert.equal(s.avachi, 0.6);
   assert.equal(s.bustePenche, 0.2);
-  assert.equal(exercicesRecommandes(s)[0].cible, 'avachi');
+  assert.equal(exercicesRecommandes(SERVEUR, s)[0].zone, 'dos');
+  assert.equal(raison(SERVEUR[1], s), 'Pour le dos avachi');
   assert.match(conseilDuJour(s), /fond de la chaise/);
 });
 

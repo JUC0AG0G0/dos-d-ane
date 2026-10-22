@@ -9,6 +9,7 @@ import { useChargement } from '@/hooks/useChargement';
 import { couleurs, polices } from '@/styles/theme';
 
 import { chargerResultats } from '../services/history.service';
+import { Repartition } from './Repartition';
 import {
   bornes,
   decaler,
@@ -173,43 +174,6 @@ function Graphique({ barres, largeur }: { barres: Barre[]; largeur: number }) {
   );
 }
 
-function Repartition({
-  bonne,
-  moyenne,
-  ameliorer,
-}: {
-  bonne: number;
-  moyenne: number;
-  ameliorer: number;
-}) {
-  const lignes = [
-    { libelle: 'Bonne', valeur: bonne, couleur: couleurs.vertFonce },
-    { libelle: 'Moyenne', valeur: moyenne, couleur: couleurs.vertMoyen },
-    { libelle: 'À améliorer', valeur: ameliorer, couleur: couleurs.vertPale },
-  ];
-  return (
-    <Carte style={styles.carteRepartition}>
-      <Text style={styles.titreCarte}>Répartition des postures</Text>
-      <View style={styles.barreRepartition}>
-        {lignes.map((l) =>
-          l.valeur > 0 ? (
-            <View key={l.libelle} style={{ flex: l.valeur, backgroundColor: l.couleur }} />
-          ) : null,
-        )}
-      </View>
-      {lignes.map((l) => (
-        <View key={l.libelle} style={styles.ligneRepartition}>
-          <View style={styles.libelleRepartition}>
-            <View style={[styles.point, { backgroundColor: l.couleur }]} />
-            <Text style={styles.texteRepartition}>{l.libelle}</Text>
-          </View>
-          <Text style={styles.valeurRepartition}>{l.valeur} %</Text>
-        </View>
-      ))}
-    </Carte>
-  );
-}
-
 function BoutonFleche({
   libelle,
   onPress,
@@ -281,12 +245,4 @@ const styles = StyleSheet.create({
   barreVide: { height: 4, borderRadius: 2, backgroundColor: couleurs.bordure },
   libelleBarre: { fontFamily: polices.medium, fontSize: 11, color: couleurs.texteSecondaire },
   libelleBarreActif: { fontFamily: polices.semiBold, fontSize: 11, color: couleurs.vertFonce },
-
-  carteRepartition: { gap: 10 },
-  barreRepartition: { flexDirection: 'row', height: 14, borderRadius: 7, overflow: 'hidden' },
-  ligneRepartition: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  libelleRepartition: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  point: { width: 10, height: 10, borderRadius: 5 },
-  texteRepartition: { fontFamily: polices.medium, fontSize: 13, color: couleurs.texte },
-  valeurRepartition: { fontFamily: polices.semiBold, fontSize: 13, color: couleurs.texte },
 });

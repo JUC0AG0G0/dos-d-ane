@@ -38,7 +38,18 @@ export type Tranche = {
   troncArriere?: number;
 };
 
-export type SessionEnregistree = { debut: number; fin: number; secondes: number };
+/**
+ * Session terminée. `secondes` : durée active (sans les pauses). `bilan` et
+ * `serveur` (id de la session sur le serveur) sont absents des sessions
+ * enregistrées avant l'écran de bilan, ou si le serveur était injoignable.
+ */
+export type SessionEnregistree = {
+  debut: number;
+  fin: number;
+  secondes: number;
+  bilan?: BilanSession;
+  serveur?: string;
+};
 
 export type Historique = { tranches: Tranche[]; sessions: SessionEnregistree[] };
 
@@ -172,6 +183,32 @@ function partBonne(t: Totaux): number | null {
   return categorise > 0 ? (100 * t.bonne) / categorise : null;
 }
 
+/** Pourcentages entiers dont la somme fait 100 ; null si rien n'a été mesuré. */
+function repartitionDe(t: Totaux): Resume['repartition'] {
+  const categorise = t.bonne + t.moyenne + t.ameliorer;
+  if (categorise <= 0) return null;
+  const bonne = Math.round((100 * t.bonne) / categorise);
+  const moyenne = Math.min(100 - bonne, Math.round((100 * t.moyenne) / categorise));
+  return { bonne, moyenne, ameliorer: 100 - bonne - moyenne };
+}
+
+/** Part du temps (0–1) avec la tête en avant, le buste penché, le dos avachi. */
+function partsProblemes(t: Totaux): Pick<Situation, 'teteEnAvant' | 'bustePenche' | 'avachi'> {
+  const arriere = t.troncArriere ?? 0;
+  return {
+    teteEnAvant: t.couSecondes > 0 ? t.couAlerte / t.couSecondes : 0,
+    bustePenche: t.troncSecondes > 0 ? (t.troncAlerte - arriere) / t.troncSecondes : 0,
+    avachi: t.troncSecondes > 0 ? arriere / t.troncSecondes : 0,
+  };
+}
+
+function anglesMoyensDe(t: Totaux): Resume['anglesMoyens'] {
+  return {
+    cou: t.couSecondes > 0 ? t.couSomme / t.couSecondes : null,
+    tronc: t.troncSecondes > 0 ? t.troncSomme / t.troncSecondes : null,
+  };
+}
+
 function dans(tranches: Tranche[], debut: Date, fin: Date): Tranche[] {
   const a = debut.getTime();
   const b = fin.getTime();
@@ -252,25 +289,48 @@ export function resumer(tranches: Tranche[], periode: Periode, ref: Date): Resum
   const avant = bornes(periode, decaler(periode, ref, -1));
   const bonneAvant = partBonne(totaliser(dans(tranches, avant.debut, avant.fin)));
 
-  let repartition: Resume['repartition'] = null;
-  const categorise = total.bonne + total.moyenne + total.ameliorer;
-  if (categorise > 0) {
-    const bonne = Math.round((100 * total.bonne) / categorise);
-    const moyenne = Math.min(100 - bonne, Math.round((100 * total.moyenne) / categorise));
-    repartition = { bonne, moyenne, ameliorer: 100 - bonne - moyenne };
-  }
-
   return {
     bonne: bonne === null ? null : Math.round(bonne),
     ecart:
       bonne === null || bonneAvant === null ? null : Math.round(bonne) - Math.round(bonneAvant),
     secondes: total.secondes,
-    repartition,
+    repartition: repartitionDe(total),
     barres: barres(periode, courantes, debut, fin),
-    anglesMoyens: {
-      cou: total.couSecondes > 0 ? total.couSomme / total.couSecondes : null,
-      tronc: total.troncSecondes > 0 ? total.troncSomme / total.troncSecondes : null,
-    },
+    anglesMoyens: anglesMoyensDe(total),
+  };
+}
+
+/** Bilan d'une seule session, gardé avec elle sur le téléphone. */
+export type BilanSession = Pick<Situation, 'teteEnAvant' | 'bustePenche' | 'avachi'> & {
+  /** Temps où la posture a été mesurée, en secondes. */
+  secondes: number;
+  /** Part du temps en bonne posture, de 0 à 100, arrondie ; null si rien n'a été mesuré. */
+  bonne: number | null;
+  repartition: Resume['repartition'];
+  anglesMoyens: Resume['anglesMoyens'];
+};
+
+export function bilanSession(tranches: Iterable<Tranche>): BilanSession {
+  const total = totaliser([...tranches]);
+  const bonne = partBonne(total);
+  return {
+    secondes: total.secondes,
+    bonne: bonne === null ? null : Math.round(bonne),
+    repartition: repartitionDe(total),
+    anglesMoyens: anglesMoyensDe(total),
+    ...partsProblemes(total),
+  };
+}
+
+/** Situation d'une seule session, pour choisir ses conseils et ses exercices. */
+export function situationSession(session: SessionEnregistree): Situation {
+  const bilan = session.bilan;
+  return {
+    secondes: bilan?.secondes ?? 0,
+    teteEnAvant: bilan?.teteEnAvant ?? 0,
+    bustePenche: bilan?.bustePenche ?? 0,
+    avachi: bilan?.avachi ?? 0,
+    sessionLongue: session.secondes >= SESSION_LONGUE_SECONDES,
   };
 }
 
@@ -299,12 +359,7 @@ export function situation(historique: Historique, maintenant: Date, jours = 7): 
   const total = totaliser(historique.tranches.filter((t) => t.debut >= depuis.getTime()));
   return {
     secondes: total.secondes,
-    teteEnAvant: total.couSecondes > 0 ? total.couAlerte / total.couSecondes : 0,
-    bustePenche:
-      total.troncSecondes > 0
-        ? (total.troncAlerte - (total.troncArriere ?? 0)) / total.troncSecondes
-        : 0,
-    avachi: total.troncSecondes > 0 ? (total.troncArriere ?? 0) / total.troncSecondes : 0,
+    ...partsProblemes(total),
     sessionLongue: historique.sessions.some(
       (s) => s.fin >= depuis.getTime() && s.secondes >= SESSION_LONGUE_SECONDES,
     ),

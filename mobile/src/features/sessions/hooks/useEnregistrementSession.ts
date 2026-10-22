@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef } from 'react';
 
-import { ajouterEchantillon, enregistrer, type Tranche } from '@/features/history';
+import {
+  ajouterEchantillon,
+  bilanSession,
+  enregistrer,
+  type SessionEnregistree,
+  type Tranche,
+} from '@/features/history';
 
 import type { Mesure } from '../mesure';
 
@@ -12,21 +18,22 @@ const SAUVEGARDE_MS = 30 * 1000;
  * Enregistre les mesures d'une session sur le téléphone. Chaque mesure compte
  * pour le temps écoulé depuis la précédente : on sait ainsi combien de temps
  * la posture a été verte, orange ou rouge.
- * Sauvegarde toutes les 30 s, pour ne rien perdre si l'app est fermée.
+ * Sauvegarde toutes les 30 s, pour ne rien perdre si l'app est fermée ; garde
+ * aussi le cumul de toute la session pour son bilan.
  */
 export function useEnregistrementSession() {
   const tranches = useRef(new Map<number, Tranche>());
+  const cumul = useRef(new Map<number, Tranche>());
   const derniere = useRef<number | null>(null);
   const debut = useRef(0);
   const termine = useRef(false);
 
-  const sauvegarder = useCallback((session?: { secondes: number }) => {
+  const sauvegarder = useCallback((session?: Omit<SessionEnregistree, 'debut' | 'fin'>) => {
     const liste = [...tranches.current.values()];
     tranches.current.clear();
-    const fin = Date.now();
     const enregistree =
       session && session.secondes > 0
-        ? { debut: debut.current, fin, secondes: Math.round(session.secondes) }
+        ? { ...session, debut: debut.current, fin: Date.now(), secondes: Math.round(session.secondes) }
         : undefined;
     if (!liste.length && !enregistree) return Promise.resolve();
     // Échec possible si la session a expiré entre-temps : rien à sauver alors.
@@ -51,12 +58,14 @@ export function useEnregistrementSession() {
     derniere.current = maintenant;
     if (precedente === null || !mesure.personne) return;
     if (mesure.telephone === 'mouvement' || mesure.telephone === 'penche') return;
-    ajouterEchantillon(tranches.current, {
+    const echantillon = {
       instant: maintenant,
       duree: Math.min((maintenant - precedente) / 1000, DUREE_MAX_MESURE),
       cou: mesure.cou,
       tronc: mesure.tronc,
-    });
+    };
+    ajouterEchantillon(tranches.current, echantillon);
+    ajouterEchantillon(cumul.current, echantillon);
   }, []);
 
   /** Pause : le temps écoulé jusqu'à la reprise ne compte pas. */
@@ -64,10 +73,16 @@ export function useEnregistrementSession() {
     derniere.current = null;
   }, []);
 
+  /** Enregistre la session et son bilan ; renvoie son début, qui l'identifie sur le téléphone. */
   const terminer = useCallback(
-    (secondesActives: number) => {
+    async (secondesActives: number, serveur?: string) => {
       termine.current = true;
-      return sauvegarder({ secondes: secondesActives });
+      await sauvegarder({
+        secondes: secondesActives,
+        bilan: bilanSession(cumul.current.values()),
+        ...(serveur && { serveur }),
+      });
+      return debut.current;
     },
     [sauvegarder],
   );

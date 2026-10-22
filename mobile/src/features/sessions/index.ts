@@ -1,3 +1,4 @@
 export { CarteDemarrer } from './components/CarteDemarrer';
-export { EcranSession } from './components/EcranSession';
+export { EcranBilan } from './components/EcranBilan';
+export { EcranSessions } from './components/EcranSessions';
 export { EcranSessionEnCours } from './components/EcranSessionEnCours';

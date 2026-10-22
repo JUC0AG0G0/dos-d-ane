@@ -62,6 +62,7 @@ function Navigation() {
       <Stack.Protected guard={connecte}>
         <Stack.Screen name="(onglets)" />
         <Stack.Screen name="session-en-cours" options={{ gestureEnabled: false }} />
+        <Stack.Screen name="bilan/[debut]" />
         <Stack.Screen name="exercice/[id]" />
       </Stack.Protected>
 

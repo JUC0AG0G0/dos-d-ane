@@ -47,8 +47,8 @@ export default function OngletsLayout() {
         options={{ tabBarLabel: libelle('Accueil'), tabBarIcon: icone(IconeAccueil) }}
       />
       <Tabs.Screen
-        name="session"
-        options={{ tabBarLabel: libelle('Session'), tabBarIcon: icone(IconeSession) }}
+        name="sessions"
+        options={{ tabBarLabel: libelle('Sessions'), tabBarIcon: icone(IconeSession) }}
       />
       <Tabs.Screen
         name="resultats"
