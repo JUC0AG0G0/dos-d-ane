@@ -10,10 +10,7 @@ import { Prisma } from '../generated/prisma/client.js';
 import { DeviceType, Role } from '../entities/index.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { AuthContext, SessionKind } from './auth.guard.js';
-import type {
-  DeviceInputDto,
-  LoginDeviceType,
-} from './dto/device-input.dto.js';
+import type { LoginDeviceType } from './dto/device-input.dto.js';
 import { hashDeviceKey, sameKeyHash } from './device-key.js';
 import type { DeviceLoginDto } from './dto/device-login.dto.js';
 import type { LoginDto } from './dto/login.dto.js';
@@ -326,7 +323,7 @@ export class AuthService {
    */
   private async openSession(
     user: UserDto,
-    deviceInput: DeviceInputDto = {},
+    deviceInput: SessionDeviceInput = {},
     client: ClientInfo,
     kind: SessionKind = 'user',
   ): Promise<LoginResponseDto> {
@@ -363,6 +360,12 @@ export class AuthService {
   }
 }
 
+/**
+ * Appareil d'une session : celui du login par mot de passe (jamais un
+ * Raspberry Pi, refusé par DeviceInputDto) ou le Pi de device-login.
+ */
+type SessionDeviceInput = { id?: string; type?: LoginDeviceType };
+
 const defaultDeviceNames: Record<LoginDeviceType, string> = {
   [DeviceType.Web]: 'Navigateur',
   [DeviceType.Mobile]: 'Téléphone',
@@ -373,7 +376,7 @@ const defaultDeviceNames: Record<LoginDeviceType, string> = {
 async function findOrCreateDevice(
   tx: Prisma.TransactionClient,
   userId: string,
-  input: DeviceInputDto,
+  input: SessionDeviceInput,
   client: ClientInfo,
 ) {
   const type = input.type ?? DeviceType.Web;

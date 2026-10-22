@@ -2,7 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsOptional, IsUUID } from 'class-validator';
 import { DeviceType } from '../../entities/index.js';
 
-/** Appareils depuis lesquels on peut se connecter. */
+/** Appareils sur lesquels une session peut s'ouvrir. */
 export const LOGIN_DEVICE_TYPES = [
   DeviceType.Web,
   DeviceType.Mobile,
@@ -10,6 +10,17 @@ export const LOGIN_DEVICE_TYPES = [
   DeviceType.Raspberry,
 ] as const;
 export type LoginDeviceType = (typeof LOGIN_DEVICE_TYPES)[number];
+
+/**
+ * Connexion par mot de passe : pas un Raspberry Pi, qui se connecte avec sa
+ * clé (POST /auth/device-login). Sinon chaque essai créerait un Pi sans clé,
+ * avec une session aux pleins droits du compte.
+ */
+export const PASSWORD_LOGIN_DEVICE_TYPES = [
+  DeviceType.Web,
+  DeviceType.Mobile,
+  DeviceType.Desktop,
+] as const;
 
 /**
  * Appareil de connexion, facultatif. Son nom et son modèle sont déduits du
@@ -26,12 +37,15 @@ export class DeviceInputDto {
   id?: string;
 
   @ApiPropertyOptional({
-    enum: LOGIN_DEVICE_TYPES,
+    enum: PASSWORD_LOGIN_DEVICE_TYPES,
     default: DeviceType.Web,
     description:
-      'mobile (application mobile), desktop (application Electron), raspberry (programme sur Raspberry Pi), web sinon. Seul web ne peut pas envoyer de captures.',
+      'mobile (application mobile), desktop (application Electron), web sinon. Seul web ne peut pas envoyer de captures. Un Raspberry Pi se connecte avec sa clé : POST /auth/device-login.',
   })
   @IsOptional()
-  @IsIn(LOGIN_DEVICE_TYPES)
-  type?: LoginDeviceType;
+  @IsIn(PASSWORD_LOGIN_DEVICE_TYPES, {
+    message:
+      'Type d’appareil invalide (web, mobile ou desktop) : un Raspberry Pi se connecte avec sa clé (POST /auth/device-login)',
+  })
+  type?: (typeof PASSWORD_LOGIN_DEVICE_TYPES)[number];
 }

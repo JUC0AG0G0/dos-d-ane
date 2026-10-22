@@ -133,7 +133,7 @@ Déroulé (contrat exact : [liaison-serveur.md](liaison-serveur.md) §2, « Appa
 |---|---|
 | Conteneur de dev sous l'utilisateur, pas root (`compose.dev.yaml`) | sous Linux, fichiers générés en root (`EACCES` à `task check`) et `dist/` partagé qui fait tomber le serveur de dev après un `task check` |
 | Mettre Prisma à jour | `npm audit` : 4 vulnérabilités « high » via Prisma 7.10.0 |
-| Refuser `POST /auth/login` avec le type `raspberry` (`400`, renvoyer vers `device-login`) | reste d'avant les clés : chaque essai crée un faux Pi sans clé (affiché « Clé révoquée ») avec une session `user` aux pleins droits ; plus aucun Pi ne se connecte par mot de passe |
+| ✅ Refuser `POST /auth/login` avec le type `raspberry` (`400`, renvoyer vers `device-login` ; branche `feat/login-sans-raspberry`) | reste d'avant les clés : chaque essai crée un faux Pi sans clé (affiché « Clé révoquée ») avec une session `user` aux pleins droits ; plus aucun Pi ne se connecte par mot de passe |
 | Limite de tentatives sur les logins | aucune aujourd'hui (sans risque pour la clé d'appareil, à prévoir pour le mot de passe) |
 | Seuils envoyés par le serveur dans `session:start` | prévu par l'audit §7.1 ; le Pi garde ses seuils fixes en attendant |
 | Pi redémarré pendant une coupure | il n'analyse pas tant qu'il n'a pas reçu `ready` ; il pourrait garder sa session en cours sur disque |
