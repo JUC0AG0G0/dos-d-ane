@@ -8,7 +8,9 @@ import { IconeAlerte, IconeFermer, IconeFeuille, IconeInfoRond } from '@/compone
 import { couleurs, couleursNiveau, espaces, polices, rayons } from '@/styles/theme';
 import { formaterDuree } from '@/utils/duree';
 
+import { useAlertePosture } from '../hooks/useAlertePosture';
 import { useEnregistrementSession } from '../hooks/useEnregistrementSession';
+import { useSessionServeur } from '../hooks/useSessionServeur';
 import { messagePosture, type MessagePosture, type Mesure } from '../mesure';
 import { CameraAnalyse, type CommandesCamera } from './CameraAnalyse';
 
@@ -23,6 +25,8 @@ export function EcranSessionEnCours() {
   const [secondes, setSecondes] = useState(0);
   const [enregistrement, setEnregistrement] = useState(false);
   const session = useEnregistrementSession();
+  const serveur = useSessionServeur();
+  const alerte = useAlertePosture();
 
   useEffect(() => {
     if (enPause) return;
@@ -33,9 +37,12 @@ export function EcranSessionEnCours() {
   function basculerPause() {
     if (enPause) {
       camera.current?.reprendre();
+      serveur.reprendre();
     } else {
       camera.current?.pause();
       session.interrompre();
+      serveur.pause();
+      alerte.reinitialiser();
     }
     setEnPause(!enPause);
   }
@@ -48,11 +55,9 @@ export function EcranSessionEnCours() {
         style: 'destructive',
         onPress: async () => {
           setEnregistrement(true);
-          try {
-            await session.terminer(secondes);
-          } finally {
-            router.back();
-          }
+          const idServeur = await serveur.terminer();
+          const debut = await session.terminer(secondes, idServeur ?? undefined);
+          router.replace({ pathname: '/bilan/[debut]', params: { debut: String(debut) } });
         },
       },
     ]);
@@ -106,7 +111,11 @@ export function EcranSessionEnCours() {
           ref={camera}
           style={styles.zoneAnalyse}
           onMesure={(lue) => {
-            if (!enPause) session.ajouter(lue);
+            if (!enPause) {
+              session.ajouter(lue);
+              serveur.ajouter(lue);
+              alerte.ajouter(lue);
+            }
             setMesure(lue);
             setErreur(null);
           }}
