@@ -1,22 +1,19 @@
-import { router } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { AvertissementSante, Carte, Pastille } from '@/components/elements';
-import { IconeChevron } from '@/components/icones';
+import { AvertissementSante, Carte } from '@/components/elements';
 import { Ecran, EnTete } from '@/components/layouts/Ecran';
 import { useChargement } from '@/hooks/useChargement';
 import { couleurs, polices, rayons } from '@/styles/theme';
 
-import { PASTILLE_CIBLE, type Exercice, type Filtre } from '../exercices';
+import { raison, type Filtre } from '../exercices';
 import { chargerConseils } from '../services/advice.service';
-import { IconeExercice } from './IconeExercice';
+import { EXERCISE_ZONES, ZONE_LABELS } from '../types/advice.types';
+import { CarteExercice } from './CarteExercice';
 
 const FILTRES: { valeur: Filtre; libelle: string }[] = [
   { valeur: 'tous', libelle: 'Tous' },
-  { valeur: 'cou', libelle: 'Cou' },
-  { valeur: 'dos', libelle: 'Dos' },
-  { valeur: 'epaules', libelle: 'Épaules' },
+  ...EXERCISE_ZONES.map((zone) => ({ valeur: zone, libelle: ZONE_LABELS[zone] })),
 ];
 
 export function EcranConseils() {
@@ -53,37 +50,18 @@ export function EcranConseils() {
         <Carte>
           <Text style={styles.resume}>Impossible de charger les conseils : {etat.message}</Text>
         </Carte>
+      ) : etat.donnees.exercices.length === 0 ? (
+        <Carte>
+          <Text style={styles.resume}>Aucun exercice pour cette partie du corps.</Text>
+        </Carte>
       ) : (
-        etat.donnees.exercices.map((e) => <CarteExercice key={e.id} exercice={e} />)
+        etat.donnees.exercices.map((e) => (
+          <CarteExercice key={e.id} exercice={e} raison={raison(e, etat.donnees.situation)} />
+        ))
       )}
 
       <AvertissementSante />
     </Ecran>
-  );
-}
-
-function CarteExercice({ exercice }: { exercice: Exercice }) {
-  return (
-    <Pressable
-      onPress={() => router.push({ pathname: '/exercice/[id]', params: { id: exercice.id } })}
-      style={({ pressed }) => pressed && styles.appuye}
-      accessibilityRole="button"
-      accessibilityLabel={`${exercice.titre}, ${exercice.duree}`}
-    >
-      <Carte style={styles.carte}>
-        <View style={styles.fondIcone}>
-          <IconeExercice icone={exercice.icone} />
-        </View>
-        <View style={styles.texte}>
-          <Text style={styles.titre}>{exercice.titre}</Text>
-          <Text style={styles.sousTitre}>
-            {exercice.duree} · {exercice.zone}
-          </Text>
-          <Pastille texte={PASTILLE_CIBLE[exercice.cible]} />
-        </View>
-        <IconeChevron couleur={couleurs.ongletInactif} />
-      </Carte>
-    </Pressable>
   );
 }
 
@@ -99,23 +77,4 @@ const styles = StyleSheet.create({
   },
   filtreTexte: { fontFamily: polices.semiBold, fontSize: 13, color: couleurs.texte },
   filtreTexteActif: { fontFamily: polices.semiBold, fontSize: 13, color: couleurs.blanc },
-  carte: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    padding: 14,
-    borderRadius: 18,
-  },
-  fondIcone: {
-    width: 52,
-    height: 52,
-    borderRadius: rayons.icone,
-    backgroundColor: couleurs.vertFondIcone,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  texte: { flex: 1, gap: 4, alignItems: 'flex-start' },
-  titre: { fontFamily: polices.semiBold, fontSize: 15, color: couleurs.texte },
-  sousTitre: { fontFamily: polices.regular, fontSize: 12, color: couleurs.texteSecondaire },
-  appuye: { opacity: 0.85 },
 });

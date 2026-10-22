@@ -1,3 +1,5 @@
+export { CarteExercice } from './components/CarteExercice';
 export { EcranConseils } from './components/EcranConseils';
 export { EcranExercice } from './components/EcranExercice';
-export { conseilDuJour } from './exercices';
+export { conseilDuJour, exercicesRecommandes, problemePrincipal, raison } from './exercices';
+export { adviceService } from './services/advice.service';

@@ -11,9 +11,14 @@ import type { Cote, Niveau, SensTronc } from './posture';
  */
 export type EtatTelephone = 'stable' | 'mouvement' | 'penche' | 'inconnu';
 
+/** Point du corps en pixels entiers de l'image analysée, nommé comme MoveNet (`left_ear`…). */
+export type PointCorps = { nom: string; x: number; y: number; confiance: number };
+
 /**
  * Mesure du moment, environ 4 fois par seconde. `inclinaison` : degrés dont
- * penche le téléphone, déjà corrigés dans les angles.
+ * penche le téléphone, déjà corrigés dans les angles. `image` et `points` :
+ * taille de l'image analysée et les 3 points mesurés (oreille, épaule, hanche
+ * du côté filmé) s'ils sont fiables, non redressés, pour le serveur.
  */
 export type MessageMesure =
   | { type: 'mesure'; personne: false; telephone: EtatTelephone }
@@ -26,6 +31,8 @@ export type MessageMesure =
       cou: { angle: number | null; niveau: Niveau };
       /** sens : avant (penché vers l'écran), arriere (avachi), null si inconnu. */
       tronc: { angle: number | null; niveau: Niveau; sens?: SensTronc };
+      image?: { largeur: number; hauteur: number };
+      points?: PointCorps[];
     };
 
 export type MessageEtat = { type: 'etat' | 'erreur' | 'pret'; message: string };

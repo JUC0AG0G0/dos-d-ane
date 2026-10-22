@@ -13,6 +13,7 @@ const PORT = 8081;
 /** cloudflared affiche son adresse en quelques secondes ; au-delà, le réseau bloque. */
 const DELAI_TUNNEL_MS = 30_000;
 const ADRESSE_TUNNEL = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/;
+const TUNNEL_CONNECTE = /Registered tunnel connection/;
 
 const portLibre = await new Promise<boolean>((resolve) => {
   const essai = createServer()
@@ -49,16 +50,27 @@ tunnel.on('error', () =>
   ),
 );
 
+/**
+ * Adresse du tunnel, une fois que cloudflared annonce sa connexion à
+ * Cloudflare : il affiche l'adresse un peu avant, et la caméra ouverte
+ * entre-temps montre « Cloudflare Tunnel error ». On n'interroge pas l'adresse
+ * depuis le PC : un nom demandé avant d'exister reste « introuvable » dans le
+ * cache DNS du PC pendant plusieurs minutes.
+ */
 const adresse = await new Promise<string>((resolve) => {
   const delai = setTimeout(
     () => arreter('Le tunnel cloudflared ne répond pas : vérifie la connexion internet du PC.'),
     DELAI_TUNNEL_MS,
   );
+  let trouvee: string | null = null;
+  let connecte = false;
   tunnel.stderr.on('data', (morceau: Buffer) => {
-    const trouvee = ADRESSE_TUNNEL.exec(morceau.toString());
-    if (!trouvee) return;
+    const texte = morceau.toString();
+    trouvee ??= ADRESSE_TUNNEL.exec(texte)?.[0] ?? null;
+    connecte ||= TUNNEL_CONNECTE.test(texte);
+    if (!trouvee || !connecte) return;
     clearTimeout(delai);
-    resolve(trouvee[0]);
+    resolve(trouvee);
   });
 });
 

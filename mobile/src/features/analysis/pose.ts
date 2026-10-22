@@ -9,7 +9,7 @@ import '@tensorflow/tfjs-backend-webgl';
 import '@tensorflow/tfjs-converter';
 import * as tf from '@tensorflow/tfjs-core';
 
-import { cadrer, type Cadrage } from './cadrage';
+import { cadrer, pointsDansImage, type Cadrage } from './cadrage';
 import type { EtatTelephone, MessagePage } from './messages';
 import * as Posture from './posture';
 import type { Analyse, Point } from './posture';
@@ -63,8 +63,12 @@ function envoyer(message: MessagePage) {
   fenetre.ReactNativeWebView?.postMessage(JSON.stringify(message));
 }
 
-/** Mesures du moment, envoyées à l'app ; `analyse` à null quand personne n'est détecté. */
-function envoyerMesure(analyse: Analyse | null) {
+/**
+ * Mesures du moment, envoyées à l'app ; `analyse` à null quand personne n'est
+ * détecté. `keypoints` : points lissés, dans le repère de l'image analysée ;
+ * seuls les 3 points mesurés (oreille, épaule, hanche du côté filmé) partent.
+ */
+function envoyerMesure(analyse: Analyse | null, keypoints: Point[] = []) {
   const maintenant = performance.now();
   if (maintenant - dernierEnvoi < INTERVALLE_ENVOI_MS) return;
   dernierEnvoi = maintenant;
@@ -72,6 +76,7 @@ function envoyerMesure(analyse: Analyse | null) {
     envoyer({ type: 'mesure', personne: false, telephone: telephone.etat });
     return;
   }
+  const mesures: string[] = Object.values(Posture.POINTS_PAR_COTE[analyse.cote]);
   envoyer({
     type: 'mesure',
     personne: true,
@@ -84,6 +89,12 @@ function envoyerMesure(analyse: Analyse | null) {
       niveau: analyse.tronc.niveau,
       sens: analyse.tronc.sens,
     },
+    image: { largeur: cadrage.largeur, hauteur: cadrage.hauteur },
+    points: pointsDansImage(
+      keypoints.filter((kp) => kp.name && mesures.includes(kp.name)),
+      cadrage,
+      SEUIL,
+    ),
   });
 }
 
@@ -267,7 +278,7 @@ async function boucle(detecteur: Detecteur) {
       });
       precedente = analyse;
       dessiner(keypoints, analyse);
-      envoyerMesure(analyse);
+      envoyerMesure(analyse, keypoints);
     } else {
       lisseur.reinitialiser();
       suiveurCote.reinitialiser();

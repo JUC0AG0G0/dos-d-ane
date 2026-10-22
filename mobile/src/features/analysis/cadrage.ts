@@ -1,3 +1,6 @@
+import type { PointCorps } from './messages';
+import type { Point } from './posture';
+
 /** Format de capture (largeur / hauteur), le même que la boîte #scene de pose.html. */
 export const RATIO_CAPTURE = 3 / 4;
 
@@ -15,4 +18,29 @@ export function cadrer(largeurVideo: number, hauteurVideo: number, ratio = RATIO
   }
   const hauteur = Math.round(largeurVideo / ratio);
   return { x: 0, y: (hauteurVideo - hauteur) / 2, largeur: largeurVideo, hauteur };
+}
+
+/**
+ * Points fiables (confiance >= `seuil`), arrondis au pixel et ramenés dans
+ * l'image : le serveur refuse toute la capture si un seul point en sort, et
+ * MoveNet place parfois un point caché un peu au-delà du bord.
+ */
+export function pointsDansImage(
+  keypoints: Point[],
+  image: { largeur: number; hauteur: number },
+  seuil: number,
+): PointCorps[] {
+  const borner = (valeur: number, max: number) => Math.min(max, Math.max(0, Math.round(valeur)));
+  return keypoints.flatMap((kp) =>
+    kp.name && (kp.score ?? 0) >= seuil
+      ? [
+          {
+            nom: kp.name,
+            x: borner(kp.x, image.largeur),
+            y: borner(kp.y, image.hauteur),
+            confiance: kp.score ?? 0,
+          },
+        ]
+      : [],
+  );
 }

@@ -55,6 +55,18 @@ export async function request<T>(method: Method, path: string, body?: unknown): 
   return data as T;
 }
 
+/**
+ * Adresse et en-têtes d'un fichier de l'API, pour un composant qui le charge
+ * lui-même (Image, vidéo) sans passer par `request` : il faut lui donner le jeton.
+ */
+export function sourceApi(path: string): { uri: string; headers: Record<string, string> } {
+  const token = jetonActuel();
+  return {
+    uri: `${env.apiUrl}${path}`,
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  };
+}
+
 export const http = {
   get: <T>(path: string) => request<T>('GET', path),
   post: <T>(path: string, body?: unknown) => request<T>('POST', path, body),

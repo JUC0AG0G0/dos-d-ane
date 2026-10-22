@@ -1,11 +1,11 @@
 import { IconeActivite, IconeHorloge, IconePersonne } from '@/components/icones';
 import { couleurs } from '@/styles/theme';
 
-import type { Exercice } from '../exercices';
+import type { ExerciseZone } from '../types/advice.types';
 
-export function IconeExercice({ icone }: { icone: Exercice['icone'] }) {
+export function IconeExercice({ zone }: { zone: ExerciseZone }) {
   const couleur = couleurs.vertFonce;
-  if (icone === 'personne') return <IconePersonne couleur={couleur} />;
-  if (icone === 'horloge') return <IconeHorloge couleur={couleur} />;
+  if (zone === 'nuque' || zone === 'epaules') return <IconePersonne couleur={couleur} />;
+  if (zone === 'yeux') return <IconeHorloge couleur={couleur} />;
   return <IconeActivite couleur={couleur} />;
 }
