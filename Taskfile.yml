@@ -74,8 +74,11 @@ tasks:
   build:
     desc: Vérifie que le serveur et le client compilent
     cmds:
-      - task: build:app
-        vars: { APP: server }
+      # Serveur : typecheck sans écrire dans server/dist. Ce dossier est monté
+      # dans le conteneur de `task dev`, et `nest build` le vide
+      # (deleteOutDir) : l'API en cours d'exécution plantait sur
+      # « Cannot find module '/app/dist/main' ».
+      - task: typecheck:server
       - task: build:app
         vars: { APP: client }
 
@@ -86,6 +89,12 @@ tasks:
     cmds:
       - npm run lint
       - npm run format:check
+
+  typecheck:server:
+    internal: true
+    deps: [install]
+    dir: server
+    cmd: npm run typecheck
 
   build:app:
     internal: true
