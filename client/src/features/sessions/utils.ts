@@ -9,6 +9,7 @@ import type {
   PostureEventType,
   PostureSummary,
   SessionDetail,
+  SessionDeviceSummary,
   SessionPause,
   SessionStatus,
   SessionSummary,
@@ -91,6 +92,30 @@ export function formatRelative(value: string, now = new Date()) {
 /** Capture seule (POST /captures) : session terminée dès son début. */
 export const isSingleCapture = (session: SessionSummary | SessionDetail) =>
   session.status === 'ended' && session.startedAt === session.endedAt;
+
+/**
+ * Résultat d'une session, le même dans la liste et sur l'accueil : score et
+ * alertes s'il y a un Raspberry Pi (il n'envoie pas de captures), captures
+ * sinon ou en plus. « 78 % · 3 alertes », « 1 058 captures ».
+ */
+export function sessionResult(session: SessionSummary) {
+  const hasPi = session.devices.some((d) => d.type === 'raspberry');
+  const parts: string[] = [];
+  if (hasPi) {
+    if (session.score !== null) parts.push(`${session.score} %`);
+    parts.push(plural(session.alertCount, 'alerte'));
+  }
+  if (!hasPi || session.captureCount > 0) {
+    parts.push(plural(session.captureCount, 'capture'));
+  }
+  return parts.join(' · ');
+}
+
+/** Résultat d'un appareil dans sa session : ses alertes pour un Pi, ses captures sinon. */
+export const deviceResult = (device: SessionDeviceSummary) =>
+  device.type === 'raspberry'
+    ? plural(device.alertCount, 'alerte')
+    : plural(device.captureCount, 'capture');
 
 /** « Session du 15 oct. 2026 » ou « Capture du 15 oct. 2026 ». */
 export const sessionTitle = (session: SessionSummary | SessionDetail) =>

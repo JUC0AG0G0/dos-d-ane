@@ -1,4 +1,10 @@
-import { Calendar, Camera, Smartphone, Timer } from 'lucide-react';
+import {
+  Calendar,
+  Camera,
+  Smartphone,
+  Timer,
+  TriangleAlert,
+} from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Device, SessionStats } from '../../types/sessions.types';
 import { compareWeeks, formatCount, formatDuration } from '../../utils';
@@ -23,10 +29,18 @@ export function HomeStats({
       </div>
     );
   }
-  const capturing = devices.filter((d) => d.captureEligible);
+  // Un Pi sans clé (révoquée, en attente) ne peut pas capturer : pas compté.
+  const capturing = devices.filter(
+    (d) =>
+      d.captureEligible && (d.type !== 'raspberry' || d.keyStatus === 'active'),
+  );
   const inSession = capturing.filter(
     (d) => d.openSessionId && liveSessionIds.has(d.openSessionId),
   ).length;
+  // Un Pi n'envoie jamais de captures : ses alertes plutôt que « 0 capture ».
+  const showAlerts =
+    capturing.some((d) => d.type === 'raspberry') &&
+    stats.thisWeek.captures === 0;
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -46,12 +60,21 @@ export function HomeStats({
         }
         detail="cette semaine"
       />
-      <StatTile
-        icon={Camera}
-        label="Captures"
-        value={formatCount(stats.thisWeek.captures)}
-        detail="cette semaine"
-      />
+      {showAlerts ? (
+        <StatTile
+          icon={TriangleAlert}
+          label="Alertes"
+          value={formatCount(stats.thisWeek.alerts)}
+          detail="cette semaine"
+        />
+      ) : (
+        <StatTile
+          icon={Camera}
+          label="Captures"
+          value={formatCount(stats.thisWeek.captures)}
+          detail="cette semaine"
+        />
+      )}
       <StatTile
         icon={Smartphone}
         label="Appareils"
