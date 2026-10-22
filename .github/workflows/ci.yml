@@ -32,7 +32,7 @@ jobs:
       - name: Lint
         run: task lint
       - name: Compilation
-        run: task build
+        run: task server:build client:build
 
   docker:
     runs-on: ubuntu-latest

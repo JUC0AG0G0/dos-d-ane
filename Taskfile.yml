@@ -59,28 +59,15 @@ tasks:
   lint:
     desc: Lint et formatage du serveur et du client (lancé par Husky avant chaque commit)
     cmds:
-      - task: lint:app
-        vars: { APP: server }
-      - task: lint:app
-        vars: { APP: client }
+      - task: server:lint
+      - task: client:lint
 
-  format:
-    desc: Formate le code du serveur et du client
-    deps: [install]
+  check:
+    desc: Lint + compilation du serveur et du client (lancé par Husky avant chaque push)
     cmds:
-      - npm --prefix server run format
-      - npm --prefix client run format
-
-  build:
-    desc: Vérifie que le serveur et le client compilent
-    cmds:
-      # Serveur : typecheck sans écrire dans server/dist. Ce dossier est monté
-      # dans le conteneur de `task dev`, et `nest build` le vide
-      # (deleteOutDir) : l'API en cours d'exécution plantait sur
-      # « Cannot find module '/app/dist/main' ».
-      - task: server:typecheck
-      - task: build:app
-        vars: { APP: client }
+      - task: lint
+      - task: server:build
+      - task: client:build
 
   lint:app:
     internal: true
@@ -90,23 +77,54 @@ tasks:
       - npm run lint
       - npm run format:check
 
-  server:typecheck:
-    internal: true
-    deps: [install]
-    dir: server
-    cmd: npm run typecheck
-
   build:app:
     internal: true
     deps: [install]
     dir: "{{.APP}}"
     cmd: npm run build
 
-  check:
-    desc: Lint + compilation (lancé par Husky avant chaque push)
+  # --- Serveur (NestJS, dossier server/) -----------------------------------
+
+  server:lint:
+    desc: Lint et formatage du serveur
     cmds:
-      - task: lint
-      - task: build
+      - task: lint:app
+        vars: { APP: server }
+
+  server:format:
+    desc: Formate le code du serveur
+    deps: [server:install]
+    dir: server
+    cmd: npm run format
+
+  server:build:
+    desc: Vérifie que le serveur compile (typecheck, sans toucher à server/dist)
+    # Typecheck sans écrire dans server/dist. Ce dossier est monté dans le
+    # conteneur de `task dev`, et `nest build` le vide (deleteOutDir) :
+    # l'API en cours d'exécution plantait sur « Cannot find module '/app/dist/main' ».
+    deps: [server:install]
+    dir: server
+    cmd: npm run typecheck
+
+  # --- Client web (React, dossier client/) ---------------------------------
+
+  client:lint:
+    desc: Lint et formatage du client
+    cmds:
+      - task: lint:app
+        vars: { APP: client }
+
+  client:format:
+    desc: Formate le code du client
+    deps: [client:install]
+    dir: client
+    cmd: npm run format
+
+  client:build:
+    desc: Vérifie que le client compile
+    cmds:
+      - task: build:app
+        vars: { APP: client }
 
   # --- Edge (Raspberry Pi, Python) -----------------------------------------
   # Pas dans setup ni check : seuls ceux qui travaillent sur edge/ ont besoin de Python.
