@@ -47,6 +47,12 @@ else
   warn "docker compose introuvable : nécessaire pour \`task dev\`"
 fi
 
+if command -v cloudflared >/dev/null 2>&1 || mise which cloudflared >/dev/null 2>&1; then
+  ok "cloudflared installé"
+else
+  warn "cloudflared introuvable : nécessaire pour \`task mobile:start\`, lancer \`mise install\`"
+fi
+
 [ "$QUIET" = 1 ] || echo "Projet"
 for app in server client; do
   if [ -d "$app/node_modules" ]; then ok "dépendances de $app/ installées"
