@@ -14,6 +14,7 @@ import {
   takeWhile,
 } from 'rxjs';
 import type { AuthContext } from '../auth/auth.guard.js';
+import { DeviceType } from '../entities/index.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { DeviceConnections } from './device-connections.js';
@@ -223,6 +224,17 @@ const launchedWhere = {
 const deviceBusy = () =>
   new ConflictException('Appareil déjà en capture dans une autre session');
 
+/** Clé révoquée ou pas encore relevée : le Pi ne peut pas se connecter. */
+const piWithoutKey = () =>
+  new ConflictException(
+    'Raspberry Pi sans clé : ajoutez-le de nouveau avec le code de son étiquette',
+  );
+
+const piOffline = () =>
+  new ConflictException(
+    'Raspberry Pi hors ligne : allumez-le ou vérifiez son réseau',
+  );
+
 @Injectable()
 export class AnalysisService {
   constructor(
@@ -238,7 +250,8 @@ export class AnalysisService {
     let deviceIds = dto.deviceIds;
     if (deviceIds) {
       for (const deviceId of deviceIds) {
-        await this.captureDevice(auth.userId, deviceId);
+        const device = await this.captureDevice(auth.userId, deviceId);
+        this.assertOnline(deviceId, device.type);
       }
     } else {
       // Par défaut, l'appareil qui fait la requête, s'il peut capturer.
@@ -462,6 +475,18 @@ export class AnalysisService {
         'Ajoutez un appareil avant de lancer la session',
       );
     }
+    // Clé révoquée depuis son ajout. Hors ligne, il est accepté : `ready`
+    // lui donne la session à son retour.
+    const withoutKey = await this.prisma.device.count({
+      where: {
+        id: { in: deviceIds },
+        type: DeviceType.Raspberry,
+        keyHash: null,
+      },
+    });
+    if (withoutKey > 0) {
+      throw piWithoutKey();
+    }
     await this.prisma.$transaction(async (tx) => {
       await this.assertFree(tx, id, deviceIds);
       await tx.analysisSession.update({
@@ -589,7 +614,8 @@ export class AnalysisService {
     deviceId: string,
   ): Promise<AnalysisSessionDetailDto> {
     const status = await this.openSession(userId, id);
-    await this.captureDevice(userId, deviceId);
+    const device = await this.captureDevice(userId, deviceId);
+    this.assertOnline(deviceId, device.type);
     const existing = await this.prisma.deviceSession.findUnique({
       where: {
         analysisSessionId_deviceId: { analysisSessionId: id, deviceId },
@@ -781,11 +807,17 @@ export class AnalysisService {
     return deviceId;
   }
 
-  /** Vérifie que l'appareil est à l'utilisateur et peut capturer. */
-  private async captureDevice(userId: string, deviceId: string): Promise<void> {
+  /**
+   * Vérifie que l'appareil est à l'utilisateur et peut capturer : un
+   * Raspberry Pi doit avoir une clé.
+   */
+  private async captureDevice(
+    userId: string,
+    deviceId: string,
+  ): Promise<{ type: string }> {
     const device = await this.prisma.device.findFirst({
       where: { id: deviceId, userId },
-      select: { captureEligible: true },
+      select: { type: true, captureEligible: true, keyHash: true },
     });
     if (!device) {
       throw new NotFoundException('Appareil introuvable');
@@ -794,6 +826,20 @@ export class AnalysisService {
       throw new BadRequestException(
         'Cet appareil ne peut pas envoyer de captures (navigateur web)',
       );
+    }
+    if (device.type === DeviceType.Raspberry && !device.keyHash) {
+      throw piWithoutKey();
+    }
+    return { type: device.type };
+  }
+
+  /** Un Raspberry Pi n'est ajouté à une session que connecté (WebSocket ouverte). */
+  private assertOnline(deviceId: string, type: string): void {
+    if (
+      type === DeviceType.Raspberry &&
+      !this.connections.isConnected(deviceId)
+    ) {
+      throw piOffline();
     }
   }
 

@@ -1,3 +1,5 @@
+import type { KeyStatus } from '@/utils/raspberry';
+
 /** setup : en préparation ; running : en cours ; paused : en pause ; ended : terminée. */
 export type SessionStatus = 'setup' | 'running' | 'paused' | 'ended';
 
@@ -159,4 +161,8 @@ export interface Device {
   current: boolean;
   /** Session lancée (en cours ou en pause) où il capture. */
   openSessionId: string | null;
+  /** Clé d'un Raspberry Pi ; null pour un autre appareil. */
+  keyStatus: KeyStatus;
+  /** Raspberry Pi connecté au serveur ; null pour un autre appareil. */
+  online: boolean | null;
 }

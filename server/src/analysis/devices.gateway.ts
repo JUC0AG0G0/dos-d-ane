@@ -1,15 +1,16 @@
 import type { IncomingMessage } from 'node:http';
-import { Logger, UseFilters } from '@nestjs/common';
+import { Logger, type OnModuleDestroy, UseFilters } from '@nestjs/common';
 import {
   ConnectedSocket,
   MessageBody,
   type OnGatewayConnection,
   type OnGatewayDisconnect,
+  type OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
   WsException,
 } from '@nestjs/websockets';
-import { WebSocket } from 'ws';
+import { WebSocket, type WebSocketServer } from 'ws';
 import type { AuthenticatedSocket } from '../auth/auth.guard.js';
 import { AuthService } from '../auth/auth.service.js';
 import { DeviceAllowed } from '../auth/decorators.js';
@@ -35,7 +36,18 @@ export const CloseCode = {
   InternalError: 1011,
 } as const;
 
-type DeviceSocket = AuthenticatedSocket & { deviceId?: string };
+/**
+ * Ping du serveur à chaque connexion (le Pi répond `pong` tout seul) : sans
+ * réponse au ping précédent, la connexion est coupée. Un Pi débranché sans
+ * fermer sa connexion passe ainsi hors ligne en 30 à 60 s.
+ */
+const HEARTBEAT_MS = 30_000;
+
+type DeviceSocket = AuthenticatedSocket & {
+  deviceId?: string;
+  /** A répondu au dernier ping. */
+  alive?: boolean;
+};
 
 /**
  * Connexion WebSocket ouverte par le Raspberry Pi (audit §7.2) : commandes
@@ -57,9 +69,14 @@ type DeviceSocket = AuthenticatedSocket & { deviceId?: string };
 // Toute la passerelle est faite pour le Pi : ouverte aux sessions d'appareil.
 @DeviceAllowed()
 export class DevicesGateway
-  implements OnGatewayConnection, OnGatewayDisconnect
+  implements
+    OnGatewayInit,
+    OnGatewayConnection,
+    OnGatewayDisconnect,
+    OnModuleDestroy
 {
   private readonly logger = new Logger(DevicesGateway.name);
+  private heartbeat?: NodeJS.Timeout;
 
   constructor(
     private readonly auth: AuthService,
@@ -68,7 +85,38 @@ export class DevicesGateway
     private readonly liveStates: LiveStates,
   ) {}
 
+  afterInit(server: WebSocketServer) {
+    this.heartbeat = setInterval(() => {
+      for (const client of server.clients as Set<DeviceSocket>) {
+        if (client.alive === false) {
+          // Pas de pong : fermée sans attendre, handleDisconnect suit.
+          this.logger.warn(`Sans réponse au ping : ${client.deviceId ?? '?'}`);
+          client.terminate();
+          continue;
+        }
+        client.alive = false;
+        client.ping();
+      }
+    }, HEARTBEAT_MS);
+  }
+
+  onModuleDestroy() {
+    clearInterval(this.heartbeat);
+  }
+
   async handleConnection(client: DeviceSocket, request: IncomingMessage) {
+    client.alive = true;
+    client.on('pong', () => {
+      client.alive = true;
+      // Connecté = session active : sans ça, elle expire au bout d'1 h sans requête.
+      if (client.auth) {
+        this.auth
+          .extendSession(client.auth.sessionId)
+          .catch((err: unknown) =>
+            this.logger.error('Échec de la prolongation de session', err),
+          );
+      }
+    });
     // Une promesse rejetée ici arrêterait le serveur : tout passe par le catch.
     try {
       const [scheme, token] = request.headers.authorization?.split(' ') ?? [];

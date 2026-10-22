@@ -12,7 +12,9 @@ import {
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useApi } from '@/hooks/useApi';
+import { usePolling } from '@/hooks/usePolling';
 import { cn } from '@/utils/cn';
+import { piState } from '@/utils/raspberry';
 import { useAction } from '../../hooks/useAction';
 import { sessionsService } from '../../services/sessions.service';
 import type { SessionDetail } from '../../types/sessions.types';
@@ -40,6 +42,7 @@ export function AddDeviceDialog({
     () => (open ? sessionsService.devices() : Promise.resolve(null)),
     [open],
   );
+  usePolling(devices.reload, 15_000, open);
   const others = useApi(
     () => (open ? sessionsService.list('open') : Promise.resolve(null)),
     [open],
@@ -104,7 +107,9 @@ export function AddDeviceDialog({
               const removed = inSession.get(device.id)?.leftAt;
               const busyElsewhere =
                 device.openSessionId && device.openSessionId !== session.id;
-              const disabled = !!busyElsewhere;
+              const pi = piState(device);
+              const unusable = pi && !pi.usable ? pi : null;
+              const disabled = !!busyElsewhere || !!unusable;
               const inputId = `add-${device.id}`;
               return (
                 <label
@@ -127,16 +132,21 @@ export function AddDeviceDialog({
                   <div className="grid min-w-0 flex-1 gap-1 text-sm">
                     <p className="flex flex-wrap items-center gap-2 font-medium">
                       {device.name}
-                      {busyElsewhere && (
+                      {unusable ? (
+                        <Badge variant="outline">{unusable.label}</Badge>
+                      ) : busyElsewhere ? (
                         <Badge variant="outline">
                           {otherSession(device.openSessionId!)}
                         </Badge>
+                      ) : (
+                        pi && <Badge variant={pi.variant}>{pi.label}</Badge>
                       )}
                     </p>
                     <p className="text-muted-foreground">
-                      {removed
-                        ? `Retiré à ${formatTime(removed)} · peut revenir dans la session`
-                        : (device.model ?? 'Prêt à capturer')}
+                      {unusable?.hint ??
+                        (removed
+                          ? `Retiré à ${formatTime(removed)} · peut revenir dans la session`
+                          : (device.model ?? 'Prêt à capturer'))}
                     </p>
                   </div>
                 </label>
