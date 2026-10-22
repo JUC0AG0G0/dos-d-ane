@@ -138,7 +138,8 @@ tasks:
     deps: [mobile:build]
     dir: mobile
     interactive: true
-    cmd: npm run demarrer -- {{.CLI_ARGS}}
+    # mise exec installe cloudflared (mise.toml) s'il manque, et le met dans le PATH.
+    cmd: mise exec -- npm run demarrer -- {{.CLI_ARGS}}
 
   mobile:test:
     desc: Tests de l'app mobile (angles, seuils, messages, statistiques, test des postures)

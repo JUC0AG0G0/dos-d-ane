@@ -47,6 +47,15 @@ else
   warn "docker compose introuvable : nécessaire pour \`task dev\`"
 fi
 
+# Seulement pour `task mobile:start` : un avertissement suffit.
+CLOUDFLARED=$(command -v cloudflared || mise which cloudflared 2>/dev/null)
+CLOUDFLARED_VERSION=$("${CLOUDFLARED:-cloudflared}" --version 2>/dev/null | grep -oE '[0-9]+(\.[0-9]+)+' | head -n 1)
+case "$CLOUDFLARED_VERSION" in
+  "$(expected cloudflared)") ok "cloudflared $CLOUDFLARED_VERSION" ;;
+  "") warn "cloudflared introuvable (attendu $(expected cloudflared)) : nécessaire pour \`task mobile:start\`, lancer \`mise install\`" ;;
+  *) warn "cloudflared $CLOUDFLARED_VERSION au lieu de $(expected cloudflared) : lancer \`mise install\`" ;;
+esac
+
 [ "$QUIET" = 1 ] || echo "Projet"
 for app in server client; do
   if [ -d "$app/node_modules" ]; then ok "dépendances de $app/ installées"
