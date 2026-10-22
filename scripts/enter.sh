@@ -5,7 +5,7 @@
 cd "$(dirname "$0")/.." || exit 0
 
 if [ -n "$(mise ls --missing 2>/dev/null)" ]; then
-  echo "dos-d-ane : installation des outils (Node, Python, Task), la première fois prend une minute..."
+  echo "dos-d-ane : installation des outils (Node, Python, Task, cloudflared), la première fois prend une minute..."
   mise install || echo "dos-d-ane : mise install a échoué (réseau ?), relancer \`mise install\`"
 fi
 

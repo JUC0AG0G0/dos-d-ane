@@ -42,10 +42,9 @@ function arreter(message: string): never {
 
 tunnel.on('error', () =>
   arreter(
-    'cloudflared introuvable. Installation (binaire unique, sans compte) :\n' +
-      '  mkdir -p ~/.local/bin && wget -O ~/.local/bin/cloudflared ' +
-      'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 ' +
-      '&& chmod +x ~/.local/bin/cloudflared',
+    'cloudflared introuvable. Il est installé par mise (mise.toml) : lancer depuis la racine\n' +
+      '  task mobile:start\n' +
+      'ou, avec npm run demarrer, installer les outils avant : mise install',
   ),
 );
 
