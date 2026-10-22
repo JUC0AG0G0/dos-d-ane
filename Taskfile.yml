@@ -69,7 +69,7 @@ tasks:
       - task: server:build
       - task: client:build
 
-  lint:app:
+  app:lint:
     internal: true
     deps: [install]
     dir: "{{.APP}}"
@@ -77,7 +77,7 @@ tasks:
       - npm run lint
       - npm run format:check
 
-  build:app:
+  app:build:
     internal: true
     deps: [install]
     dir: "{{.APP}}"
@@ -88,7 +88,7 @@ tasks:
   server:lint:
     desc: Lint et formatage du serveur
     cmds:
-      - task: lint:app
+      - task: app:lint
         vars: { APP: server }
 
   server:format:
@@ -111,7 +111,7 @@ tasks:
   client:lint:
     desc: Lint et formatage du client
     cmds:
-      - task: lint:app
+      - task: app:lint
         vars: { APP: client }
 
   client:format:
@@ -123,7 +123,7 @@ tasks:
   client:build:
     desc: Vérifie que le client compile
     cmds:
-      - task: build:app
+      - task: app:build
         vars: { APP: client }
 
   # --- Edge (Raspberry Pi, Python) -----------------------------------------
