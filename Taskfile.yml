@@ -2,7 +2,7 @@
 #   task setup            # dépendances, hooks Git, .env (automatique avec mise)
 #   task check            # lint + compilation (lancé par Husky avant push)
 #   task dev              # stack Docker de dev
-#   task test:edge        # tests de l'algorithme de posture (edge/, Python)
+#   task edge:test        # tests de l'algorithme de posture (edge/, Python)
 #   task mobile:start     # app mobile Expo (mobile/)
 version: "3"
 
@@ -25,15 +25,15 @@ tasks:
 
   install:
     desc: Installe les dépendances du serveur et du client (seulement si un lockfile a changé)
-    deps: [install:server, install:client]
+    deps: [server:install, client:install]
 
-  install:server:
+  server:install:
     dir: server
     cmd: npm ci --no-audit --no-fund
     sources: [package.json, package-lock.json]
     generates: [node_modules/.package-lock.json]
 
-  install:client:
+  client:install:
     dir: client
     cmd: npm ci --no-audit --no-fund
     sources: [package.json, package-lock.json]
@@ -78,7 +78,7 @@ tasks:
       # dans le conteneur de `task dev`, et `nest build` le vide
       # (deleteOutDir) : l'API en cours d'exécution plantait sur
       # « Cannot find module '/app/dist/main' ».
-      - task: typecheck:server
+      - task: server:typecheck
       - task: build:app
         vars: { APP: client }
 
@@ -90,7 +90,7 @@ tasks:
       - npm run lint
       - npm run format:check
 
-  typecheck:server:
+  server:typecheck:
     internal: true
     deps: [install]
     dir: server
@@ -111,7 +111,7 @@ tasks:
   # --- Edge (Raspberry Pi, Python) -----------------------------------------
   # Pas dans setup ni check : seuls ceux qui travaillent sur edge/ ont besoin de Python.
 
-  install:edge:
+  edge:install:
     desc: Crée edge/.venv avec l'algorithme et pytest (sans webcam ni modèle)
     dir: edge
     cmds:
@@ -120,16 +120,16 @@ tasks:
     sources: [pyproject.toml]
     generates: [.venv/bin/pytest]
 
-  test:edge:
+  edge:test:
     desc: Tests unitaires de l'algorithme de posture (edge/tests)
-    deps: [install:edge]
+    deps: [edge:install]
     dir: edge
     cmd: .venv/bin/python -m pytest -q
 
   # --- Mobile (Expo, dossier mobile/) ---------------------------------------
   # Pas dans setup ni check : seuls ceux qui travaillent sur mobile/ en ont besoin.
 
-  install:mobile:
+  mobile:install:
     desc: Installe les dépendances de l'app mobile (seulement si le lockfile a changé)
     dir: mobile
     cmd: npm ci --no-audit --no-fund
@@ -138,7 +138,7 @@ tasks:
 
   mobile:build:
     desc: Compile la page d'analyse de la caméra (mobile/src/features/analysis/*.ts -> public/pose.js)
-    deps: [install:mobile]
+    deps: [mobile:install]
     dir: mobile
     cmd: npm run build:page
 
@@ -152,13 +152,13 @@ tasks:
 
   mobile:test:
     desc: Tests de l'app mobile (angles, seuils, messages, statistiques, test des postures)
-    deps: [install:mobile]
+    deps: [mobile:install]
     dir: mobile
     cmd: npm test
 
   mobile:check:
     desc: Typecheck, lint, tests et page d'analyse à jour de l'app mobile (lancé par la CI)
-    deps: [install:mobile]
+    deps: [mobile:install]
     dir: mobile
     cmds:
       - npm run typecheck

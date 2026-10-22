@@ -25,7 +25,7 @@ Documentation de référence : `docs/poc-raspberry.md` (plan, installation, briq
 - Seuls `posture/camera.py` et `posture/movenet.py` importent OpenCV et LiteRT, et `posture/serveur.py` importe `websockets` seulement dans `ouvrir()` : les autres modules ne dépendent que de NumPy, pour que les tests tournent sur un PC sans webcam.
 - Liaison serveur : configuration dans `edge/.env` (jamais commité), mot de passe et jeton jamais affichés ni écrits dans les logs.
 - Les outils de mesure se lancent depuis `edge/` : `python -m outils.t2_camera --court`.
-- **Tests unitaires** : `python -m pytest` depuis `edge/` (après `pip install -e ".[dev]"`, ou `task test:edge` depuis la racine avec mise ; la CI les lance à chaque PR). Les lancer après toute modification de `posture/`, et ajouter un test pour chaque nouvelle règle ou bug corrigé.
+- **Tests unitaires** : `python -m pytest` depuis `edge/` (après `pip install -e ".[dev]"`, ou `task edge:test` depuis la racine avec mise ; la CI les lance à chaque PR). Les lancer après toute modification de `posture/`, et ajouter un test pour chaque nouvelle règle ou bug corrigé.
 - Règles d'alerte, seuils fixes `SEUILS` vérifiés sur 4 volontaires (T5) : tête en avant (tête < 50°), dos penché (tronc > 20°), cou penché (nez > 42° sous l'oreille, 2 personnes), allongé dans la chaise (tronc < −30°). Tête en avant et cou penché donnent une seule alerte, « Tête en avant ou baissée » (`poc.py`, `REGROUPEMENT`). Les autres seuils (écart des épaules 0,35, 70 %, 40 %, 1 min…) sont des **valeurs de départ** à ajuster par les tests ; tous seront à terme envoyés par le serveur.
 
 ## Conventions de code
