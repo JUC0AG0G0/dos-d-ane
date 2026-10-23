@@ -71,7 +71,7 @@ tasks:
 
   app:lint:
     internal: true
-    deps: [install]
+    deps: [{ task: "{{.APP}}:install" }]
     dir: "{{.APP}}"
     cmds:
       - npm run lint
@@ -79,7 +79,7 @@ tasks:
 
   app:build:
     internal: true
-    deps: [install]
+    deps: [{ task: "{{.APP}}:install" }]
     dir: "{{.APP}}"
     cmd: npm run build
 
@@ -106,6 +106,12 @@ tasks:
     dir: server
     cmd: npm run typecheck
 
+  server:check:
+    desc: Lint + typecheck du serveur (lancé par la CI quand server/ change)
+    cmds:
+      - task: server:lint
+      - task: server:build
+
   # --- Client web (React, dossier client/) ---------------------------------
 
   client:lint:
@@ -125,6 +131,12 @@ tasks:
     cmds:
       - task: app:build
         vars: { APP: client }
+
+  client:check:
+    desc: Lint + compilation du client (lancé par la CI quand client/ change)
+    cmds:
+      - task: client:lint
+      - task: client:build
 
   # --- Edge (Raspberry Pi, Python) -----------------------------------------
   # Pas dans setup ni check : seuls ceux qui travaillent sur edge/ ont besoin de Python.
