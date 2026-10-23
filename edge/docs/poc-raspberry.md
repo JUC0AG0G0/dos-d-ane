@@ -486,7 +486,7 @@ Le code est dans le paquet `posture/` (il n'est pas recopié ici, pour ne pas av
 
 **Mode rapide pour les tests** (`python poc.py --rapide`) : fenêtre de 10 s, confirmation de 10 s, anti-rafale de 1 min, « Levez-vous » après 1 min (pause de 15 s), pour ne pas attendre des minutes.
 
-**Tests unitaires** (`python -m pytest` depuis `edge/`, sur le PC ou le Pi, après `pip install -e ".[dev]"` ; `task test:edge` depuis la racine avec mise ; job `edge` de la CI à chaque PR) : 84 tests dans `tests/` vérifient chaque règle d'[algo-posture.md](algo-posture.md) avec des points synthétiques, sans webcam ni modèle : angles et sens du regard, images ignorées, côté stable, point complété, seuils, bocal (70 % pendant 2 min, fin sous 40 %, regroupement, changement de nom, anti-rafale, fenêtre vide), temps assis, score. À relancer après chaque modification de `posture/`.
+**Tests unitaires** (`python -m pytest` depuis `edge/`, sur le PC ou le Pi, après `pip install -e ".[dev]"` ; `task edge:test` depuis la racine avec mise ; job `edge` de la CI à chaque PR) : 84 tests dans `tests/` vérifient chaque règle d'[algo-posture.md](algo-posture.md) avec des points synthétiques, sans webcam ni modèle : angles et sens du regard, images ignorées, côté stable, point complété, seuils, bocal (70 % pendant 2 min, fin sous 40 %, regroupement, changement de nom, anti-rafale, fenêtre vide), temps assis, score. À relancer après chaque modification de `posture/`.
 
 ### 5.4 Ce qui est enregistré pendant le POC
 

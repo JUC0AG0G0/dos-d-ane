@@ -78,7 +78,7 @@ Le rechargement à chaud est toujours actif : chaque modification de `client/src
 | `task down` | arrête tout ; les données sont gardées pour le prochain `task dev` |
 | `task clean` | arrête tout et **supprime** les données (demande confirmation) |
 | `task check` | lint + compilation (lancé aussi avant chaque commit et push) |
-| `task test:edge` | tests de l'algorithme de posture du Raspberry Pi (`edge/`, Python, sans webcam) |
+| `task edge:test` | tests de l'algorithme de posture du Raspberry Pi (`edge/`, Python, sans webcam) |
 | `task db:generate` | crée une migration depuis `server/prisma/schema.prisma`, sans l'appliquer |
 | `task db:migrate` | applique les migrations pas encore appliquées |
 | `task db:dump` | exporte la base dans `dumps/<date>.sql` et les médias dans `dumps/<date>.media.tar.gz` (ignorés par Git, à ne pas partager) |

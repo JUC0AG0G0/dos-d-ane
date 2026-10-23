@@ -32,9 +32,9 @@ Le client est sur http://localhost:5173 (port `CLIENT_PORT` de `.env.dev`). Chaq
 Avant de committer (Husky le fait aussi) :
 
 ```bash
-task lint       # ESLint + Prettier (serveur et client)
-task format     # corrige le formatage
-task build      # vérifie que tout compile
+task client:lint     # ESLint + Prettier
+task client:format   # corrige le formatage
+task client:build    # vérifie que le client compile
 ```
 
 **Ajouter une dépendance** : `npm install <paquet> --prefix client` depuis la racine, puis relancer `task dev` (le conteneur réinstalle les dépendances au démarrage).
@@ -192,7 +192,7 @@ Le front appelle toujours `/api/...` sur sa propre adresse. En dev, Vite relaie 
 npx shadcn@latest add select
 ```
 
-Le composant arrive dans `src/components/ui/` avec les bons imports (voir `components.json`). Lancer ensuite `task format`.
+Le composant arrive dans `src/components/ui/` avec les bons imports (voir `components.json`). Lancer ensuite `task client:format`.
 
 **Ajouter une couleur** : la déclarer dans `:root` et dans `@theme inline` de `styles/global.css`, puis l'ajouter à la liste de `pages/HomePage.tsx`.
 

@@ -34,7 +34,7 @@ python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/python -m pytest
 ```
 
-Avec mise (comme le reste de l'équipe), depuis la racine du dépôt : `task test:edge`. La CI lance ces tests à chaque PR (job `edge`).
+Avec mise (comme le reste de l'équipe), depuis la racine du dépôt : `task edge:test`. La CI lance ces tests à chaque PR (job `edge`).
 
 ## Organisation
 
